@@ -857,6 +857,7 @@ ALTER TABLE skill_rel_course ADD CONSTRAINT FK_E7CEC7FA613FECDF FOREIGN KEY (ses
         'show_reporting_icon' => true,
         'hide_lp_arrow_navigation' => false,
         'show_toolbar_by_default' => false,
+        'navigation_in_the_middle' => false,
     ],
 ];*/
 
@@ -947,7 +948,8 @@ VALUES (2, 13, 'session_courses_read_only_mode', 'Lock Course In Session', 1, 1,
 // $_configuration['show_pending_survey_in_menu'] = false;
 
 // GDPR: European's General Data Protection Rules activation option
-// Set to true to disable the new personal data page inside the social network menu
+// Set to true to disable the new personal data page inside the social network
+// menu
 // $_configuration['disable_gdpr'] = true;
 
 // GDPR requires users to be informed of the Data Protection Officer name and
@@ -977,6 +979,10 @@ VALUES (2, 13, 'session_courses_read_only_mode', 'Lock Course In Session', 1, 1,
         ],
     ],
 ];*/
+
+// Make GDPR terms public (useful when using the platform for anonymous survey
+// invitations where users can leave personal info).
+// $_configuration['gdpr_terms_public'] = false;
 
 // Hide LP item prerequisite label in the LP view
 //$_configuration['hide_accessibility_label_on_lp_item'] = true;
@@ -1101,7 +1107,9 @@ $_configuration['profile_fields_visibility'] = [
 // ALTER TABLE c_lp ADD accumulate_work_time INT NOT NULL;
 // CREATE TABLE track_e_access_complete (id int(11) NOT NULL AUTO_INCREMENT, user_id int(11) NOT NULL, date_reg datetime NOT NULL, tool varchar(255) NOT NULL,  tool_id int(11) NOT NULL,   tool_id_detail int(11) NOT NULL,  action varchar(255) NOT NULL,   action_details varchar(255) NOT NULL, current_id int(11) NOT NULL,  ip_user varchar(255) NOT NULL,  user_agent varchar(255) NOT NULL,   session_id int(11) NOT NULL,   c_id int(11) NOT NULL,   ch_sid varchar(255) NOT NULL,   login_as int(11) NOT NULL,   info longtext NOT NULL,   url text NOT NULL,   PRIMARY KEY (id) ) ENGINE=InnoDB AUTO_INCREMENT=13989 DEFAULT CHARSET=utf8;
 // CREATE INDEX user_course_session ON track_e_access_complete (user_id, c_id, session_id);
-// Only applied for courses with extra field "new_tracking_system" to "1"
+// Add course checkbox extra field "new_tracking_system"
+// Add session checkbox extra field "new_tracking_system"
+// Only applied for courses/sessions with extra field "new_tracking_system" to "1"
 //$_configuration['lp_minimum_time'] = false;
 
 // Track LP attempts using the new tracking system.
@@ -1308,9 +1316,7 @@ requires extension "php-soap"  sudo apt-get install php-soap
 //$_configuration['allow_online_users_by_status'] = ['status' =>  [1, 5]];
 
 // Allow add one column by each user extra field indicated to the Gradebook Flatview for each user.
-/*$_configuration['gradebook_flatview_extrafields_columns'] = [
-    'variables' => [],
-];*/
+// $_configuration['gradebook_flatview_extrafields_columns'] = ['variables' => []];
 
 // Show hidden exercises that were added to a LP in the exercise list
 // $_configuration['show_hidden_exercise_added_to_lp'] = true;
@@ -1374,6 +1380,7 @@ ALTER TABLE notification_event ADD COLUMN event_id INT NULL;
 
 // Enable learning paths with only one SCO item to use the score returned by
 // the SCO as an indicator of progress of the whole learning path
+// Before enabling, make sure you added an LP extra field of type int, called use_score_as_progress
 // $_configuration['lp_score_as_progress_enable'] = false;
 
 // Use this link as the "Forgot password?" link instead of the default. This setting should be transformed into a hook for plugins at a later time
@@ -1382,8 +1389,35 @@ ALTER TABLE notification_event ADD COLUMN event_id INT NULL;
 // In Scorm comunication use the username instead of the user_id
 //$_configuration['scorm_api_username_as_student_id'] = false;
 
+// In Scorm comunication use a specific extra field instead of the user_id
+//$_configuration['scorm_api_extrafield_to_use_as_student_id'] = "";
+
 // Show online user only to Administrators
 //$_configuration['whoisonline_only_for_admin'] = false;
+
+// Prevent going back to previous questions
+// ALTER TABLE c_quiz ADD COLUMN prevent_backwards INT DEFAULT 0;
+//$_configuration['quiz_prevent_backwards_move'] = false;
+
+// Allow third party plugins to be uploaded through a form in the plugins section
+//$_configuration['plugin_upload_enable'] = false;
+
+// ALTER TABLE session ADD COLUMN status INT DEFAULT 0;
+// $_configuration['allow_session_status'] = false;
+
+// Set the default tab in the admin session list. Values: all, close, active, custom.
+//$_configuration['default_session_list_view'] = 'all';
+
+// Search user by extra field in the user list.
+//$_configuration['user_search_on_extra_fields'] = ['extra_fields' = > ['variable1', 'variable2']];
+
+// user subscription to a session rather than to a base course
+// user session is created at first subscription
+//$_configuration['catalog_course_subscription_in_user_s_session'] = false;
+// user session duration in days - after the session end date, more subscriptions are prevented
+//$_configuration['user_s_session_duration'] = 3*365;
+// id of the admin to attach user session
+//$_configuration['session_automatic_creation_user_id'] = 1;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes

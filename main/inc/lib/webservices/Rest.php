@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CoreBundle\Entity\Course;
@@ -36,6 +37,7 @@ class Rest extends WebService
     const GET_COURSE_FORUM_THREAD = 'course_forumthread';
     const GET_COURSE_LEARNPATHS = 'course_learnpaths';
     const GET_COURSE_LEARNPATH = 'course_learnpath';
+    const GET_COURSE_LP_PROGRESS = 'course_lp_progress';
     const SAVE_FORUM_POST = 'save_forum_post';
     const GET_USER_SESSIONS = 'user_sessions';
     const SAVE_USER_MESSAGE = 'save_user_message';
@@ -68,6 +70,7 @@ class Rest extends WebService
      * @var Session
      */
     private $session;
+
     /**
      * @var Course
      */
@@ -82,56 +85,6 @@ class Rest extends WebService
     public function __construct($username, $apiKey)
     {
         parent::__construct($username, $apiKey);
-    }
-
-    /**
-     * Set the current course.
-     *
-     * @param int $id
-     *
-     * @throws Exception
-     */
-    public function setCourse($id)
-    {
-        if (!$id) {
-            $this->course = null;
-
-            return;
-        }
-
-        $em = Database::getManager();
-        /** @var Course $course */
-        $course = $em->find('ChamiloCoreBundle:Course', $id);
-
-        if (!$course) {
-            throw new Exception(get_lang('NoCourse'));
-        }
-
-        $this->course = $course;
-    }
-
-    /** Set the current session
-     * @param int $id
-     *
-     * @throws Exception
-     */
-    public function setSession($id)
-    {
-        if (!$id) {
-            $this->session = null;
-
-            return;
-        }
-
-        $em = Database::getManager();
-        /** @var Session $session */
-        $session = $em->find('ChamiloCoreBundle:Session', $id);
-
-        if (!$session) {
-            throw new Exception(get_lang('NoSession'));
-        }
-
-        $this->session = $session;
     }
 
     /**
@@ -162,12 +115,75 @@ class Rest extends WebService
         $fieldInfo = $extraField->get_handler_field_info_by_field_variable(self::EXTRA_FIELD_GCM_REGISTRATION);
 
         if (empty($fieldInfo)) {
-            $extraField->save([
-                'variable' => self::EXTRA_FIELD_GCM_REGISTRATION,
-                'field_type' => ExtraField::FIELD_TYPE_TEXT,
-                'display_text' => self::EXTRA_FIELD_GCM_REGISTRATION,
-            ]);
+            $extraField->save(
+                [
+                    'variable' => self::EXTRA_FIELD_GCM_REGISTRATION,
+                    'field_type' => ExtraField::FIELD_TYPE_TEXT,
+                    'display_text' => self::EXTRA_FIELD_GCM_REGISTRATION,
+                ]
+            );
         }
+    }
+
+    /**
+     * @param string $encoded
+     *
+     * @return array
+     */
+    public static function decodeParams($encoded)
+    {
+        return json_decode($encoded);
+    }
+
+    /**
+     * Set the current course.
+     *
+     * @param int $id
+     *
+     * @throws Exception
+     */
+    public function setCourse($id)
+    {
+        if (!$id) {
+            $this->course = null;
+
+            return;
+        }
+
+        $em = Database::getManager();
+        /** @var Course $course */
+        $course = $em->find('ChamiloCoreBundle:Course', $id);
+
+        if (!$course) {
+            throw new Exception(get_lang('NoCourse'));
+        }
+
+        $this->course = $course;
+    }
+
+    /** Set the current session
+     *
+     * @param int $id
+     *
+     * @throws Exception
+     */
+    public function setSession($id)
+    {
+        if (!$id) {
+            $this->session = null;
+
+            return;
+        }
+
+        $em = Database::getManager();
+        /** @var Session $session */
+        $session = $em->find('ChamiloCoreBundle:Session', $id);
+
+        if (!$session) {
+            throw new Exception(get_lang('NoSession'));
+        }
+
+        $this->session = $session;
     }
 
     /**
@@ -180,11 +196,13 @@ class Rest extends WebService
         $registrationId = Security::remove_XSS($registrationId);
         $extraFieldValue = new ExtraFieldValue('user');
 
-        return $extraFieldValue->save([
-            'variable' => self::EXTRA_FIELD_GCM_REGISTRATION,
-            'value' => $registrationId,
-            'item_id' => $this->user->getId(),
-        ]);
+        return $extraFieldValue->save(
+            [
+                'variable' => self::EXTRA_FIELD_GCM_REGISTRATION,
+                'value' => $registrationId,
+                'item_id' => $this->user->getId(),
+            ]
+        );
     }
 
     /**
@@ -220,7 +238,7 @@ class Rest extends WebService
         return $messages;
     }
 
-     /**
+    /**
      * @return array
      */
     public function getUserReceivedMessages()
@@ -291,9 +309,9 @@ class Rest extends WebService
     /**
      * Get the user courses.
      *
-     * @throws \Doctrine\ORM\OptimisticLockException
      * @throws \Doctrine\ORM\TransactionRequiredException
      * @throws \Doctrine\ORM\ORMException
+     * @throws \Doctrine\ORM\OptimisticLockException
      *
      * @return array
      */
@@ -435,17 +453,19 @@ class Rest extends WebService
                     'type' => $document['filetype'],
                     'title' => $document['title'],
                     'path' => $document['path'],
-                    'url' => $webPath.http_build_query([
-                        'username' => $this->user->getUsername(),
-                        'api_key' => $this->apiKey,
-                        'cidReq' => $this->course->getCode(),
-                        'id_session' => $sessionId,
-                        'gidReq' => 0,
-                        'gradebook' => 0,
-                        'origin' => '',
-                        'action' => 'download',
-                        'id' => $document['id'],
-                    ]),
+                    'url' => $webPath.http_build_query(
+                        [
+                            'username' => $this->user->getUsername(),
+                            'api_key' => $this->apiKey,
+                            'cidReq' => $this->course->getCode(),
+                            'id_session' => $sessionId,
+                            'gidReq' => 0,
+                            'gradebook' => 0,
+                            'origin' => '',
+                            'action' => 'download',
+                            'id' => $document['id'],
+                        ]
+                    ),
                     'icon' => $icon,
                     'size' => format_file_size($document['size']),
                 ];
@@ -638,13 +658,14 @@ class Rest extends WebService
 
         foreach ($forumsFullData as $forumId => $forumInfo) {
             $forum = [
-                'id' => intval($forumInfo['iid']),
-                'catId' => intval($forumInfo['forum_category']),
+                'id' => (int) $forumInfo['iid'],
+                'catId' => (int) $forumInfo['forum_category'],
                 'title' => $forumInfo['forum_title'],
                 'description' => $forumInfo['forum_comment'],
                 'image' => $forumInfo['forum_image'] ? ($webCoursePath.$forumInfo['forum_image']) : '',
-                'numberOfThreads' =>
-                    isset($forumInfo['number_of_threads']) ? intval($forumInfo['number_of_threads']) : 0,
+                'numberOfThreads' => isset($forumInfo['number_of_threads']) ? intval(
+                    $forumInfo['number_of_threads']
+                ) : 0,
                 'lastPost' => null,
             ];
 
@@ -676,9 +697,9 @@ class Rest extends WebService
             );
 
             $categories[] = [
-                'id' => intval($category['iid']),
+                'id' => (int) $category['iid'],
                 'title' => $category['cat_title'],
-                'catId' => intval($category['cat_id']),
+                'catId' => (int) $category['cat_id'],
                 'description' => $category['cat_comment'],
                 'forums' => $categoryForums,
                 'courseId' => $this->course->getId(),
@@ -793,7 +814,6 @@ class Rest extends WebService
         foreach ($extraInfo as $extra) {
             /** @var ExtraFieldValues $extraValue */
             $extraValue = $extra['value'];
-
             $result['extra'][] = [
                 'title' => $extraValue->getField()->getDisplayText(true),
                 'value' => $extraValue->getValue(),
@@ -801,6 +821,19 @@ class Rest extends WebService
         }
 
         return $result;
+    }
+
+    public function getCourseLpProgress()
+    {
+        $sessionId = $this->session ? $this->session->getId() : 0;
+        $userId = $this->user->getId();
+
+        /*$sessionId = $this->session ? $this->session->getId() : 0;
+        $courseId = $this->course->getId();*/
+
+        $result = Tracking::getCourseLpProgress($userId, $sessionId);
+
+        return [$result];
     }
 
     /**
@@ -871,13 +904,13 @@ class Rest extends WebService
                         $startTime = api_strtotime($lpDetails['publicated_on'], 'UTC');
                         $endTime = api_strtotime($lpDetails['expired_on'], 'UTC');
                         $now = time();
-                        $isActivedTime = false;
+                        $isActiveTime = false;
 
                         if ($now > $startTime && $endTime > $now) {
-                            $isActivedTime = true;
+                            $isActiveTime = true;
                         }
 
-                        if (!$isActivedTime) {
+                        if (!$isActiveTime) {
                             continue;
                         }
                     }
@@ -888,15 +921,19 @@ class Rest extends WebService
                 $listData[] = [
                     'id' => $lpId,
                     'title' => Security::remove_XSS($lpDetails['lp_name']),
-                    'progress' => intval($progress),
-                    'url' => api_get_path(WEB_CODE_PATH).'webservices/api/v2.php?'.http_build_query([
-                        'hash' => $this->encodeParams([
-                            'action' => 'course_learnpath',
-                            'lp_id' => $lpId,
-                            'course' => $this->course->getId(),
-                            'session' => $sessionId,
-                        ]),
-                    ]),
+                    'progress' => $progress,
+                    'url' => api_get_path(WEB_CODE_PATH).'webservices/api/v2.php?'.http_build_query(
+                        [
+                            'hash' => $this->encodeParams(
+                                [
+                                    'action' => 'course_learnpath',
+                                    'lp_id' => $lpId,
+                                    'course' => $this->course->getId(),
+                                    'session' => $sessionId,
+                                ]
+                            ),
+                        ]
+                    ),
                 ];
             }
 
@@ -915,18 +952,6 @@ class Rest extends WebService
     }
 
     /**
-     * @param string $encoded
-     *
-     * @return array
-     */
-    public static function decodeParams($encoded)
-    {
-        $decoded = json_decode($encoded);
-
-        return $decoded;
-    }
-
-    /**
      * Start login for a user. Then make a redirect to show the learnpath.
      *
      * @param int $lpId
@@ -941,24 +966,25 @@ class Rest extends WebService
         ChamiloSession::write('_user', $loggedUser);
         Login::init_user($this->user->getId(), true);
 
-        $url = api_get_path(WEB_CODE_PATH).'lp/lp_controller.php?'.http_build_query([
-            'cidReq' => $this->course->getCode(),
-            'id_session' => $sessionId,
-            'gidReq' => 0,
-            'gradebook' => 0,
-            'origin' => '',
-            'action' => 'view',
-            'lp_id' => intval($lpId),
-            'isStudentView' => 'true',
-        ]);
+        $url = api_get_path(WEB_CODE_PATH).'lp/lp_controller.php?'.http_build_query(
+            [
+                'cidReq' => $this->course->getCode(),
+                'id_session' => $sessionId,
+                'gidReq' => 0,
+                'gradebook' => 0,
+                'origin' => '',
+                'action' => 'view',
+                'lp_id' => (int) $lpId,
+                'isStudentView' => 'true',
+            ]
+        );
 
         header("Location: $url");
         exit;
     }
 
     /**
-     * @param array $postValues
-     * @param int   $forumId
+     * @param int $forumId
      *
      * @return array
      */
@@ -1032,7 +1058,6 @@ class Rest extends WebService
     /**
      * @param string $subject
      * @param string $text
-     * @param array  $receivers
      *
      * @return array
      */
@@ -1101,8 +1126,7 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $values
-     * @param int   $forumId
+     * @param int $forumId
      *
      * @return array
      */
@@ -1121,8 +1145,6 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $params
-     *
      * @return array
      */
     public function getUsersCampus(array $params)
@@ -1147,8 +1169,6 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $params
-     *
      * @return array
      */
     public function getCoursesCampus(array $params)
@@ -1170,14 +1190,12 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $params
-     *
      * @return array
      */
     public function addSession(array $params)
     {
         $name = $params['name'];
-        $coach_username = intval($params['coach_username']);
+        $coach_username = (int) $params['coach_username'];
         $startDate = $params['access_start_date'];
         $endDate = $params['access_end_date'];
         $displayStartDate = $startDate;
@@ -1223,8 +1241,6 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $courseParam
-     *
      * @return array
      */
     public function addCourse(array $courseParam)
@@ -1268,21 +1284,21 @@ class Rest extends WebService
     }
 
     /**
-     * @param $user_param
+     * @param $userParam
      *
      * @throws Exception
      *
      * @return array
      */
-    public function addUser($user_param)
+    public function addUser($userParam)
     {
-        $orig_user_id_value = [];
-        $firstName = $user_param['firstname'];
-        $lastName = $user_param['lastname'];
-        $status = $user_param['status'];
-        $email = $user_param['email'];
-        $loginName = $user_param['loginname'];
-        $password = $user_param['password'];
+        $firstName = $userParam['firstname'];
+        $lastName = $userParam['lastname'];
+        $status = $userParam['status'];
+        $email = $userParam['email'];
+        $loginName = $userParam['loginname'];
+        $password = $userParam['password'];
+
         $official_code = '';
         $language = '';
         $phone = '';
@@ -1292,18 +1308,19 @@ class Rest extends WebService
         $active = 1;
         $hr_dept_id = 0;
         $extra = null;
-        $original_user_id_name = $user_param['original_user_id_name'];
-        $original_user_id_value = $user_param['original_user_id_value'];
-        $orig_user_id_value[] = $user_param['original_user_id_value'];
-        $extra_list = $user_param['extra'];
-        if (!empty($user_param['language'])) {
-            $language = $user_param['language'];
+
+        $original_user_id_name = $userParam['original_user_id_name'];
+        $original_user_id_value = $userParam['original_user_id_value'];
+
+        $extra_list = isset($userParam['extra']) ? $userParam['extra'] : [];
+        if (isset($userParam['language'])) {
+            $language = $userParam['language'];
         }
-        if (!empty($user_param['phone'])) {
-            $phone = $user_param['phone'];
+        if (isset($userParam['phone'])) {
+            $phone = $userParam['phone'];
         }
-        if (!empty($user_param['expiration_date'])) {
-            $expiration_date = $user_param['expiration_date'];
+        if (isset($userParam['expiration_date'])) {
+            $expiration_date = $userParam['expiration_date'];
         }
 
         // Default language.
@@ -1432,7 +1449,7 @@ class Rest extends WebService
     /**
      * Add Campus Virtual.
      *
-     * @param  array Params Campus
+     * @param array Params Campus
      *
      * @return array
      */
@@ -1467,7 +1484,7 @@ class Rest extends WebService
     /**
      * Edit Campus Virtual.
      *
-     * @param  array Params Campus
+     * @param array Params Campus
      *
      * @return array
      */
@@ -1500,7 +1517,7 @@ class Rest extends WebService
     /**
      * Delete Campus Virtual.
      *
-     * @param  array Params Campus
+     * @param array Params Campus
      *
      * @return array
      */
@@ -1523,8 +1540,6 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $params
-     *
      * @throws Exception
      *
      * @return array
@@ -1555,8 +1570,6 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $params
-     *
      * @return array
      */
     public function addUsersSession(array $params)
@@ -1582,39 +1595,20 @@ class Rest extends WebService
     }
 
     /**
-     * @param array $additionalParams Optional
-     *
-     * @return string
-     */
-    private function encodeParams(array $additionalParams = [])
-    {
-        $params = array_merge($additionalParams, [
-            'api_key' => $this->apiKey,
-            'username' => $this->user->getUsername(),
-        ]);
-        $encoded = json_encode($params);
-
-        return $encoded;
-    }
-
-    /**
-     * Creates a session from a model session
+     * Creates a session from a model session.
      *
      * @param $modelSessionId
      * @param $sessionName
      * @param $startDate
      * @param $endDate
-     * @param array $extraFields
-     * @return int, the id of the new session
+     *
      * @throws Exception
+     *
+     * @return int, the id of the new session
      */
     public function createSessionFromModel($modelSessionId, $sessionName, $startDate, $endDate, array $extraFields = [])
     {
-        if (empty($modelSessionId)
-            || empty($sessionName)
-            || empty($startDate)
-            || empty($endDate)
-        ) {
+        if (empty($modelSessionId) || empty($sessionName) || empty($startDate) || empty($endDate)) {
             throw new Exception(get_lang('NoData'));
         }
 
@@ -1624,6 +1618,7 @@ class Rest extends WebService
 
         $modelSession = SessionManager::fetch($modelSessionId);
 
+        $modelSession['accessUrlId'] = 1;
         if (api_is_multiple_url_enabled()) {
             if (api_get_current_access_url_id() != -1) {
                 $modelSession['accessUrlId'] = api_get_current_access_url_id();
@@ -1638,16 +1633,16 @@ class Rest extends WebService
             $endDate,
             $startDate,
             $endDate,
-            $modelSession['coachId'],
-            $modelSession['sessionCategoryId'],
+            $modelSession['id_coach'],
+            $modelSession['session_category_id'],
             $modelSession['visibility'],
             false,
             $modelSession['duration'],
             $modelSession['description'],
-            $modelSession['showDescription'],
+            $modelSession['show_description'],
             $extraFields,
-            $modelSession['sessionAdminId'],
-            $modelSession['sendSubscriptionNotification'],
+            $modelSession['session_admin_id'],
+            $modelSession['send_subscription_notification'],
             $modelSession['accessUrlId']
         );
 
@@ -1705,12 +1700,14 @@ class Rest extends WebService
     }
 
     /**
-     * subscribes a user to a session
+     * subscribes a user to a session.
      *
-     * @param int $sessionId the session id
+     * @param int    $sessionId the session id
      * @param string $loginName the user's login name
-     * @return boolean, whether it worked
+     *
      * @throws Exception
+     *
+     * @return boolean, whether it worked
      */
     public function subscribeUserToSessionFromUsername($sessionId, $loginName)
     {
@@ -1719,7 +1716,7 @@ class Rest extends WebService
         }
 
         $userId = UserManager::get_user_id_from_username($loginName);
-        if (False === $userId) {
+        if (false === $userId) {
             throw new Exception(get_lang('UserNotFound'));
         }
 
@@ -1727,7 +1724,8 @@ class Rest extends WebService
             $sessionId,
             [$userId],
             SESSION_VISIBLE_READ_ONLY,
-            false);
+            false
+        );
         if (!$subscribed) {
             throw new Exception(get_lang('UserNotSubscribed'));
         }
@@ -1736,19 +1734,26 @@ class Rest extends WebService
     }
 
     /**
-     * finds the session which has a specific value in a specific extra field
+     * finds the session which has a specific value in a specific extra field.
      *
      * @param $fieldName
      * @param $fieldValue
-     * @return int, the matching session id
+     *
      * @throws Exception when no session matched or more than one session matched
+     *
+     * @return int, the matching session id
      */
     public function getSessionFromExtraField($fieldName, $fieldValue)
     {
         // find sessions that that have value in field
         $valueModel = new ExtraFieldValue('session');
         $sessionIdList = $valueModel->get_item_id_from_field_variable_and_field_value(
-            $fieldName, $fieldValue, false, false, true);
+            $fieldName,
+            $fieldValue,
+            false,
+            false,
+            true
+        );
 
         // throw if none found
         if (empty($sessionIdList)) {
@@ -1765,11 +1770,13 @@ class Rest extends WebService
     }
 
     /**
-     * updates a user identified by its login name
+     * updates a user identified by its login name.
      *
      * @param array $parameters
-     * @return boolean, true on success
+     *
      * @throws Exception on failure
+     *
+     * @return boolean, true on success
      */
     public function updateUserFromUserName($parameters)
     {
@@ -1870,10 +1877,12 @@ class Rest extends WebService
                     $user->setRegistrationDate($value);
                     break;
                 case 'expiration_date':
-                    $user->setExpirationDate(new DateTime(
-                        api_get_utc_datetime($value),
-                        new DateTimeZone('UTC')
-                    ));
+                    $user->setExpirationDate(
+                        new DateTime(
+                            api_get_utc_datetime($value),
+                            new DateTimeZone('UTC')
+                        )
+                    );
                     break;
                 case 'active':
                     // see UserManager::update_user() usermanager.lib.php:1205
@@ -1900,8 +1909,7 @@ class Rest extends WebService
                                     $fieldValue = $field['field_value'];
                                     if (!isset($fieldName) || !isset($fieldValue) ||
                                         !UserManager::update_extra_field_value($userId, $fieldName, $fieldValue)) {
-                                        throw new Exception(
-                                            get_lang('CouldNotUpdateExtraFieldValue').': '.print_r($field, true));
+                                        throw new Exception(get_lang('CouldNotUpdateExtraFieldValue').': '.print_r($field, true));
                                     }
                                 }
                             } else {
@@ -1960,13 +1968,32 @@ class Rest extends WebService
     }
 
     /**
-     * Returns whether a user login name exists
+     * Returns whether a user login name exists.
      *
      * @param string $loginname the user login name
+     *
      * @return bool whether the user login name exists
      */
     public function usernameExist($loginname)
     {
         return false !== api_get_user_info_from_username($loginname);
+    }
+
+    /**
+     * @param array $additionalParams Optional
+     *
+     * @return string
+     */
+    private function encodeParams(array $additionalParams = [])
+    {
+        $params = array_merge(
+            $additionalParams,
+            [
+                'api_key' => $this->apiKey,
+                'username' => $this->user->getUsername(),
+            ]
+        );
+
+        return json_encode($params);
     }
 }

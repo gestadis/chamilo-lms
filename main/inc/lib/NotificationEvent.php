@@ -3,6 +3,8 @@
 
 class NotificationEvent extends Model
 {
+    const ACCOUNT_EXPIRATION = 1;
+    const JUSTIFICATION_EXPIRATION = 2;
     public $table;
     public $columns = [
         'id',
@@ -14,9 +16,6 @@ class NotificationEvent extends Model
         'event_type',
         'event_id',
     ];
-
-    const ACCOUNT_EXPIRATION = 1;
-    const JUSTIFICATION_EXPIRATION = 2;
     public $extraFieldName;
 
     /**
@@ -57,12 +56,12 @@ class NotificationEvent extends Model
                 $list = $plugin->getList();
                 $list = array_column($list, 'name', 'id');
                 $form->addSelect('event_id', get_lang('JustificationType'), $list);
+                $form->freeze('event_id');
+
                 break;
             default:
                 break;
         }
-        $form->freeze('event_id');
-
 
         $form->addText('title', get_lang('Title'));
         $form->addTextarea('content', get_lang('Content'));
@@ -156,7 +155,7 @@ class NotificationEvent extends Model
                             'content' => $event['content'],
                             'event_text' => get_lang('ExpirationDate').': '.api_get_local_time($userInfo['expiration_date']),
                             'link' => $event['link'],
-                            'persistent' => $event['persistent']
+                            'persistent' => $event['persistent'],
                         ];
                     }
                     break;
@@ -197,7 +196,7 @@ class NotificationEvent extends Model
                                     'content' => $event['content'],
                                     'event_text' => $eventText,
                                     'link' => $url,
-                                    'persistent' => $event['persistent']
+                                    'persistent' => $event['persistent'],
                                 ];
                             }
                         }

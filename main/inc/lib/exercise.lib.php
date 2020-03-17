@@ -1277,7 +1277,7 @@ HTML;
                                     $s .= "
                                         <script>
                                             $(function() {
-                                                jsPlumb.ready(function() {
+                                                $(window).on('load', function() {
                                                     jsPlumb.connect({
                                                         source: 'window_$windowId',
                                                         target: 'window_{$questionId}_{$selectedIndex}_answer',
@@ -2786,7 +2786,7 @@ HOTSPOT;
         $minNote = api_get_setting('exercise_min_score');
 
         if ($maxNote != '' && $minNote != '') {
-            if (!empty($weight) && intval($weight) != 0) {
+            if (!empty($weight) && (float) $weight !== 0) {
                 $score = $minNote + ($maxNote - $minNote) * $score / $weight;
             } else {
                 $score = $minNote;
@@ -2839,6 +2839,7 @@ HOTSPOT;
         $percentage = float_format($percentage, 1);
         $score = float_format($score, 1);
         $weight = float_format($weight, 1);
+
         if ($roundValues) {
             $whole = floor($percentage); // 1
             $fraction = $percentage - $whole; // .25
@@ -2877,6 +2878,7 @@ HOTSPOT;
             if ($hidePercentageSign) {
                 $percentageSign = '';
             }
+
             $html = $percentage."$percentageSign ($score / $weight)";
             if ($show_only_percentage) {
                 $html = $percentage.$percentageSign;
@@ -2891,9 +2893,10 @@ HOTSPOT;
             $html = $scoreBasedInModel;
         }
 
-        // Ignore other formats and use the configuratio['exercise_score_format'] value
+        // Ignore other formats and use the configuration['exercise_score_format'] value
         // But also keep the round values settings.
         $format = api_get_configuration_value('exercise_score_format');
+
         if (!empty($format)) {
             $html = ScoreDisplay::instance()->display_score([$score, $weight], $format);
         }
@@ -3000,8 +3003,7 @@ HOTSPOT;
     }
 
     /**
-     * @param FormValidator $form
-     * @param string        $name
+     * @param string $name
      * @param $weight
      * @param $selected
      *
@@ -3553,7 +3555,7 @@ EOT;
         $best_score = 0;
         if (!empty($user_results)) {
             foreach ($user_results as $result) {
-                if (!empty($result['exe_weighting']) && intval($result['exe_weighting']) != 0) {
+                if (!empty($result['exe_weighting']) && (float) $result['exe_weighting'] != 0) {
                     $score = $result['exe_result'] / $result['exe_weighting'];
                     if ($score >= $best_score) {
                         $best_score = $score;
@@ -4959,12 +4961,9 @@ EOT;
             ->getScalarResult();
 
         $data = [];
-
         /** @var TrackEExercises $item */
         foreach ($result as $item) {
-            $bestAttemp = self::get_best_attempt_by_user($item['exeUserId'], $exerciseId, $courseId, $sessionId = 0);
-
-            $data[] = $bestAttemp;
+            $data[] = self::get_best_attempt_by_user($item['exeUserId'], $exerciseId, $courseId, $sessionId = 0);
         }
 
         usort(
@@ -4985,7 +4984,6 @@ EOT;
         // flags to display the same position in case of tie
         $lastScore = $data[0]['exe_result'];
         $position = 1;
-
         $data = array_map(
             function ($item) use (&$lastScore, &$position) {
                 if ($item['exe_result'] < $lastScore) {
@@ -5062,11 +5060,10 @@ EOT;
     }
 
     /**
-     * @param Exercise $objExercise
-     * @param float    $score
-     * @param float    $weight
-     * @param bool     $checkPassPercentage
-     * @param int      $countPendingQuestions
+     * @param float $score
+     * @param float $weight
+     * @param bool  $checkPassPercentage
+     * @param int   $countPendingQuestions
      *
      * @return string
      */
@@ -5304,10 +5301,9 @@ EOT;
     }
 
     /**
-     * @param DateTime $time
-     * @param int      $userId
-     * @param int      $courseId
-     * @param int      $sessionId
+     * @param int $userId
+     * @param int $courseId
+     * @param int $sessionId
      *
      * @throws \Doctrine\ORM\Query\QueryException
      *
@@ -5414,12 +5410,11 @@ EOT;
      * Generate a certificate linked to current quiz and.
      * Return the HTML block with links to download and view the certificate.
      *
-     * @param float    $totalScore
-     * @param float    $totalWeight
-     * @param Exercise $objExercise
-     * @param int      $studentId
-     * @param string   $courseCode
-     * @param int      $sessionId
+     * @param float  $totalScore
+     * @param float  $totalWeight
+     * @param int    $studentId
+     * @param string $courseCode
+     * @param int    $sessionId
      *
      * @return string
      */

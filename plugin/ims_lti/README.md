@@ -1,7 +1,7 @@
 IMS/LTI plugin
 ===
 
-Version 1.5.1
+Version 1.7.0
 
 > This plugin is meant to be later integrated into Chamilo (in a major version
 release).
@@ -23,6 +23,13 @@ Settings tool. Then select a previously tool registered or register a new
 external tool.
 
 # Changelog
+
+## v1.7
+* Fix auth params
+* Add option to show LTI tool in iframe or new window.
+
+## v1.6
+* Add support to LTI 1.3 and Advantage Services
 
 ## v1.5
 * Plugin has passed the tests from the LTI Certification suite.
@@ -54,6 +61,57 @@ external tool.
 # Upgrading
 
 Run this changes on database:
+
+## To v1.7.0
+```sql
+ALTER TABLE plugin_ims_lti_tool ADD launch_presentation LONGTEXT NOT NULL COMMENT '(DC2Type:json)';
+```
+
+## To v1.6.0
+```sql
+CREATE TABLE plugin_ims_lti_platform (
+    id INT AUTO_INCREMENT NOT NULL,
+    kid VARCHAR(255) NOT NULL,
+    public_key LONGTEXT NOT NULL,
+    private_key LONGTEXT NOT NULL,
+    PRIMARY KEY(id)
+) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+CREATE TABLE plugin_ims_lti_token (
+    id INT AUTO_INCREMENT NOT NULL,
+    tool_id INT DEFAULT NULL,
+    scope LONGTEXT NOT NULL COMMENT '(DC2Type:json)',
+    hash VARCHAR(255) NOT NULL,
+    created_at INT NOT NULL,
+    expires_at INT NOT NULL,
+    INDEX IDX_F7B5692F8F7B22CC (tool_id),
+    PRIMARY KEY(id)
+) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+ALTER TABLE plugin_ims_lti_token
+    ADD CONSTRAINT FK_F7B5692F8F7B22CC FOREIGN KEY (tool_id) REFERENCES plugin_ims_lti_tool (id) ON DELETE CASCADE;
+ALTER TABLE plugin_ims_lti_tool
+    ADD client_id VARCHAR(255) DEFAULT NULL,
+    ADD public_key LONGTEXT DEFAULT NULL,
+    ADD login_url VARCHAR(255) DEFAULT NULL,
+    ADD redirect_url VARCHAR(255) DEFAULT NULL,
+    ADD advantage_services LONGTEXT DEFAULT NULL COMMENT '(DC2Type:json)',
+    ADD version VARCHAR(255) DEFAULT 'lti1p1' NOT NULL;
+CREATE TABLE plugin_ims_lti_lineitem (
+    id INT AUTO_INCREMENT NOT NULL,
+    tool_id INT NOT NULL,
+    evaluation INT NOT NULL,
+    resource_id VARCHAR(255) DEFAULT NULL,
+    tag VARCHAR(255) DEFAULT NULL,
+    start_date DATETIME DEFAULT NULL,
+    end_date DATETIME DEFAULT NULL,
+    INDEX IDX_BA81BBF08F7B22CC (tool_id),
+    UNIQUE INDEX UNIQ_BA81BBF01323A575 (evaluation),
+    PRIMARY KEY(id)
+) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+ALTER TABLE plugin_ims_lti_lineitem
+    ADD CONSTRAINT FK_BA81BBF08F7B22CC FOREIGN KEY (tool_id) REFERENCES plugin_ims_lti_tool (id) ON DELETE CASCADE;
+ALTER TABLE plugin_ims_lti_lineitem
+    ADD CONSTRAINT FK_BA81BBF01323A575 FOREIGN KEY (evaluation) REFERENCES gradebook_evaluation (id) ON DELETE CASCADE;
+```
 
 ## To v1.5.1
 ```sql
