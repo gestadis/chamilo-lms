@@ -28,7 +28,7 @@ $authRequest = new AuthnRequest($settings);
 $samlRequest = $authRequest->getRequest();
 $idpData = $settings->getIdPData();
 
-if (isset($_GET['email'])) {
+if (isset($_GET['email']) || isset($_GET['email_bis'])) {
     $auth->login();
 // If AuthNRequest ID need to be saved in order to later validate it, do instead
     /*$ssoBuiltUrl = $auth->login(null, [], false, false, true);
@@ -38,37 +38,12 @@ if (isset($_GET['email'])) {
     header('Location: ' . $ssoBuiltUrl);
     exit();*/
 } elseif (isset($_GET['slo'])) {
-    /*
-    if (isset($idpData['singleLogoutService']) && isset($idpData['singleLogoutService']['url'])) {
-        $sloUrl = $idpData['singleLogoutService']['url'];
-    } else {
-        throw new Exception("The IdP does not support Single Log Out");
-    }
-
-    if (isset($_SESSION['samlSessionIndex']) && !empty($_SESSION['samlSessionIndex'])) {
-        $logoutRequest = new \OneLogin\Saml2\LogoutRequest($settings, null, $_SESSION['samlSessionIndex']);
-    } else {
-        $logoutRequest = new \OneLogin\Saml2\LogoutRequest($settings);
-    }
-    $samlRequest = $logoutRequest->getRequest();
-    $parameters = array('SAMLRequest' => $samlRequest);
-    $url = \OneLogin\Saml2\Utils::redirect($sloUrl, $parameters, true);
-    header("Location: $url");
-    exit;*/
     $returnTo = null;
     $parameters = [];
     $nameId = Session::read('samlNameId');
     $sessionIndex = Session::read('samlSessionIndex');
     $nameIdFormat = Session::read('samlNameIdFormat');
     $auth->logout($returnTo, $parameters, $nameId, $sessionIndex, false, $nameIdFormat);
-
-// If LogoutRequest ID need to be saved in order to later validate it, do instead
-    // $sloBuiltUrl = $auth->logout(null, [], $nameId, $sessionIndex, true);
-    /*$_SESSION['LogoutRequestID'] = $auth->getLastRequestID();
-    header('Pragma: no-cache');
-    header('Cache-Control: no-cache, must-revalidate');
-    header('Location: ' . $sloBuiltUrl);
-    exit();*/
 } elseif (isset($_GET['acs'])) {
     $requestID = Session::read('AuthNRequestID');
     $auth->processResponse($requestID);
@@ -84,6 +59,32 @@ if (isset($_GET['email'])) {
 
     $attributes = $auth->getAttributes();
 
+    $valueList = [];
+    $attributeNameList = [
+        'email',
+        'username',
+        'firstname',
+        'lastname1',
+        'lastname2',
+    ];
+
+    // Check normal params
+    foreach ($attributeNameList as $name) {
+        if (isset($attributes[$name]) && !empty($attributes[$name])) {
+            $valueList[$name] = $attributes[$name];
+        }
+    }
+
+    // Check bis params
+    foreach ($attributeNameList as $name) {
+        $bisName = $name.'_bis';
+        if (isset($attributes[$bisName]) && !empty($attributes[$bisName])) {
+            $valueList[$name] = $attributes[$bisName];
+        }
+    }
+
+    $attributes = $valueList;
+
     if (!isset($attributes['email']) ||
         !isset($attributes['firstname']) ||
         !isset($attributes['lastname1']) ||
@@ -92,7 +93,7 @@ if (isset($_GET['email'])) {
     ) {
         echo 'Not enough parameters, current values: ';
         echo '<pre>';
-        var_dump($attributes);
+        var_dump($auth->getAttributes());
         exit;
     }
 

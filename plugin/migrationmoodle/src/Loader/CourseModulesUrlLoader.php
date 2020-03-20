@@ -13,14 +13,14 @@ use Chamilo\PluginBundle\MigrationMoodle\Interfaces\LoaderInterface;
 class CourseModulesUrlLoader implements LoaderInterface
 {
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function load(array $incomingData)
     {
         $lp = new \learnpath(
             $incomingData['c_code'],
             $incomingData['lp_id'],
-            api_get_user_id()
+            1
         );
 
         return $lp->add_item(

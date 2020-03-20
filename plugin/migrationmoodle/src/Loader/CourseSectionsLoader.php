@@ -17,8 +17,6 @@ class CourseSectionsLoader implements LoaderInterface
     /**
      * Load the data and return the ID inserted.
      *
-     * @param array $incomingData
-     *
      * @return int
      */
     public function load(array $incomingData)
@@ -39,7 +37,7 @@ class CourseSectionsLoader implements LoaderInterface
             $lp = new \learnpath(
                 $incomingData['course_code'],
                 $lpId,
-                api_get_user_id()
+                1
             );
             $lp->generate_lp_folder($courseInfo);
 

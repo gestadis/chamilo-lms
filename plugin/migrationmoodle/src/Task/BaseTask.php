@@ -93,7 +93,7 @@ abstract class BaseTask
                 ]
             );
 
-            echo "Data migrated: $hash".PHP_EOL;
+            echo "[".date(\DateTime::ATOM)."]\tData migrated: $hash".PHP_EOL;
 
             $i++;
 
@@ -132,7 +132,7 @@ abstract class BaseTask
 
             yield md5("{$extractedData['id']}@@$loadedId") => [
                 'extracted' => $extractedData['id'],
-                'loaded' => $loadedId
+                'loaded' => $loadedId,
             ];
         }
     }

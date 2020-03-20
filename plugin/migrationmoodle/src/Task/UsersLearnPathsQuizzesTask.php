@@ -20,20 +20,32 @@ use Chamilo\PluginBundle\MigrationMoodle\Transformer\Property\Subtract;
 class UsersLearnPathsQuizzesTask extends BaseTask
 {
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getExtractConfiguration()
     {
+        $query = 'SELECT id, quiz, userid, timestart, timefinish, state, sumgrades
+            FROM mdl_quiz_attempts
+            WHERE preview = 0';
+
+        $userFilter = $this->plugin->getUserFilterSetting();
+
+        if (!empty($userFilter)) {
+            $query = "SELECT qa.id, qa.quiz, qa.userid, qa.timestart, qa.timefinish, qa.state, qa.sumgrades
+                FROM mdl_quiz_attempts qa
+                INNER JOIN mdl_user u ON qa.userid = u.id
+                WHERE qa.preview = 0
+                    AND u.username LIKE '$userFilter%'";
+        }
+
         return [
             'class' => LoadedUsersFilterExtractor::class,
-            'query' => "SELECT id, quiz, userid, timestart, timefinish, state, sumgrades
-                FROM mdl_quiz_attempts
-                WHERE preview = 0",
+            'query' => $query,
         ];
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getTransformConfiguration()
     {
@@ -67,7 +79,7 @@ class UsersLearnPathsQuizzesTask extends BaseTask
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getLoadConfiguration()
     {

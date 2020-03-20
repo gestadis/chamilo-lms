@@ -17,8 +17,6 @@ class LessonPagesLoader implements LoaderInterface
     /**
      * Load the data and return the ID inserted.
      *
-     * @param array $incomingData
-     *
      * @return int
      */
     public function load(array $incomingData)
@@ -26,7 +24,7 @@ class LessonPagesLoader implements LoaderInterface
         $lp = new \learnpath(
             $incomingData['c_code'],
             $incomingData['lp_id'],
-            api_get_user_id()
+            1
         );
         $itemId = $lp->add_item(
             $incomingData['parent'],

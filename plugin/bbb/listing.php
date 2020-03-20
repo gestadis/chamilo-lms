@@ -1,10 +1,9 @@
 <?php
+
 /* For license terms, see /license.txt */
 
 /**
  * This script initiates a video conference session, calling the BigBlueButton API.
- *
- * @package chamilo.plugin.bigbluebutton
  */
 $course_plugin = 'bbb'; //needed in order to load the plugin lang variables
 require_once __DIR__.'/config.php';
@@ -183,7 +182,6 @@ $courseInfo = api_get_course_info();
 $formToString = '';
 
 if ($bbb->isGlobalConference() === false &&
-    $conferenceManager &&
     !empty($courseInfo) &&
     $plugin->get('enable_conference_in_course_groups') === 'true'
 ) {
@@ -200,20 +198,24 @@ if ($bbb->isGlobalConference() === false &&
 
     $form = new FormValidator(api_get_self().'?'.api_get_cidreq());
     $groupId = api_get_group_id();
-    $groups = GroupManager::get_groups();
+    if ($conferenceManager) {
+        $groups = GroupManager::get_groups();
+    } else {
+        $groups = GroupManager::getAllGroupPerUserSubscription(api_get_user_id(), api_get_course_int_id(), api_get_session_id());
+    }
+
     if ($groups) {
         $meetingsInGroup = $bbb->getAllMeetingsInCourse(api_get_course_int_id(), api_get_session_id(), 1);
         $meetingsGroup = array_column($meetingsInGroup, 'status', 'group_id');
 
-        foreach ($groups as &$groupData) {
-            $itemGroupId = $groupData['id'];
+        $groupList[0] = get_lang('Select');
+        foreach ($groups as $groupData) {
+            $itemGroupId = $groupData['iid'];
             if (isset($meetingsGroup[$itemGroupId]) && $meetingsGroup[$itemGroupId] == 1) {
                 $groupData['name'] .= ' ('.get_lang('Active').')';
             }
+            $groupList[$itemGroupId] = $groupData['name'];
         }
-
-        $groupList[0] = get_lang('Select');
-        $groupList = array_merge($groupList, array_column($groups, 'name', 'iid'));
 
         $form->addSelect('group_id', get_lang('Groups'), $groupList, ['id' => 'group_select']);
         $form->setDefaults(['group_id' => $groupId]);
@@ -286,8 +288,7 @@ $tpl->assign('enter_conference_links', $urlList);
 $tpl->assign('warning_inteface_msg', $warningInterfaceMessage);
 $tpl->assign('show_client_options', $showClientOptions);
 
-$listing_tpl = 'bbb/view/listing.tpl';
-$content = $tpl->fetch($listing_tpl);
+$content = $tpl->fetch('bbb/view/listing.tpl');
 
 $actionLinks = '';
 if (api_is_platform_admin()) {

@@ -7,8 +7,6 @@ use Chamilo\CourseBundle\Entity\CSurveyInvitation;
 /**
  * Class SurveyManager.
  *
- * @package chamilo.survey
- *
  * @author Patrick Cool <patrick.cool@UGent.be>, Ghent University:
  * cleanup, refactoring and rewriting large parts (if not all) of the code
  * @author Julio Montoya <gugli100@gmail.com>, Personality Test modification
@@ -1855,9 +1853,7 @@ class SurveyManager
      */
     public static function generate_survey_hash($survey_id, $course_id, $session_id, $group_id)
     {
-        $hash = hash('sha512', api_get_security_key().'_'.$course_id.'_'.$session_id.'_'.$group_id.'_'.$survey_id);
-
-        return $hash;
+        return hash('sha512', api_get_security_key().'_'.$course_id.'_'.$session_id.'_'.$group_id.'_'.$survey_id);
     }
 
     /**
@@ -2605,6 +2601,4 @@ class SurveyManager
 
         return false;
     }
-
-
 }

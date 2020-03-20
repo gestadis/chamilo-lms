@@ -17,14 +17,18 @@ class QuestionCategoriesLoader implements LoaderInterface
     /**
      * Load the data and return the ID inserted.
      *
-     * @param array $incomingData
-     *
      * @throws \Exception
      *
      * @return int
      */
     public function load(array $incomingData)
     {
+        $course = api_get_course_entity($incomingData['c_id']);
+
+        if (!$course) {
+            throw new \Exception("The question category ({$incomingData['name']}) found, but it will not be migrated.");
+        }
+
         $category = new \TestCategory();
         $category->name = $incomingData['name'];
         $category->description = $incomingData['description'];

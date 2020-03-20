@@ -93,6 +93,8 @@ $menu = [
         'urls',
     ],
     'users' => [
+        'users_last_login',
+        'track_login',
         'user_sessions',
     ],
     'user_sessions' => [
@@ -103,7 +105,7 @@ $menu = [
         'users_learn_paths_lesson_timer',
         'users_learn_paths_lesson_branch',
         'users_learn_paths_lesson_attempts',
-        'users_learn_paths_quizzes'
+        'users_learn_paths_quizzes',
     ],
     'users_scorms_view' => [
         'users_scorms_progress',
@@ -153,7 +155,8 @@ Display::display_footer();
  *
  * @return string
  */
-function displayMenu($parent = '_') {
+function displayMenu($parent = '_')
+{
     $plugin = MigrationMoodlePlugin::create();
     $menu = $GLOBALS['menu'];
 
@@ -193,11 +196,11 @@ function displayMenu($parent = '_') {
 
 /**
  * @param string $action
- * @param array  $menu
  *
  * @return bool
  */
-function isAllowedAction($action, array $menu) {
+function isAllowedAction($action, array $menu)
+{
     foreach ($menu as $items) {
         if (in_array($action, $items)) {
             return true;

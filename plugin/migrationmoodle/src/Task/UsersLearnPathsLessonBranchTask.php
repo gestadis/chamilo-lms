@@ -19,18 +19,29 @@ use Chamilo\PluginBundle\MigrationMoodle\Transformer\Property\LoadedUserSessionL
 class UsersLearnPathsLessonBranchTask extends BaseTask
 {
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getExtractConfiguration()
     {
+        $query = 'SELECT * FROM mdl_lesson_branch';
+
+        $userFilter = $this->plugin->getUserFilterSetting();
+
+        if (!empty($userFilter)) {
+            $query = "SELECT lb.*
+                FROM mdl_lesson_branch lb
+                INNER JOIN mdl_user u ON lb.userid = u.id
+                WHERE u.username LIKE '$userFilter%'";
+        }
+
         return [
             'class' => LoadedUsersFilterExtractor::class,
-            'query' => "SELECT * FROM mdl_lesson_branch",
+            'query' => $query,
         ];
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getTransformConfiguration()
     {
@@ -60,7 +71,7 @@ class UsersLearnPathsLessonBranchTask extends BaseTask
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function getLoadConfiguration()
     {
