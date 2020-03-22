@@ -21,13 +21,13 @@ class UsersScormsViewLoader implements LoaderInterface
         $tblLpView = \Database::get_course_table(TABLE_LP_VIEW);
         $tblLpItemView = \Database::get_course_table(TABLE_LP_ITEM_VIEW);
 
-        $session = $this->getUserSubscriptionInSession($incomingData['user_id'], $incomingData['c_id']);
+        $sessionId = $this->getUserSubscriptionInSession($incomingData['user_id'], $incomingData['c_id']);
 
         $lpViewId = $this->getLpView(
             $incomingData['user_id'],
             $incomingData['lp_id'],
             $incomingData['c_id'],
-            $session->getId()
+            $sessionId
         );
 
         $itemView = [
@@ -67,19 +67,26 @@ class UsersScormsViewLoader implements LoaderInterface
      *
      * @throws \Exception
      *
-     * @return Session
+     * @return int
      */
     private function getUserSubscriptionInSession($userId, $courseId)
     {
-        $subscription = \Database::getManager()
-            ->getRepository('ChamiloCoreBundle:SessionRelCourseRelUser')
-            ->findOneBy(['user' => $userId, 'course' => $courseId]);
+        $srcru = \Database::select(
+            'session_id',
+            \Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER),
+            [
+                'where' => [
+                    'user_id = ? AND c_id = ?' => [$userId, $courseId],
+                ],
+            ],
+            'first'
+        );
 
-        if (empty($subscription)) {
+        if (empty($srcru)) {
             throw new \Exception("Session not found for user ($userId) with course ($courseId)");
         }
 
-        return $subscription->getSession();
+        return $srcru['session_id'];
     }
 
     /**
@@ -92,21 +99,26 @@ class UsersScormsViewLoader implements LoaderInterface
      */
     private function getLpView($userId, $lpId, $cId, $sessionId)
     {
-        $lpView = \Database::getManager()
-            ->getRepository('ChamiloCourseBundle:CLpView')
-            ->findOneBy(
-                [
-                    'userId' => $userId,
-                    'lpId' => $lpId,
-                    'cId' => $cId,
-                    'sessionId' => $sessionId,
+        $tblLpView = \Database::get_course_table(TABLE_LP_VIEW);
+
+        $lpView = \Database::select(
+            'iid',
+            $tblLpView,
+            [
+                'where' => [
+                    'user_id = ? AND lp_id = ? AND c_id = ? AND session_id = ?' => [
+                        $userId,
+                        $lpId,
+                        $cId,
+                        $sessionId,
+                    ],
                 ],
-                ['viewCount' => 'DESC']
-            );
+                'order' => 'view_count DESC',
+            ],
+            'first'
+        );
 
         if (empty($lpView)) {
-            $tblLpView = \Database::get_course_table(TABLE_LP_VIEW);
-
             $lpView = [
                 'c_id' => $cId,
                 'lp_id' => $lpId,
@@ -122,6 +134,6 @@ class UsersScormsViewLoader implements LoaderInterface
             return $lpViewId;
         }
 
-        return $lpView->getId();
+        return $lpView['iid'];
     }
 }
