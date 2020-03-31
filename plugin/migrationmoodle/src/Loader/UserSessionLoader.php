@@ -12,14 +12,19 @@ use Chamilo\PluginBundle\MigrationMoodle\Interfaces\LoaderInterface;
  */
 class UserSessionLoader implements LoaderInterface
 {
+    const LOAD_MODE_REUSE = 'reuse';
+    const LOAD_MODE_DUPLICATE = 'duplicate';
+
+    /**
+     * @var string Load mode: "reuse" or "duplicate". Default is "duplicate".
+     */
+    private $loadMode = self::LOAD_MODE_DUPLICATE;
+
     /**
      * {@inheritdoc}
      */
     public function load(array $incomingData)
     {
-        $datetime = api_get_utc_datetime();
-        $coachId = 1;
-
         foreach ($incomingData['course_ids'] as $courseId) {
             if (empty($courseId)) {
                 throw new \Exception(
@@ -29,7 +34,25 @@ class UserSessionLoader implements LoaderInterface
             }
         }
 
+        $tblSession = \Database::get_main_table(TABLE_MAIN_SESSION);
+
+        $sessionInfo = \Database::fetch_assoc(
+            \Database::query("SELECT id FROM $tblSession WHERE name = '{$incomingData['name']}'")
+        );
+
+        if (!empty($sessionInfo)) {
+            if ($this->loadMode == self::LOAD_MODE_REUSE) {
+                return $sessionInfo['id'];
+            }
+
+            if ($this->loadMode === self::LOAD_MODE_DUPLICATE) {
+                $incomingData['name'] = '['.substr(md5(uniqid(rand())), 0, 5).'] '.$incomingData['name'];
+            }
+        }
+
         $urlId = \MigrationMoodlePlugin::create()->getAccessUrlId();
+        $datetime = api_get_utc_datetime();
+        $coachId = 1;
 
         $sessionId = \SessionManager::create_session(
             $incomingData['name'],
