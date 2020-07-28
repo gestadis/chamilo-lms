@@ -2,10 +2,6 @@
 /* For licensing terms, see /license.txt */
 
 /**
- * @package chamilo.messages
- */
-
-/**
  * This script shows a compose area (wysiwyg editor if supported, otherwise
  * a simple textarea) where the user can type a message.
  * There are three modes
@@ -65,9 +61,8 @@ $tpl = new Template(get_lang('ComposeMessage'));
 function show_compose_to_any($tpl)
 {
     $default['user_list'] = 0;
-    $html = manageForm($default, null, null, $tpl);
 
-    return $html;
+    return manageForm($default, null, null, $tpl);
 }
 
 function show_compose_reply_to_message($message_id, $receiver_id, $tpl)
@@ -154,6 +149,7 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
                     [],
                     [
                         'multiple' => 'multiple',
+                        'delay' => 1000,
                         'url' => api_get_path(WEB_AJAX_PATH).'message.ajax.php?a=find_users',
                     ]
                 );
@@ -247,8 +243,8 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
 
     $form->addLabel(
         '',
-        '<iframe 
-            frameborder="0" height="200" width="100%" scrolling="no" 
+        '<iframe
+            frameborder="0" height="200" width="100%" scrolling="no"
             src="'.api_get_path(WEB_CODE_PATH).'messages/record_audio.php"></iframe>'
     );
 

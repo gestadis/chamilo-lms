@@ -10,8 +10,6 @@ use ChamiloSession as Session;
  *
  * @version $Id: exercise_show.php 22256 2009-07-20 17:40:20Z ivantcholakov $
  *
- * @package chamilo.exercise
- *
  * @todo remove the debug code and use the general debug library
  * @todo small letters for table variables
  */
@@ -19,7 +17,7 @@ require_once __DIR__.'/../inc/global.inc.php';
 
 $origin = api_get_origin();
 $currentUserId = api_get_user_id();
-$printHeaders = $origin === 'learnpath';
+$printHeaders = 'learnpath' === $origin;
 $id = isset($_REQUEST['id']) ? (int) $_REQUEST['id'] : 0; //exe id
 
 if (empty($id)) {
@@ -112,7 +110,7 @@ if (!empty($sessionId) && !$is_allowedToEdit) {
     }
 }
 
-$allowCoachFeedbackExercises = api_get_setting('allow_coach_feedback_exercises') === 'true';
+$allowCoachFeedbackExercises = 'true' === api_get_setting('allow_coach_feedback_exercises');
 $maxEditors = (int) api_get_setting('exercise_max_ckeditors_in_page');
 $isCoachAllowedToEdit = api_is_allowed_to_edit(false, true);
 $isFeedbackAllowed = false;
@@ -136,8 +134,8 @@ if (!$is_allowedToEdit) {
     }
 }
 
-$allowRecordAudio = api_get_setting('enable_record_audio') === 'true';
-$allowTeacherCommentAudio = api_get_configuration_value('allow_teacher_comment_audio') === true;
+$allowRecordAudio = 'true' === api_get_setting('enable_record_audio');
+$allowTeacherCommentAudio = true === api_get_configuration_value('allow_teacher_comment_audio');
 
 $js = '<script>'.api_get_language_translate_html().'</script>';
 $htmlHeadXtra[] = $js;
@@ -312,7 +310,8 @@ if ($show_results || $show_only_total_score || $showTotalScoreAndUserChoicesInLa
     // Shows exercise header
     echo $objExercise->showExerciseResultHeader(
         $user_info,
-        $track_exercise_info
+        $track_exercise_info,
+        false
     );
 }
 
@@ -468,9 +467,7 @@ foreach ($questionList as $questionId) {
             break;
         case HOT_SPOT:
             if ($show_results || $showTotalScoreAndUserChoicesInLastAttempt) {
-                echo '<table width="500" border="0"><tr>
-                        <td valign="top" align="center" style="padding-left:0px;" >
-                        <table border="1" bordercolor="#A4A4A4" style="border-collapse: collapse;" width="552">';
+//                echo '<table class="table table-bordered table-striped"><tr><td>';
             }
             $question_result = $objExercise->manage_answer(
                 $id,
@@ -488,17 +485,17 @@ foreach ($questionList as $questionId) {
             $questionScore = $question_result['score'];
             $totalScore += $question_result['score'];
 
-            if ($show_results) {
+            if ($show_results || $showTotalScoreAndUserChoicesInLastAttempt) {
                 echo '</table></td></tr>';
                 echo "
                         <tr>
-                            <td colspan=\"2\">
+                            <td>
                                 <div id=\"hotspot-solution-$questionId-$id\"></div>
                                 <script>
                                     $(function() {
                                         new HotspotQuestion({
                                             questionId: $questionId,
-                                            exerciseId: {$objExercise->id},                                            
+                                            exerciseId: {$objExercise->id},
                                             exeId: $id,
                                             selector: '#hotspot-solution-$questionId-$id',
                                             for: 'solution',
@@ -939,7 +936,7 @@ if ($show_results) {
     echo $totalScoreText;
 }
 
-if ($action === 'export') {
+if ('export' === $action) {
     $content = ob_get_clean();
     // needed in order to mpdf to work
     ob_clean();

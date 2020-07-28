@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CoreBundle\Entity\ExtraField as EntityExtraField;
@@ -11,8 +12,6 @@ use ChamiloSession as Session;
  * Class ExtraFieldValue
  * Declaration for the ExtraFieldValue class, managing the values in extra
  * fields for any data type.
- *
- * @package chamilo.library
  */
 class ExtraFieldValue extends Model
 {
@@ -99,7 +98,7 @@ class ExtraFieldValue extends Model
         foreach ($params as $key => $value) {
             $found = strpos($key, '__persist__');
 
-            if ($found === false) {
+            if (false === $found) {
                 continue;
             }
 
@@ -121,8 +120,8 @@ class ExtraFieldValue extends Model
         // Parse params.
         foreach ($extraFields as $fieldDetails) {
             if ($forceSave === false) {
-                // if the field is not visible to the user in the end, we need to apply special rules
-                if ($fieldDetails['visible_to_self'] != 1) {
+                // if the field is not visible to the user in the end, we need to apply special rules.
+                if (1 != $fieldDetails['visible_to_self']) {
                     //only admins should be able to add those values
                     if (!api_is_platform_admin(true, true)) {
                         // although if not admin but sent through a CLI script, we should accept it as well
@@ -182,7 +181,7 @@ class ExtraFieldValue extends Model
                     }
                     break;
                 case ExtraField::FIELD_TYPE_TAG:
-                    if ($type == EntityExtraField::USER_FIELD_TYPE) {
+                    if (EntityExtraField::USER_FIELD_TYPE == $type) {
                         UserManager::delete_user_tags(
                             $params['item_id'],
                             $extraFieldInfo['id']
@@ -345,7 +344,7 @@ class ExtraFieldValue extends Model
                             'value' => $fileDirStored.$fileName,
                         ];
 
-                        if ($this->type !== 'session' && $this->type !== 'course') {
+                        if ('session' !== $this->type && 'course' !== $this->type) {
                             $new_params['comment'] = $comment;
                         }
 
@@ -368,6 +367,32 @@ class ExtraFieldValue extends Model
                     ];
                     $this->save($newParams);
 
+                    break;
+                case ExtraField::FIELD_TYPE_DATE:
+                    $d = DateTime::createFromFormat('Y-m-d', $value);
+                    $valid = $d && $d->format('Y-m-d') === $value;
+                    if ($valid) {
+                        $newParams = [
+                            'item_id' => $params['item_id'],
+                            'field_id' => $extraFieldInfo['id'],
+                            'value' => $value,
+                            'comment' => $comment,
+                        ];
+                        $this->save($newParams, $showQuery);
+                    }
+                    break;
+                case ExtraField::FIELD_TYPE_DATETIME:
+                    $d = DateTime::createFromFormat('Y-m-d H:i', $value);
+                    $valid = $d && $d->format('Y-m-d H:i') === $value;
+                    if ($valid) {
+                        $newParams = [
+                            'item_id' => $params['item_id'],
+                            'field_id' => $extraFieldInfo['id'],
+                            'value' => $value,
+                            'comment' => $comment,
+                        ];
+                        $this->save($newParams, $showQuery);
+                    }
                     break;
                 default:
                     $newParams = [
@@ -461,7 +486,7 @@ class ExtraFieldValue extends Model
                     break;
             }
 
-            if ($extraFieldInfo['field_type'] == ExtraField::FIELD_TYPE_TAG) {
+            if (ExtraField::FIELD_TYPE_TAG == $extraFieldInfo['field_type']) {
                 $field_values = self::getAllValuesByItemAndFieldAndValue(
                     $params['item_id'],
                     $params['field_id'],
@@ -677,9 +702,9 @@ class ExtraFieldValue extends Model
             }
 
             return $result;
-        } else {
-            return false;
         }
+
+        return false;
     }
 
     /**

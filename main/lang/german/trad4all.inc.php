@@ -7246,7 +7246,7 @@ $BadgesManagement = "Abzeichen-Verwaltung";
 $CurrentBadges = "Aktuelle Abzeichen";
 $SaveBadge = "Abzeichen speichern";
 $BadgeMeasuresXPixelsInPNG = "Abzeichen misst 200 x 200 Pixel in PNG";
-$SetTutor = "Als Trainer festlegen";
+$ConvertToCourseAssistant = "Als Trainer festlegen";
 $UniqueAnswerImage = "Bild für eindeutige Antwort";
 $TimeSpentByStudentsInCoursesGroupedByCode = "Zeitaufwand von Kursteilnehmern in Kursen, gruppiert nach Code";
 $TestResultsByStudentsGroupesByCode = "Testergebnisse von Kursteilnehmergruppen, nach Code";
@@ -7447,7 +7447,7 @@ $DocumentsDefaultVisibilityDefinedInCourseComment = "Die Standard-Dokumentsichtb
 $HtmlPurifierWikiTitle = "HTMLPurifier im Wiki";
 $HtmlPurifierWikiComment = "HTML Purifier im Wiki-Tool aktivieren (erhöht die Sicherheit, aber reduziert Stil-Funktionen)";
 $ClickOrDropFilesHere = "Dateien anklicken oder ablegen";
-$RemoveTutorStatus = "Trainerstatus entfernen";
+$RemoveCourseAssistantStatus = "Trainerstatus entfernen";
 $ImportGradebookInCourse = "Ergebnisspiegel von Basiskurs importieren";
 $InstitutionAddressTitle = "Adresse der Institution";
 $InstitutionAddressComment = "Adresse";
@@ -7973,6 +7973,7 @@ $NewPasswordRequirementMaxXLength = "Maximale %s Zeichen insgesamt";
 $YouCantNotEditThisQuestionBecauseAlreadyExistAnswers = "Diese Frage kann nicht mehr bearbeitet werden, da schon Antworten dazu abgegeben wurden.";
 $Avatar = "Benutzerbild";
 $ReadingComprehensionLevelX = "%s Wörter pro Minute";
+$UpdateTitleInLps = "Diese Überschrift in Lernpfaden ersetzen";
 $SendEmailToTeacherWhenStudentStartQuiz = "E-Mail an den Tutor senden, wenn der Lernende eine Übung startet";
 $SendEmailToTeacherWhenStudentEndQuiz = "E-Mail an den Tutor senden, wenn der Lernende eine Übung beendet hat";
 $SendEmailToTeacherWhenStudentEndQuizOnlyIfOpenQuestion = "E-Mail an den Tutor senden, wenn der Lernende eine Übung beendet hat, aber nur wenn er eine offene Frage beantwortet hat";
@@ -7988,6 +7989,7 @@ Benutzer %s hat eine Follow-up-Nachricht zum Lernenden %s gesendet.<br/><br/>
 
 Die Nachricht ist an %s sichtbar";
 $PersonalDataReport = "Persönliche Daten";
+$MoreDataAvailableInTheDatabaseButTrunkedForEfficiencyReasons = "Es gibt noch weitere Daten in der Datenbank, zur Übersichtlichkeit werden diese ausgeblendet.";
 $FromTimeX = "Von %s";
 $ToTimeX = "bis %s";
 $SubscribeUsersToAllForumNotifications = "Automatisch alle Benutzer anmelden";

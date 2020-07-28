@@ -107,9 +107,11 @@ class BuyCoursesPlugin extends Plugin
     /**
      * Check if plugin is enabled.
      *
+     * @param bool $checkEnabled Check if, additionnally to being installed, the plugin is enabled
+     *
      * @return bool
      */
-    public function isEnabled()
+    public function isEnabled($checkEnabled = false)
     {
         return $this->get('paypal_enable') || $this->get('transfer_enable') || $this->get('culqi_enable');
     }
@@ -571,13 +573,16 @@ class BuyCoursesPlugin extends Plugin
     /**
      * Lists current user session details, including each session course details.
      *
+     * It can return the number of rows when $typeResult is 'count'.
+     *
      * @param int    $start
      * @param int    $end
-     * @param string $name  Optional. The name filter
-     * @param int    $min   Optional. The minimum price filter
-     * @param int    $max   Optional. The maximum price filter
+     * @param string $name       Optional. The name filter.
+     * @param int    $min        Optional. The minimum price filter.
+     * @param int    $max        Optional. The maximum price filter.
+     * @param string $typeResult Optional. 'all', 'first' or 'count'.
      *
-     * @return array
+     * @return array|int
      */
     public function getCatalogSessionList($start, $end, $name = null, $min = 0, $max = 0, $typeResult = 'all')
     {
@@ -1932,7 +1937,7 @@ class BuyCoursesPlugin extends Plugin
             INNER JOIN $userTable u ON p.user_id = u.id
             INNER JOIN $saleTable s ON s.id = p.sale_id
             INNER JOIN $currencyTable c ON s.currency_id = c.id
-            LEFT JOIN  $extraFieldValues efv ON p.user_id = efv.item_id 
+            LEFT JOIN  $extraFieldValues efv ON p.user_id = efv.item_id
             AND field_id = ".((int) $paypalExtraField['id'])."
         ";
 
@@ -3103,10 +3108,10 @@ class BuyCoursesPlugin extends Plugin
 
         $courseIds = Database::select(
             'c.id',
-            "$courseTable c 
-            INNER JOIN $itemTable i 
-            ON c.id = i.product_id 
-            INNER JOIN $urlTable url 
+            "$courseTable c
+            INNER JOIN $itemTable i
+            ON c.id = i.product_id
+            INNER JOIN $urlTable url
             ON c.id = url.c_id
             ",
             ['where' => $whereConditions, 'limit' => "$start, $end"],

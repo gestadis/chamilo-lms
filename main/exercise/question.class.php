@@ -12,8 +12,6 @@ use Chamilo\CourseBundle\Entity\CQuizAnswer;
  * @author Patrick Cool, LaTeX support
  * @author Julio Montoya <gugli100@gmail.com> lot of bug fixes
  * @author hubert.borderiou@grenet.fr - add question categories
- *
- * @package chamilo.exercise
  */
 abstract class Question
 {
@@ -113,7 +111,7 @@ abstract class Question
     {
         $isContent = null;
         if (isset($_REQUEST['isContent'])) {
-            $isContent = intval($_REQUEST['isContent']);
+            $isContent = (int) $_REQUEST['isContent'];
         }
 
         return $this->isContent = $isContent;
@@ -138,7 +136,7 @@ abstract class Question
         }
         $course_id = $course_info['real_id'];
 
-        if (empty($course_id) || $course_id == -1) {
+        if (empty($course_id) || -1 == $course_id) {
             return false;
         }
 
@@ -1166,7 +1164,7 @@ abstract class Question
 
                 // build the chunk to index
                 $ic_slide = new IndexableChunk();
-                $ic_slide->addValue("title", $this->question);
+                $ic_slide->addValue('title', $this->question);
                 $ic_slide->addCourseId($course_id);
                 $ic_slide->addToolId(TOOL_QUIZ);
                 $xapian_data = [
@@ -1180,7 +1178,7 @@ abstract class Question
                     SE_USER => (int) api_get_user_id(),
                 ];
                 $ic_slide->xapian_data = serialize($xapian_data);
-                $ic_slide->addValue("content", $this->description);
+                $ic_slide->addValue('content', $this->description);
 
                 //TODO: index answers, see also form validation on question_admin.inc.php
 
@@ -1297,7 +1295,7 @@ abstract class Question
         $courseId = empty($courseId) ? api_get_course_int_id() : (int) $courseId;
 
         // exercise not found
-        if ($pos === false) {
+        if (false === $pos) {
             return false;
         } else {
             // deletes the position in the array containing the wanted exercise ID
@@ -1559,11 +1557,11 @@ abstract class Question
      */
     public static function getQuestionTypeList()
     {
-        if (api_get_setting('enable_record_audio') !== 'true') {
+        if ('true' !== api_get_setting('enable_record_audio')) {
             self::$questionTypes[ORAL_EXPRESSION] = null;
             unset(self::$questionTypes[ORAL_EXPRESSION]);
         }
-        if (api_get_setting('enable_quiz_scenario') !== 'true') {
+        if ('true' !== api_get_setting('enable_quiz_scenario')) {
             self::$questionTypes[HOT_SPOT_DELINEATION] = null;
             unset(self::$questionTypes[HOT_SPOT_DELINEATION]);
         }
@@ -1608,6 +1606,60 @@ abstract class Question
                 .media { display:none;}
             </style>';
 
+        $zoomOptions = api_get_configuration_value('quiz_image_zoom');
+        if (isset($zoomOptions['options'])) {
+            $finderFolder = api_get_path(WEB_PATH).'vendor/studio-42/elfinder/';
+            echo '<!-- elFinder CSS (REQUIRED) -->';
+            echo '<link rel="stylesheet" type="text/css" media="screen" href="'.$finderFolder.'css/elfinder.full.css">';
+            echo '<link rel="stylesheet" type="text/css" media="screen" href="'.$finderFolder.'css/theme.css">';
+
+            echo '<!-- elFinder JS (REQUIRED) -->';
+            echo '<script type="text/javascript" src="'.$finderFolder.'js/elfinder.full.js"></script>';
+
+            echo '<!-- elFinder translation (OPTIONAL) -->';
+            $language = 'en';
+            $platformLanguage = api_get_interface_language();
+            $iso = api_get_language_isocode($platformLanguage);
+            $filePart = "vendor/studio-42/elfinder/js/i18n/elfinder.$iso.js";
+            $file = api_get_path(SYS_PATH).$filePart;
+            $includeFile = '';
+            if (file_exists($file)) {
+                $includeFile = '<script type="text/javascript" src="'.api_get_path(WEB_PATH).$filePart.'"></script>';
+                $language = $iso;
+            }
+            echo $includeFile;
+
+            echo '<script type="text/javascript" charset="utf-8">
+            $(document).ready(function () {
+                $(".create_img_link").click(function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var imageZoom = $("input[name=\'imageZoom\']").val();
+                    var imageWidth = $("input[name=\'imageWidth\']").val();
+                    CKEDITOR.instances.questionDescription.insertHtml(\'<img id="zoom_picture" class="zoom_picture" src="\'+imageZoom+\'" data-zoom-image="\'+imageZoom+\'" width="\'+imageWidth+\'px" />\');
+                });
+
+                $("input[name=\'imageZoom\']").on("click", function(){
+                    console.log("click en campo");
+                    var elf = $("#elfinder").elfinder({
+                        url : "'.api_get_path(WEB_LIBRARY_PATH).'elfinder/connectorAction.php?'.api_get_cidreq().'",
+                        getFileCallback: function(file) {
+                            var filePath = file; //file contains the relative url.
+                            console.log(filePath);
+                            var imgPath = "<img src = \'"+filePath+"\'/>";
+                            $("input[name=\'imageZoom\']").val(filePath.url);
+                            $("#elfinder").remove(); //close the window after image is selected
+                        },
+                        startPathHash: "l2_Lw", // Sets the course driver as default
+                        resizable: false,
+                        lang: "'.$language.'"
+                    }).elfinder("instance");
+                });
+            });
+            </script>';
+            echo '<div id="elfinder"></div>';
+        }
+
         // question name
         if (api_get_configuration_value('save_titles_as_html')) {
             $editorConfig = ['ToolbarSet' => 'TitleAsHtml'];
@@ -1644,6 +1696,14 @@ abstract class Question
 
         $form->addButtonAdvancedSettings('advanced_params');
         $form->addElement('html', '<div id="advanced_params_options" style="display:none">');
+
+        if (isset($zoomOptions['options'])) {
+            $form->addElement('text', 'imageZoom', get_lang('ImageURL'));
+            $form->addElement('text', 'imageWidth', get_lang('PixelWidth'));
+
+            $form->addButton('btn_create_img', get_lang('AddToEditor'), 'plus', 'info', 'small', 'create_img_link');
+        }
+
         $form->addHtmlEditor(
             'questionDescription',
             get_lang('QuestionDescription'),
@@ -1793,7 +1853,7 @@ abstract class Question
         $this->setFeedback($form->getSubmitValue('feedback'));
 
         //Save normal question if NOT media
-        if ($this->type != MEDIA_QUESTION) {
+        if (MEDIA_QUESTION != $this->type) {
             $this->save($exercise);
             // modify the exercise
             $exercise->addToList($this->id);
@@ -1829,6 +1889,10 @@ abstract class Question
      */
     public static function displayTypeMenu($objExercise)
     {
+        if (empty($objExercise)) {
+            return '';
+        }
+
         $feedbackType = $objExercise->getFeedbackType();
         $exerciseId = $objExercise->id;
 
@@ -1967,13 +2031,12 @@ abstract class Question
     public static function updateQuestionOption($id, $params, $course_id)
     {
         $table = Database::get_course_table(TABLE_QUIZ_QUESTION_OPTION);
-        $result = Database::update(
+
+        return Database::update(
             $table,
             $params,
             ['c_id = ? AND id = ?' => [$course_id, $id]]
         );
-
-        return $result;
     }
 
     /**
@@ -1985,7 +2048,8 @@ abstract class Question
     public static function readQuestionOption($question_id, $course_id)
     {
         $table = Database::get_course_table(TABLE_QUIZ_QUESTION_OPTION);
-        $result = Database::select(
+
+        return Database::select(
             '*',
             $table,
             [
@@ -1998,8 +2062,6 @@ abstract class Question
                 'order' => 'id ASC',
             ]
         );
-
-        return $result;
     }
 
     /**
@@ -2018,7 +2080,6 @@ abstract class Question
         }
 
         $scoreLabel = get_lang('Wrong');
-
         if (in_array($exercise->results_disabled, [
             RESULT_DISABLE_SHOW_ONLY_IN_CORRECT_ANSWER,
             RESULT_DISABLE_SHOW_SCORE_AND_EXPECTED_ANSWERS_AND_RANKING,
@@ -2062,7 +2123,7 @@ abstract class Question
                     }
 
                     $hide = api_get_configuration_value('hide_free_question_score');
-                    if ($hide === true) {
+                    if (true === $hide) {
                         $score['result'] = '-';
                     }
                 }
@@ -2099,18 +2160,25 @@ abstract class Question
         ];
         $header .= Display::page_subheader2($counterLabel.'. '.$this->question);
 
+        $showRibbon = true;
         // dont display score for certainty degree questions
-        if ($this->type != MULTIPLE_ANSWER_TRUE_FALSE_DEGREE_CERTAINTY) {
-            if (isset($score['result'])) {
-                if (in_array($exercise->results_disabled, [
-                    RESULT_DISABLE_SHOW_ONLY_IN_CORRECT_ANSWER,
-                    RESULT_DISABLE_SHOW_SCORE_AND_EXPECTED_ANSWERS_AND_RANKING,
-                ])
-                ) {
-                    $score['result'] = null;
-                }
-                $header .= $exercise->getQuestionRibbon($class, $scoreLabel, $score['result'], $scoreCurrent);
+        if (MULTIPLE_ANSWER_TRUE_FALSE_DEGREE_CERTAINTY == $this->type) {
+            $showRibbon = false;
+            $ribbonResult = api_get_configuration_value('show_exercise_question_certainty_ribbon_result');
+            if (true === $ribbonResult) {
+                $showRibbon = true;
             }
+        }
+
+        if ($showRibbon && isset($score['result'])) {
+            if (in_array($exercise->results_disabled, [
+                RESULT_DISABLE_SHOW_ONLY_IN_CORRECT_ANSWER,
+                RESULT_DISABLE_SHOW_SCORE_AND_EXPECTED_ANSWERS_AND_RANKING,
+            ])
+            ) {
+                $score['result'] = null;
+            }
+            $header .= $exercise->getQuestionRibbon($class, $scoreLabel, $score['result'], $scoreCurrent);
         }
 
         if ($this->type != READING_COMPREHENSION) {
@@ -2249,8 +2317,8 @@ abstract class Question
         $course_id,
         $start = 0,
         $limit = 100,
-        $sidx = "question",
-        $sord = "ASC",
+        $sidx = 'question',
+        $sord = 'ASC',
         $where_condition = []
     ) {
         $table_question = Database::get_course_table(TABLE_QUIZ_QUESTION);
@@ -2260,7 +2328,8 @@ abstract class Question
                 MEDIA_QUESTION,
             ],
         ];
-        $result = Database::select(
+
+        return Database::select(
             '*',
             $table_question,
             [
@@ -2269,14 +2338,12 @@ abstract class Question
                 'order' => "$sidx $sord",
             ]
         );
-
-        return $result;
     }
 
     /**
      * Get count course medias.
      *
-     * @param int course id
+     * @param int $course_id course id
      *
      * @return int
      */
@@ -2329,15 +2396,13 @@ abstract class Question
      */
     public static function get_default_levels()
     {
-        $levels = [
+        return [
             1 => 1,
             2 => 2,
             3 => 3,
             4 => 4,
             5 => 5,
         ];
-
-        return $levels;
     }
 
     /**
@@ -2346,7 +2411,7 @@ abstract class Question
     public function show_media_content()
     {
         $html = '';
-        if ($this->parent_id != 0) {
+        if (0 != $this->parent_id) {
             $parent_question = self::read($this->parent_id);
             $html = $parent_question->show_media_content();
         } else {
@@ -2476,7 +2541,7 @@ abstract class Question
     {
         $em = Database::getManager();
 
-        $result = $em
+        return $em
             ->createQuery('
                 SELECT e
                 FROM ChamiloCourseBundle:CQuizRelQuestion qq
@@ -2485,8 +2550,6 @@ abstract class Question
             ')
             ->setParameters(['id' => (int) $this->id])
             ->getResult();
-
-        return $result;
     }
 
     /**

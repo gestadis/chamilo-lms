@@ -21,7 +21,7 @@ if (empty($survey_data)) {
     api_not_allowed(true);
 }
 
-if ($survey_data['anonymous'] == 0) {
+if (0 == $survey_data['anonymous']) {
     $people_filled_full_data = true;
 } else {
     $people_filled_full_data = false;
@@ -42,7 +42,7 @@ $isDrhOfCourse = CourseManager::isUserSubscribedInCourseAsDrh(
 /** @todo this has to be moved to a more appropriate place (after the display_header of the code)*/
 if (!api_is_allowed_to_edit(false, true) || $isDrhOfCourse) {
     // Show error message if the survey can be seen only by tutors
-    if ($survey_data['visible_results'] == SURVEY_VISIBLE_TUTOR) {
+    if (SURVEY_VISIBLE_TUTOR == $survey_data['visible_results']) {
         api_not_allowed(true);
     }
 
@@ -58,6 +58,7 @@ if (!api_is_allowed_to_edit(false, true) || $isDrhOfCourse) {
 $exportReport = isset($_REQUEST['export_report']) ? $_REQUEST['export_report'] : '';
 $format = isset($_REQUEST['export_format']) ? $_REQUEST['export_format'] : '';
 if (!empty($exportReport) && !empty($format)) {
+    $compact = false;
     switch ($format) {
         case 'xls':
             $filename = 'survey_results_'.$survey_id.'.xlsx';
@@ -65,10 +66,13 @@ if (!empty($exportReport) && !empty($format)) {
             SurveyUtil::export_complete_report_xls($survey_data, $filename, $userId);
             exit;
             break;
+        case 'csv-compact':
+            $compact = true;
+            // no break
         case 'csv':
         default:
-            $data = SurveyUtil::export_complete_report($survey_data, $userId);
-            $filename = 'survey_results_'.$survey_id.'.csv';
+            $data = SurveyUtil::export_complete_report($survey_data, $userId, $compact);
+            $filename = 'survey_results_'.$survey_id.($compact ? '_compact' : '').'.csv';
             header('Content-type: application/octet-stream');
             header('Content-Type: application/force-download');
 

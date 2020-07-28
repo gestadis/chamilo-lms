@@ -99,28 +99,29 @@ $form = new FormValidator(
     api_get_self().'?user_id='.$user_id,
     ''
 );
+$form->protect();
 $form->addElement('header', $tool_name);
 $form->addElement('hidden', 'user_id', $user_id);
 
 if (api_is_western_name_order()) {
     // Firstname
-    $form->addElement('text', 'firstname', get_lang('FirstName'));
+    $form->addElement('text', 'firstname', get_lang('FirstName'), ['autocomplete' => 'off']);
     $form->applyFilter('firstname', 'html_filter');
     $form->applyFilter('firstname', 'trim');
     $form->addRule('firstname', get_lang('ThisFieldIsRequired'), 'required');
     // Lastname
-    $form->addElement('text', 'lastname', get_lang('LastName'));
+    $form->addElement('text', 'lastname', get_lang('LastName'), ['autocomplete' => 'off']);
     $form->applyFilter('lastname', 'html_filter');
     $form->applyFilter('lastname', 'trim');
     $form->addRule('lastname', get_lang('ThisFieldIsRequired'), 'required');
 } else {
     // Lastname
-    $form->addElement('text', 'lastname', get_lang('LastName'));
+    $form->addElement('text', 'lastname', get_lang('LastName'), ['autocomplete' => 'off']);
     $form->applyFilter('lastname', 'html_filter');
     $form->applyFilter('lastname', 'trim');
     $form->addRule('lastname', get_lang('ThisFieldIsRequired'), 'required');
     // Firstname
-    $form->addElement('text', 'firstname', get_lang('FirstName'));
+    $form->addElement('text', 'firstname', get_lang('FirstName'), ['autocomplete' => 'off']);
     $form->applyFilter('firstname', 'html_filter');
     $form->applyFilter('firstname', 'trim');
     $form->addRule('firstname', get_lang('ThisFieldIsRequired'), 'required');
@@ -132,7 +133,7 @@ $form->applyFilter('official_code', 'html_filter');
 $form->applyFilter('official_code', 'trim');
 
 // Email
-$form->addElement('text', 'email', get_lang('Email'));
+$form->addElement('text', 'email', get_lang('Email'), ['autocomplete' => 'off']);
 $form->addRule('email', get_lang('EmailWrong'), 'email');
 if (api_get_setting('registration', 'email') == 'true') {
     $form->addRule('email', get_lang('EmailWrong'), 'required');
@@ -149,7 +150,7 @@ if (api_get_setting('openid_authentication') == 'true') {
 }
 
 // Phone
-$form->addElement('text', 'phone', get_lang('PhoneNumber'));
+$form->addElement('text', 'phone', get_lang('PhoneNumber'), ['autocomplete' => 'off']);
 
 // Picture
 $form->addFile(
@@ -171,9 +172,19 @@ if (strlen($user_data['picture_uri']) > 0) {
 
 // Username
 if (api_get_setting('login_is_email') != 'true') {
-    $form->addElement('text', 'username', get_lang('LoginName'), ['maxlength' => USERNAME_MAX_LENGTH]);
+    $form->addElement(
+        'text',
+        'username',
+        get_lang('LoginName'),
+        ['autocomplete' => 'off', 'maxlength' => USERNAME_MAX_LENGTH]
+    );
     $form->addRule('username', get_lang('ThisFieldIsRequired'), 'required');
-    $form->addRule('username', sprintf(get_lang('UsernameMaxXCharacters'), (string) USERNAME_MAX_LENGTH), 'maxlength', USERNAME_MAX_LENGTH);
+    $form->addRule(
+        'username',
+        sprintf(get_lang('UsernameMaxXCharacters'), (string) USERNAME_MAX_LENGTH),
+        'maxlength',
+        USERNAME_MAX_LENGTH
+    );
     $form->addRule('username', get_lang('OnlyLettersAndNumbersAllowed'), 'username');
     $form->addRule('username', get_lang('UserTaken'), 'username_available', $user_data['username']);
 }
@@ -215,7 +226,7 @@ $group[] = $form->createElement(
     'password',
     'password',
     null,
-    ['onkeydown' => 'javascript: password_switch_radio_button();']
+    ['onkeydown' => 'javascript: password_switch_radio_button();', 'autocomplete' => 'new-password']
 );
 
 $form->addGroup($group, 'password', null, null, false);
@@ -267,7 +278,12 @@ $form->addGroup($group, 'mail', get_lang('SendMailToNewUser'), null, false);
 
 // Registration User and Date
 $creatorInfo = api_get_user_info($user_data['creator_id']);
-$date = sprintf(get_lang('CreatedByXYOnZ'), 'user_information.php?user_id='.$user_data['creator_id'], $creatorInfo['username'], $user_data['registration_date']);
+$date = sprintf(
+    get_lang('CreatedByXYOnZ'),
+    'user_information.php?user_id='.$user_data['creator_id'],
+    $creatorInfo['username'],
+    $user_data['registration_date']
+);
 $form->addElement('label', get_lang('RegistrationDate'), $date);
 
 if (!$user_data['platform_admin']) {
@@ -369,7 +385,7 @@ $error_drh = false;
 // Validate form
 if ($form->validate()) {
     $user = $form->getSubmitValues(1);
-    $reset_password = intval($user['reset_password']);
+    $reset_password = (int) $user['reset_password'];
     if ($reset_password == 2 && empty($user['password'])) {
         Display::addFlash(Display::return_message(get_lang('PasswordIsTooShort')));
         header('Location: '.api_get_self().'?user_id='.$user_id);
@@ -404,10 +420,10 @@ if ($form->validate()) {
         $email = $user['email'];
         $phone = $user['phone'];
         $username = isset($user['username']) ? $user['username'] : $userInfo['username'];
-        $status = intval($user['status']);
-        $platform_admin = intval($user['platform_admin']);
-        $send_mail = intval($user['send_mail']);
-        $reset_password = intval($user['reset_password']);
+        $status = (int) $user['status'];
+        $platform_admin = (int) $user['platform_admin'];
+        $send_mail = (int) $user['send_mail'];
+        $reset_password = (int) $user['reset_password'];
         $hr_dept_id = isset($user['hr_dept_id']) ? intval($user['hr_dept_id']) : null;
         $language = $user['language'];
         $address = isset($user['address']) ? $user['address'] : null;
@@ -424,7 +440,7 @@ if ($form->validate()) {
             $status = COURSEMANAGER;
         }
 
-        if (api_get_setting('login_is_email') == 'true') {
+        if (api_get_setting('login_is_email') === 'true') {
             $username = $email;
         }
 
@@ -462,21 +478,17 @@ if ($form->validate()) {
             true
         );
 
-        if (api_get_setting('openid_authentication') == 'true' && !empty($user['openid'])) {
+        if (api_get_setting('openid_authentication') === 'true' && !empty($user['openid'])) {
             $up = UserManager::update_openid($user_id, $user['openid']);
         }
+
         $currentUserId = api_get_user_id();
-
-        $userObj = api_get_user_entity($user_id);
-
-        UserManager::add_user_as_admin($userObj);
-
         if ($user_id != $currentUserId) {
+            $userObj = api_get_user_entity($user_id);
             if ($platform_admin == 1) {
-                $userObj = api_get_user_entity($user_id);
-                UserManager::add_user_as_admin($userObj);
+                UserManager::addUserAsAdmin($userObj);
             } else {
-                UserManager::remove_user_admin($user_id);
+                UserManager::removeUserAdmin($userObj);
             }
         }
 

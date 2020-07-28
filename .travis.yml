@@ -18,20 +18,15 @@ cache:
   directories:
     - $HOME/.composer/cache/files
 php:
-  - 5.6
   - 7.0
   - 7.1
   - 7.2
   - 7.3
-#  - 7.4
 
 env:
   global:
     - VHOST_URL=localhost
     - CHAMILO_VERSION=1.11.x
-
-allow_failures:
-  - php: 7.4
 
 before_install:
   #- sudo apt-get update
@@ -95,6 +90,7 @@ before_install:
   # Permissions
   - sudo chown -R www-data:www-data $TRAVIS_BUILD_DIR
   - sudo chown -R 775 $TRAVIS_BUILD_DIR
+  - bash tests/travis/post_installation.sh
   - sudo chmod +x /home/travis/build
   - sudo service apache2 restart
   # Check the result of index.php and check if main.js is build in travis
@@ -102,14 +98,13 @@ before_install:
   - ls -la web/build
 
 script:
-  - whereis google-chrome-stable
-  - google-chrome-stable --version
-  - whereis chromedriver
-  - chromedriver --version
+#  - whereis google-chrome-stable
+#  - google-chrome-stable --version
+#  - whereis chromedriver
+#  - chromedriver --version
   - cd tests/behat
   - pwd
   - travis_wait 45 ../../vendor/behat/behat/bin/behat -v
-
   # - sudo cat /var/log/apache2/$VHOST_URL-access.log
 
 after_failure:

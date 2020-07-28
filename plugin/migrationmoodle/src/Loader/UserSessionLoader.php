@@ -27,10 +27,23 @@ class UserSessionLoader implements LoaderInterface
     {
         foreach ($incomingData['course_ids'] as $courseId) {
             if (empty($courseId)) {
-                throw new \Exception(
-                    "Course ($courseId) not found when creating course session for user ({$incomingData['user_id']}). "
-                        .'Session will not be created.'
-                );
+                throw new \Exception("Course ($courseId) not found when creating course session for user ({$incomingData['user_id']}). ".'Session will not be created.');
+            }
+        }
+
+        $tblSession = \Database::get_main_table(TABLE_MAIN_SESSION);
+
+        $sessionInfo = \Database::fetch_assoc(
+            \Database::query("SELECT id FROM $tblSession WHERE name = '{$incomingData['name']}'")
+        );
+
+        if (!empty($sessionInfo)) {
+            if ($this->loadMode == self::LOAD_MODE_REUSE) {
+                return $sessionInfo['id'];
+            }
+
+            if ($this->loadMode === self::LOAD_MODE_DUPLICATE) {
+                $incomingData['name'] = '['.substr(md5(uniqid(rand())), 0, 5).'] '.$incomingData['name'];
             }
         }
 

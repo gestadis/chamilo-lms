@@ -9,6 +9,7 @@ use Chamilo\CoreBundle\Entity\SkillRelUserComment;
 use Chamilo\UserBundle\Entity\User;
 use Chamilo\UserBundle\Repository\UserRepository;
 use ChamiloSession as Session;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Security\Core\Encoder\EncoderFactory;
 
 /**
@@ -56,9 +57,8 @@ class UserManager
     public static function getRepository()
     {
         /** @var UserRepository $userRepository */
-        $userRepository = Database::getManager()->getRepository('ChamiloUserBundle:User');
 
-        return $userRepository;
+        return Database::getManager()->getRepository('ChamiloUserBundle:User');
     }
 
     /**
@@ -118,9 +118,8 @@ class UserManager
     public static function isPasswordValid($encoded, $raw, $salt)
     {
         $encoder = new \Chamilo\UserBundle\Security\Encoder(self::getPasswordEncryption());
-        $validPassword = $encoder->isPasswordValid($encoded, $raw, $salt);
 
-        return $validPassword;
+        return $encoder->isPasswordValid($encoded, $raw, $salt);
     }
 
     /**
@@ -131,12 +130,11 @@ class UserManager
     public static function encryptPassword($raw, User $user)
     {
         $encoder = self::getEncoder($user);
-        $encodedPassword = $encoder->encodePassword(
+
+        return $encoder->encodePassword(
             $raw,
             $user->getSalt()
         );
-
-        return $encodedPassword;
     }
 
     /**
@@ -151,6 +149,7 @@ class UserManager
         $userManager = self::getManager();
         $user->setPlainPassword($password);
         $userManager->updateUser($user, true);
+        Event::addEvent(LOG_USER_PASSWORD_UPDATE, LOG_USER_ID, $userId);
     }
 
     /**
@@ -225,10 +224,36 @@ class UserManager
             $hook->notifyCreateUser(HOOK_EVENT_TYPE_PRE);
         }
 
+        if (false === api_valid_email($email)) {
+            Display::addFlash(
+                Display::return_message(get_lang('PleaseEnterValidEmail').' - '.$email, 'warning')
+            );
+
+            return false;
+        }
+
+        if ('true' === api_get_setting('login_is_email')) {
+            if (false === api_valid_email($loginName)) {
+                Display::addFlash(
+                    Display::return_message(get_lang('PleaseEnterValidEmail').' - '.$loginName, 'warning')
+                );
+
+                return false;
+            }
+        } else {
+            if (false === self::is_username_valid($loginName)) {
+                Display::addFlash(
+                    Display::return_message(get_lang('UsernameWrong').' - '.$loginName, 'warning')
+                );
+
+                return false;
+            }
+        }
+
         // First check wether the login already exists
         if (!self::is_username_available($loginName)) {
             Display::addFlash(
-                Display::return_message(get_lang('LoginAlreadyTaken'))
+                Display::return_message(get_lang('LoginAlreadyTaken').' - '.$loginName, 'warning')
             );
 
             return false;
@@ -382,7 +407,7 @@ class UserManager
             Database::query($sql);
 
             if ($isAdmin) {
-                self::add_user_as_admin($user);
+                self::addUserAsAdmin($user);
             }
 
             if (api_get_multiple_access_url()) {
@@ -862,18 +887,18 @@ class UserManager
             $user["lastname"],
             $login,
             null,
-            null,
+            $userInfo['auth_source'],
             $user["email"],
             $userInfo['status'],
-            '',
-            '',
-            '',
+            $userInfo['official_code'],
+            $userInfo['phone'],
+            $userInfo['picture_uri'],
+            $userInfo['expiration_date'],
+            $userInfo['active'],
+            $userInfo['creator_id'],
+            $userInfo['hr_dept_id'],
             null,
-            1,
-            null,
-            0,
-            null,
-            ''
+            $userInfo['language']
         );
         if (false === $userId) {
             throw new Exception(get_lang('CouldNotUpdateUser'));
@@ -909,14 +934,16 @@ class UserManager
             return false;
         }
 
-        $sql = "SELECT * FROM $table_course_user
-                WHERE status = 1 AND user_id = ".$user_id;
-        $res = Database::query($sql);
-        while ($course = Database::fetch_object($res)) {
-            $sql = "SELECT id FROM $table_course_user
-                    WHERE status=1 AND c_id = ".intval($course->c_id);
-            $res2 = Database::query($sql);
-            if (Database::num_rows($res2) == 1) {
+        $res = Database::query(
+            "SELECT c_id FROM $table_course_user WHERE status = 1 AND user_id = $user_id"
+        );
+        while ($course = Database::fetch_assoc($res)) {
+            $sql = Database::query(
+                "SELECT COUNT(id) number FROM $table_course_user WHERE status = 1 AND c_id = {$course['c_id']}"
+            );
+            $res2 = Database::fetch_assoc($sql);
+
+            if ($res2['number'] == 1) {
                 return false;
             }
         }
@@ -1009,17 +1036,12 @@ class UserManager
             RedirectionPlugin::deleteUserRedirection($user_id);
         }
 
-        // Delete user picture
-        /* TODO: Logic about api_get_setting('split_users_upload_directory') == 'true'
-        a user has 4 different sized photos to be deleted. */
         $user_info = api_get_user_info($user_id);
 
-        if (strlen($user_info['picture_uri']) > 0) {
-            $path = self::getUserPathById($user_id, 'system');
-            $img_path = $path.$user_info['picture_uri'];
-            if (file_exists($img_path)) {
-                unlink($img_path);
-            }
+        try {
+            self::deleteUserFiles($user_id);
+        } catch (Exception $exception) {
+            error_log('Delete user exception: '.$exception->getMessage());
         }
 
         // Delete the personal course categories
@@ -1438,9 +1460,11 @@ class UserManager
 
         if (!is_null($password)) {
             $user->setPlainPassword($password);
+            Event::addEvent(LOG_USER_PASSWORD_UPDATE, LOG_USER_ID, $user_id);
         }
 
         $userManager->updateUser($user, true);
+        Event::addEvent(LOG_USER_UPDATE, LOG_USER_ID, $user_id);
 
         if ($change_active == 1) {
             if ($active == 1) {
@@ -1750,10 +1774,13 @@ class UserManager
             // into ASCII letters in order they not to be totally removed.
             // 2. Applying the strict purifier.
             // 3. Length limitation.
-            $return = api_get_setting('login_is_email') === 'true' ? substr(preg_replace(USERNAME_PURIFIER_MAIL, '', $username), 0, USERNAME_MAX_LENGTH) : substr(preg_replace(USERNAME_PURIFIER, '', $username), 0, USERNAME_MAX_LENGTH);
-            $return = URLify::transliterate($return);
+            if ('true' === api_get_setting('login_is_email')) {
+                $return = substr(preg_replace(USERNAME_PURIFIER_MAIL, '', $username), 0, USERNAME_MAX_LENGTH);
+            } else {
+                $return = substr(preg_replace(USERNAME_PURIFIER, '', $username), 0, USERNAME_MAX_LENGTH);
+            }
 
-            return $return;
+            return URLify::transliterate($return);
         }
 
         // 1. Applying the shallow purifier.
@@ -3040,7 +3067,9 @@ class UserManager
         return $extra_data;
     }
 
-    /** Get extra user data by field
+    /**
+     * Get extra user data by field.
+     *
      * @param int    user ID
      * @param string the internal variable name of the field
      *
@@ -3413,19 +3442,28 @@ class UserManager
 
         $sessionData = [];
         // First fill $sessionData with student sessions
-        foreach ($sessionDataStudent as $row) {
-            $sessionData[$row['id']] = $row;
+        if (!empty($sessionDataStudent)) {
+            foreach ($sessionDataStudent as $row) {
+                $sessionData[$row['id']] = $row;
+            }
         }
+
         // Overwrite session data of the user as a student with session data
         // of the user as a coach.
         // There shouldn't be such duplicate rows, but just in case...
-        foreach ($sessionDataCoach as $row) {
-            $sessionData[$row['id']] = $row;
+        if (!empty($sessionDataCoach)) {
+            foreach ($sessionDataCoach as $row) {
+                $sessionData[$row['id']] = $row;
+            }
         }
 
         $collapsable = api_get_configuration_value('allow_user_session_collapsable');
         $extraField = new ExtraFieldValue('session');
         $collapsableLink = api_get_path(WEB_PATH).'user_portal.php?action=collapse_session';
+
+        if (empty($sessionData)) {
+            return [];
+        }
 
         $categories = [];
         foreach ($sessionData as $row) {
@@ -3821,7 +3859,8 @@ class UserManager
                     c.visibility,
                     c.id as real_id,
                     c.code as course_code,
-                    sc.position
+                    sc.position,
+                    c.unsubscribe
                 FROM $tbl_session_course_user as scu
                 INNER JOIN $tbl_session_course sc
                 ON (scu.session_id = sc.session_id AND scu.c_id = sc.c_id)
@@ -3857,7 +3896,8 @@ class UserManager
                         c.visibility,
                         c.id as real_id,
                         c.code as course_code,
-                        sc.position
+                        sc.position,
+                        c.unsubscribe
                     FROM $tbl_session_course_user as scu
                     INNER JOIN $tbl_session as s
                     ON (scu.session_id = s.id)
@@ -5742,14 +5782,13 @@ class UserManager
         return $icon_link;
     }
 
-    public static function add_user_as_admin(User $user)
+    public static function addUserAsAdmin(User $user)
     {
-        $table_admin = Database::get_main_table(TABLE_MAIN_ADMIN);
         if ($user) {
             $userId = $user->getId();
-
             if (!self::is_admin($userId)) {
-                $sql = "INSERT INTO $table_admin SET user_id = $userId";
+                $table = Database::get_main_table(TABLE_MAIN_ADMIN);
+                $sql = "INSERT INTO $table SET user_id = $userId";
                 Database::query($sql);
             }
 
@@ -5758,16 +5797,15 @@ class UserManager
         }
     }
 
-    /**
-     * @param int $userId
-     */
-    public static function remove_user_admin($userId)
+    public static function removeUserAdmin(User $user)
     {
-        $table_admin = Database::get_main_table(TABLE_MAIN_ADMIN);
-        $userId = (int) $userId;
+        $userId = (int) $user->getId();
         if (self::is_admin($userId)) {
-            $sql = "DELETE FROM $table_admin WHERE user_id = $userId";
+            $table = Database::get_main_table(TABLE_MAIN_ADMIN);
+            $sql = "DELETE FROM $table WHERE user_id = $userId";
             Database::query($sql);
+            $user->removeRole('ROLE_SUPER_ADMIN');
+            self::getManager()->updateUser($user, true);
         }
     }
 
@@ -6092,7 +6130,8 @@ class UserManager
 
         if ($userId > 0) {
             $userRelTable = Database::get_main_table(TABLE_MAIN_USER_REL_USER);
-            $result = Database::select(
+
+            return Database::select(
                 'DISTINCT friend_user_id AS boss_id',
                 $userRelTable,
                 [
@@ -6104,8 +6143,6 @@ class UserManager
                     ],
                 ]
             );
-
-            return $result;
         }
 
         return [];
@@ -7000,6 +7037,19 @@ SQL;
     }
 
     /**
+     * @param int $userInfo
+     *
+     * @throws Exception
+     */
+    public static function deleteUserFiles($userId)
+    {
+        $path = self::getUserPathById($userId, 'system');
+
+        $fs = new Filesystem();
+        $fs->remove($path);
+    }
+
+    /**
      * @return EncoderFactory
      */
     private static function getEncoderFactory()
@@ -7009,9 +7059,7 @@ SQL;
             'Chamilo\\UserBundle\\Entity\\User' => new \Chamilo\UserBundle\Security\Encoder($encryption),
         ];
 
-        $encoderFactory = new EncoderFactory($encoders);
-
-        return $encoderFactory;
+        return new EncoderFactory($encoders);
     }
 
     /**

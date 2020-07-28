@@ -1,11 +1,7 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
-/**
- * Script.
- *
- * @package chamilo.gradebook
- */
 require_once __DIR__.'/../inc/global.inc.php';
 
 api_block_anonymous_users();
@@ -42,7 +38,7 @@ if (!empty($categoryId)) {
     ];
 }
 
-$user_table = new UserTable($userId, $allevals, $alllinks, $addparams);
+$userTable = new UserTable($userId, $allevals, $alllinks, $addparams);
 
 if (isset($_GET['exportpdf'])) {
     $datagen = new UserDataGenerator($userId, $allevals, $alllinks);
@@ -101,8 +97,8 @@ if (isset($_GET['exportpdf'])) {
     $pdf->content_to_pdf($html);
     exit;
 }
-$actions = '<div class="actions">';
 
+$actions = '<div class="actions">';
 if (!empty($categoryId)) {
     $interbreadcrumb[] = [
         'url' => 'gradebook_flatview.php?selectcat='.$categoryId.'&'.api_get_cidreq(),
@@ -135,5 +131,5 @@ $actions .= '</div>';
 Display::display_header(get_lang('ResultsPerUser'));
 echo $actions;
 DisplayGradebook::display_header_user($_GET['userid'], $category[0]->get_id());
-$user_table->display();
+$userTable->display();
 Display::display_footer();

@@ -49,6 +49,7 @@ if (!in_array(
         'get_hotpotatoes_exercise_results',
         'get_work_teacher',
         'get_work_student',
+        'get_all_work_student',
         'get_work_user_list',
         'get_work_user_list_others',
         'get_work_user_list_all',
@@ -160,8 +161,20 @@ if (($search || $forceSearch) && ($search !== 'false')) {
     }
 
     if (!empty($filters)) {
-        if (in_array($action, ['get_questions', 'get_sessions', 'get_sessions_tracking'])) {
+        if (in_array($action,
+            [
+                'get_user_course_report_resumed',
+                'get_user_course_report',
+                'get_questions',
+                'get_sessions',
+                'get_sessions_tracking',
+            ]
+        )) {
             switch ($action) {
+                case 'get_user_course_report_resumed':
+                case 'get_user_course_report':
+                    $type = 'user';
+                    break;
                 case 'get_questions':
                     $type = 'question';
                     break;
@@ -197,6 +210,7 @@ if (($search || $forceSearch) && ($search !== 'false')) {
                         }
                     }
                 }
+
                 $result = $extraField->getExtraFieldRules($filters, 'extra_');
 
                 $extra_fields = $result['extra_fields'];
@@ -439,12 +453,9 @@ switch ($action) {
             if ($sessionId == -1) {
                 $sessionList = SessionManager::get_sessions_list();
                 $sessionIdList = array_column($sessionList, 'id');
-
                 $courseCodeList = [];
                 foreach ($sessionList as $session) {
-                    $courses = SessionManager::get_course_list_by_session_id(
-                        $session['id']
-                    );
+                    $courses = SessionManager::get_course_list_by_session_id($session['id']);
                     $courseCodeList = array_merge(
                         $courseCodeList,
                         array_column($courses, 'code')
@@ -503,7 +514,8 @@ switch ($action) {
                 null,
                 $courseCodeList,
                 $userIdList,
-                $sessionIdList
+                $sessionIdList,
+                ['where' => $whereCondition, 'extra' => $extra_fields]
             );
         } else {
             $count = CourseManager::get_count_user_list_from_course_code(
@@ -511,7 +523,8 @@ switch ($action) {
                 ['ruc'],
                 $courseCodeList,
                 $userIdList,
-                $sessionIdList
+                $sessionIdList,
+                ['where' => $whereCondition, 'extra' => $extra_fields]
             );
         }
         break;
@@ -533,6 +546,11 @@ switch ($action) {
     case 'get_work_student':
         require_once api_get_path(SYS_CODE_PATH).'work/work.lib.php';
         $count = getWorkListStudent(0, $limit, $sidx, $sord, $whereCondition, true);
+        break;
+    case 'get_all_work_student':
+        require_once api_get_path(SYS_CODE_PATH).'work/work.lib.php';
+        $withResults = isset($_REQUEST['with_results']) ? (int) $_REQUEST['with_results'] : 0;
+        $count = getAllWorkListStudent(0, $limit, $sidx, $sord, $whereCondition, true, $withResults);
         break;
     case 'get_work_user_list_all':
         require_once api_get_path(SYS_CODE_PATH).'work/work.lib.php';
@@ -673,9 +691,23 @@ switch ($action) {
             $description = $keyword;
         }
 
-        if (api_is_drh() || api_is_session_admin()) {
+        if (api_is_drh()) {
             $count = SessionManager::get_sessions_followed_by_drh(
                 api_get_user_id(),
+                null,
+                null,
+                true,
+                false,
+                false,
+                null,
+                $keyword,
+                $description,
+                ['where' => $whereCondition, 'extra' => $extra_fields]
+            );
+        } elseif (api_is_session_admin()) {
+            $count = SessionManager::getSessionsFollowedByUser(
+                api_get_user_id(),
+                SESSIONADMIN,
                 null,
                 null,
                 true,
@@ -1012,7 +1044,7 @@ switch ($action) {
             get_lang('CountCertificates'),
         ];
 
-        $extra_fields = UserManager::get_extra_fields(
+        $userExtraFields = UserManager::get_extra_fields(
             0,
             100,
             null,
@@ -1021,18 +1053,14 @@ switch ($action) {
             true
         );
 
-        if (!empty($extra_fields)) {
-            foreach ($extra_fields as $extra) {
+        if (!empty($userExtraFields)) {
+            foreach ($userExtraFields as $extra) {
                 if ($extra['1'] == 'ruc') {
                     continue;
                 }
                 $columns[] = $extra['1'];
                 $column_names[] = $extra['3'];
             }
-        }
-
-        if (!in_array($sidx, ['training_hours'])) {
-            //$sidx = 'training_hours';
         }
 
         if (api_is_student_boss() && empty($userIdList)) {
@@ -1053,7 +1081,9 @@ switch ($action) {
             $courseCodeList,
             $userIdList,
             null,
-            $sessionIdList
+            $sessionIdList,
+            null,
+            ['where' => $whereCondition, 'extra' => $extra_fields]
         );
 
         $new_result = [];
@@ -1086,7 +1116,7 @@ switch ($action) {
             get_lang('CourseAdvance'),
         ];
 
-        $extra_fields = UserManager::get_extra_fields(
+        $userExtraFields = UserManager::get_extra_fields(
             0,
             100,
             null,
@@ -1094,8 +1124,8 @@ switch ($action) {
             true,
             true
         );
-        if (!empty($extra_fields)) {
-            foreach ($extra_fields as $extra) {
+        if (!empty($userExtraFields)) {
+            foreach ($userExtraFields as $extra) {
                 $columns[] = $extra['1'];
                 $column_names[] = $extra['3'];
             }
@@ -1115,10 +1145,10 @@ switch ($action) {
             break;
         }
 
-        //get sessions
-        $arrSessions = [];
+        // get sessions
+        $sessions = [];
         if (count($sessionIdList) > 0) {
-            $arrSessions = CourseManager::get_user_list_from_course_code(
+            $sessions = CourseManager::get_user_list_from_course_code(
                 null,
                 null,
                 "LIMIT $start, $limit",
@@ -1131,12 +1161,14 @@ switch ($action) {
                 $courseCodeList,
                 $userIdList,
                 null,
-                $sessionIdList
+                $sessionIdList,
+                null,
+                ['where' => $whereCondition, 'extra' => $extra_fields]
             );
         }
 
-        //get courses
-        $arrCourses = CourseManager::get_user_list_from_course_code(
+        // get courses
+        $courses = CourseManager::get_user_list_from_course_code(
             null,
             null,
             "LIMIT $start, $limit",
@@ -1148,11 +1180,14 @@ switch ($action) {
             null,
             [],
             $userIdList,
-            null
+            null,
+            null,
+            null,
+            ['where' => $whereCondition, 'extra' => $extra_fields]
         );
 
         //merge courses and sessions
-        $result = array_merge($arrSessions, $arrCourses);
+        $result = array_merge($sessions, $courses);
 
         if (api_is_student_boss()) {
             $userGroup = new UserGroup();
@@ -1262,6 +1297,27 @@ switch ($action) {
             $sidx,
             $sord,
             $whereCondition
+        );
+        break;
+    case 'get_all_work_student':
+        $columns = [
+            'type',
+            'title',
+            'expires_on',
+        ];
+
+        if ($withResults) {
+            $columns[] = 'feedback';
+            $columns[] = 'last_upload';
+        }
+        $result = getAllWorkListStudent(
+            $start,
+            $limit,
+            $sidx,
+            $sord,
+            $whereCondition,
+            false,
+            $withResults
         );
         break;
     case 'get_work_user_list_all':
@@ -1566,12 +1622,29 @@ switch ($action) {
         );
         break;
     case 'get_sessions_tracking':
-        if (api_is_drh() || api_is_session_admin()) {
+        if (api_is_drh()) {
             $orderByName = Database::escape_string($sidx);
             $orderByName = in_array($orderByName, ['name', 'access_start_date']) ? $orderByName : 'name';
             $orderBy = " ORDER BY $orderByName $sord";
             $sessions = SessionManager::get_sessions_followed_by_drh(
                 api_get_user_id(),
+                $start,
+                $limit,
+                false,
+                false,
+                false,
+                $orderBy,
+                $keyword,
+                $description,
+                ['where' => $whereCondition, 'extra' => $extra_fields]
+            );
+        } elseif (api_is_session_admin()) {
+            $orderByName = Database::escape_string($sidx);
+            $orderByName = in_array($orderByName, ['name', 'access_start_date']) ? $orderByName : 'name';
+            $orderBy = " ORDER BY $orderByName $sord";
+            $sessions = SessionManager::getSessionsFollowedByUser(
+                api_get_user_id(),
+                SESSIONADMIN,
                 $start,
                 $limit,
                 false,
@@ -2351,6 +2424,7 @@ $allowed_actions = [
     'get_hotpotatoes_exercise_results',
     'get_work_teacher',
     'get_work_student',
+    'get_all_work_student',
     'get_work_user_list',
     'get_work_user_list_others',
     'get_work_user_list_all',

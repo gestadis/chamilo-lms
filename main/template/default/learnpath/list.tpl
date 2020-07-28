@@ -24,8 +24,12 @@
                         <h3 class="page-header">
                             {{ lp_data.category.getName() | trim }}
 
+                            {% if lp_data.category.sessionId %}
+                                {{ session_star_icon }}
+                            {% endif %}
+
                             {% if lp_data.category.getId() > 0 %}
-                                {% if not _c.session_id %}
+                                {% if lp_data.category.sessionId == _c.session_id %}
                                     <a href="{{ 'lp_controller.php?' ~ _p.web_cid_query ~ '&action=add_lp_category&id=' ~ lp_data.category.getId() }}"
                                        title="{{ "Edit"|get_lang }}">
                                         <img src="{{ "edit.png"|icon }}" alt="{{ "Edit"|get_lang }}">
@@ -38,54 +42,61 @@
                                         </a>
                                     {% endif %}
 
-                                    {% if loop.index0 == 1 %}
-                                        <a href="#">
-                                            <img src="{{ "up_na.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                    {% if lp_data.category.sessionId == _c.session_id %}
+                                        {% if loop.index0 == 1 or first_session_category == lp_data.category.id %}
+                                            <a href="#">
+                                                <img src="{{ "up_na.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ 'lp_controller.php?' ~ _p.web_cid_query ~ '&action=move_up_category&id=' ~ lp_data.category.getId() }}"
+                                               title="{{ "Move"|get_lang }}">
+                                                <img src="{{ "up.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                            </a>
+                                        {% endif %}
+
+                                        {% if (data|length - 1) == loop.index0 %}
+                                            <a href="#">
+                                                <img src="{{ "down_na.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ 'lp_controller.php?' ~ _p.web_cid_query ~ '&action=move_down_category&id=' ~ lp_data.category.getId() }}"
+                                               title="{{ "Move"|get_lang }}">
+                                                <img src="{{ "down.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                            </a>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+
+{#                                {% if lp_data.category.sessionId == _c.session_id %}#}
+                                    {% if lp_data.category_visibility == 0 %}
+                                        <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_visibility', 'id':lp_data.category.id, 'new_status':1}|url_encode }}"
+                                           title="{{ 'Show'|get_lang }}">
+                                            <img src="{{ 'invisible.png'|icon }}" alt="{{ 'Show'|get_lang }}">
                                         </a>
                                     {% else %}
-                                        <a href="{{ 'lp_controller.php?' ~ _p.web_cid_query ~ '&action=move_up_category&id=' ~ lp_data.category.getId() }}"
-                                           title="{{ "Move"|get_lang }}">
-                                            <img src="{{ "up.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                        <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_visibility', 'id':lp_data.category.id, 'new_status':0}|url_encode }}"
+                                           title="{{ 'Hide'|get_lang }}">
+                                            <img src="{{ 'visible.png'|icon }}" alt="{{ 'Hide'|get_lang }}">
                                         </a>
                                     {% endif %}
+{#                                {% endif %}#}
 
-                                    {% if (data|length - 1) == loop.index0 %}
-                                        <a href="#">
-                                            <img src="{{ "down_na.png"|icon }}" alt="{{ "Move"|get_lang }}">
+{#                                {% if not _c.session_id %}#}
+                                    {% if lp_data.category_is_published == 0 %}
+                                        <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_publish', 'id':lp_data.category.id, 'new_status':1}|url_encode }}"
+                                           title="{{ 'LearnpathPublish'|get_lang }}">
+                                            <img src="{{ 'lp_publish_na.png'|icon }}"
+                                                 alt="{{ 'LearnpathPublish'|get_lang }}">
                                         </a>
                                     {% else %}
-                                        <a href="{{ 'lp_controller.php?' ~ _p.web_cid_query ~ '&action=move_down_category&id=' ~ lp_data.category.getId() }}"
-                                           title="{{ "Move"|get_lang }}">
-                                            <img src="{{ "down.png"|icon }}" alt="{{ "Move"|get_lang }}">
+                                        <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_publish', 'id':lp_data.category.id, 'new_status':0}|url_encode }}"
+                                           title="{{ 'LearnpathDoNotPublish'|get_lang }}">
+                                            <img src="{{ 'lp_publish.png'|icon }}" alt="{{ 'Hide'|get_lang }}">
                                         </a>
                                     {% endif %}
-                                {% endif %}
+{#                                {% endif %}#}
 
-                                {% if lp_data.category_visibility == 0 %}
-                                    <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_visibility', 'id':lp_data.category.id, 'new_status':1}|url_encode }}"
-                                       title="{{ 'Show'|get_lang }}">
-                                        <img src="{{ 'invisible.png'|icon }}" alt="{{ 'Show'|get_lang }}">
-                                    </a>
-                                {% else %}
-                                    <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_visibility', 'id':lp_data.category.id, 'new_status':0}|url_encode }}"
-                                       title="{{ 'Hide'|get_lang }}">
-                                        <img src="{{ 'visible.png'|icon }}" alt="{{ 'Hide'|get_lang }}">
-                                    </a>
-                                {% endif %}
-
-                                {% if lp_data.category_is_published == 0 %}
-                                    <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_publish', 'id':lp_data.category.id, 'new_status':1}|url_encode }}"
-                                       title="{{ 'LearnpathPublish'|get_lang }}">
-                                        <img src="{{ 'lp_publish_na.png'|icon }}"
-                                             alt="{{ 'LearnpathPublish'|get_lang }}">
-                                    </a>
-                                {% else %}
-                                    <a href="lp_controller.php?{{ _p.web_cid_query ~ '&' ~ {'action':'toggle_category_publish', 'id':lp_data.category.id, 'new_status':0}|url_encode }}"
-                                       title="{{ 'LearnpathDoNotPublish'|get_lang }}">
-                                        <img src="{{ 'lp_publish.png'|icon }}" alt="{{ 'Hide'|get_lang }}">
-                                    </a>
-                                {% endif %}
-                                {% if not _c.session_id %}
+                                {% if lp_data.category.sessionId == _c.session_id %}
                                     <a href="{{ 'lp_controller.php?' ~ _p.web_cid_query  ~ '&action=delete_lp_category&id=' ~ lp_data.category.getId() }}"
                                        title="{{ "Delete"|get_lang }}">
                                         <img src="{{ "delete.png"|icon }}" alt="{{ "Delete"|get_lang }}">
@@ -133,8 +144,8 @@
                                         <a href="{{ row.url_start }}">
                                             {{ row.title }}
                                             {{ row.session_image }}
-                                            {{ row.extra }}
                                         </a>
+                                        {{ row.extra }}
                                     </td>
                                     {% if is_allowed_to_edit %}
                                         <td>
@@ -210,10 +221,16 @@
                                             <th>{{ "PublicationDate"|get_lang }}</th>
                                             <th>{{ "ExpirationDate"|get_lang }}</th>
                                             <th>{{ "Progress"|get_lang }}</th>
+                                            {% if allow_min_time %}
+                                                <th>{{ "TimeSpentTimeRequired"|get_lang }}</th>
+                                            {% endif %}
                                             <th>{{ "AuthoringOptions"|get_lang }}</th>
                                         {% else %}
                                             {% if not is_invitee %}
                                                 <th>{{ "Progress"|get_lang }}</th>
+                                            {% endif %}
+                                            {% if allow_min_time %}
+                                                <th>{{ "TimeSpentTimeRequired"|get_lang }}</th>
                                             {% endif %}
 
                                             <th>{{ "Actions"|get_lang }}</th>
@@ -243,10 +260,24 @@
                                                 <td>
                                                     {{ row.dsp_progress }}
                                                 </td>
+                                                {% if allow_min_time %}
+                                                    <td>
+                                                        {% if row.info_time_prerequisite %}
+                                                            {{ row.info_time_prerequisite }}
+                                                        {% endif %}
+                                                    </td>
+                                                {% endif %}
                                             {% else %}
                                                 {% if not is_invitee %}
                                                     <td>
                                                         {{ row.dsp_progress }}
+                                                    </td>
+                                                {% endif %}
+                                                {% if allow_min_time %}
+                                                    <td>
+                                                        {% if row.info_time_prerequisite %}
+                                                            {{ row.info_time_prerequisite }}
+                                                        {% endif %}
                                                     </td>
                                                 {% endif %}
                                             {% endif %}
@@ -269,6 +300,7 @@
                                                 {{ row.action_delete }}
                                                 {{ row.action_order }}
                                                 {{ row.action_update_scorm }}
+                                                {{ row.action_export_to_course_build }}
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -282,7 +314,7 @@
                                 {% for row in lp_data.lp_list %}
                                     <div class="lp-item">
                                         <div class="row">
-                                            <div class="col-md-8">
+                                            <div class="col-md-6">
                                                 <i class="fa fa-chevron-circle-right" aria-hidden="true"></i>
                                                 <a href="{{ row.url_start }}">
                                                     {{ row.title }}
@@ -293,6 +325,13 @@
                                             <div class="col-md-3">
                                                 {{ row.dsp_progress }}
                                             </div>
+                                            {% if allow_min_time %}
+                                                <div class="col-md-2">
+                                                    {% if row.info_time_prerequisite %}
+                                                        {{ row.info_time_prerequisite }}
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
                                             <div class="col-md-1">
                                                 {{ row.action_pdf }}
                                             </div>
@@ -408,10 +447,16 @@
                                                         <th>{{ "PublicationDate"|get_lang }}</th>
                                                         <th>{{ "ExpirationDate"|get_lang }}</th>
                                                         <th>{{ "Progress"|get_lang }}</th>
+                                                        {% if allow_min_time %}
+                                                            <th>{{ "TimeSpentTimeRequired"|get_lang }}</th>
+                                                        {% endif %}
                                                         <th>{{ "AuthoringOptions"|get_lang }}</th>
                                                     {% else %}
                                                         {% if not is_invitee %}
                                                             <th>{{ "Progress"|get_lang }}</th>
+                                                        {% endif %}
+                                                        {% if allow_min_time %}
+                                                            <th>{{ "TimeSpentTimeRequired"|get_lang }}</th>
                                                         {% endif %}
 
                                                         <th>{{ "Actions"|get_lang }}</th>
@@ -441,10 +486,24 @@
                                                             <td>
                                                                 {{ row.dsp_progress }}
                                                             </td>
+                                                            {% if allow_min_time %}
+                                                                <td>
+                                                                    {% if row.info_time_prerequisite %}
+                                                                        {{ row.info_time_prerequisite }}
+                                                                    {% endif %}
+                                                                </td>
+                                                            {% endif %}
                                                         {% else %}
                                                             {% if not is_invitee %}
                                                                 <td>
                                                                     {{ row.dsp_progress }}
+                                                                </td>
+                                                            {% endif %}
+                                                            {% if allow_min_time %}
+                                                                <td>
+                                                                    {% if row.info_time_prerequisite %}
+                                                                        {{ row.info_time_prerequisite }}
+                                                                    {% endif %}
                                                                 </td>
                                                             {% endif %}
                                                         {% endif %}
@@ -466,6 +525,7 @@
                                                             {{ row.action_delete }}
                                                             {{ row.action_order }}
                                                             {{ row.action_update_scorm }}
+                                                            {{ row.action_export_to_course_build }}
                                                         </td>
                                                     </tr>
                                                 {% endfor %}
@@ -476,7 +536,7 @@
                                         {% for row in lp_data.lp_list %}
                                             <div class="lp-item">
                                                 <div class="row">
-                                                    <div class="col-md-8">
+                                                    <div class="col-md-6">
                                                         <i class="fa fa-chevron-circle-right" aria-hidden="true"></i>
                                                         <a href="{{ row.url_start }}">
                                                             {{ row.title }}
@@ -487,6 +547,13 @@
                                                     <div class="col-md-3">
                                                         {{ row.dsp_progress }}
                                                     </div>
+                                                    {% if allow_min_time %}
+                                                        <div class="col-md-2">
+                                                            {% if row.info_time_prerequisite %}
+                                                                {{ row.info_time_prerequisite }}
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endif %}
                                                     <div class="col-md-1">
                                                         {{ row.action_pdf }}
                                                     </div>
@@ -516,6 +583,12 @@
                 {{ 'IHaveFinishedTheLessonsNotifyTheTeacher'|get_lang }}
             </a>
         {% endif %}
+    </div>
+{% endif %}
+
+{% if not is_invitee and lp_is_shown and allow_min_time and is_ending %}
+    <div id="lp_download_file_after_finish" class="controls text-center">
+        {{ download_files_after_finish }}
     </div>
 {% endif %}
 

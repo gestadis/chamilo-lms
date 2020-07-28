@@ -9,6 +9,7 @@ $strings['MeetingOpened'] = "Sala abierta";
 $strings['MeetingClosed'] = "Sala cerrada";
 $strings['MeetingClosedComment'] = "Si ha pedido grabar la sesión de videoconferencia en los parámetros del curso, esta grabación aparecerá en la lista siguiente una vez generada.";
 $strings['CloseMeeting'] = "Cerrar sala";
+$strings['RoomExit'] = "Ha salido de la sesión de Videoconferencia";
 
 $strings['VideoConferenceXCourseX'] = "Videoconferencia #%s, curso %s";
 $strings['VideoConferenceAddedToTheCalendar'] = "Videoconferencia añadida al calendario";
@@ -72,3 +73,5 @@ $strings['ParticipantsWillUseSameInterface'] = 'Los participantes usarán la mis
 $strings['SetByDefault'] = 'Lanzamiento con la interfaz por defecto';
 $strings['SetByTeacher'] = 'Elegido por el profesor';
 $strings['SetByStudent'] = 'Elegido por el alumno';
+$strings['ThereIsNoVideoConferenceActive'] = "No hay una videoconferencia actualmente activa";
+$strings['meeting_duration'] = 'Duración de la reunión (en minutos)';

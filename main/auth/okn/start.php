@@ -66,6 +66,7 @@ if (isset($_GET['email']) || isset($_GET['email_bis'])) {
         'firstname',
         'lastname1',
         'lastname2',
+        'courses',
     ];
 
     // Check normal params
@@ -143,6 +144,25 @@ if (isset($_GET['email']) || isset($_GET['email_bis'])) {
             }
         }
 
+        if (isset($attributes['courses']) && !empty($attributes['courses'])) {
+            $courses = explode(',', $attributes['courses']);
+            $firstCourseCode = '';
+            if (!empty($courses)) {
+                $counter = 1;
+                foreach ($courses as $course) {
+                    $courseInfo = api_get_course_info($course);
+                    if ($courseInfo) {
+                        if ($counter == 1) {
+                            $firstCourseCode = $course;
+                        }
+                        CourseManager::subscribeUser($userId, $courseInfo['code'], STUDENT, 0, 0, false);
+                    }
+                    $counter++;
+                }
+                $courseCode = $firstCourseCode;
+            }
+        }
+
         // Clean flash messages
         Session::write('flash_messages', '');
 
@@ -158,6 +178,8 @@ if (isset($_GET['email']) || isset($_GET['email_bis'])) {
         Session::write('_user', $userInfo);
         Session::write('is_platformAdmin', false);
         Session::write('is_allowedCreateCourse', false);
+
+        Event::eventLogin($userId);
 
         if (!empty($courseCode)) {
             $courseInfo = api_get_course_info($courseCode);

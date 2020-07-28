@@ -69,7 +69,7 @@ Session::erase('answer_count');
 Session::erase('answer_list');
 $tool_name = get_lang('SurveyList');
 // Language variables
-if (isset($_GET['search']) && $_GET['search'] === 'advanced') {
+if (isset($_GET['search']) && 'advanced' == $_GET['search']) {
     $interbreadcrumb[] = [
         'url' => api_get_path(WEB_CODE_PATH).'survey/survey_list.php',
         'name' => get_lang('SurveyList'),
@@ -87,28 +87,35 @@ if (isset($_POST['action']) && $_POST['action'] && isset($_POST['id']) && is_arr
     }
 
     $exportList = [];
-
     foreach ($_POST['id'] as $value) {
         $surveyData = SurveyManager::get_survey($value);
         if (empty($surveyData)) {
             continue;
         }
-        $surveyData['title'] = strip_tags($surveyData['title']);
+        $surveyData['title'] = trim(strip_tags($surveyData['title']));
 
         switch ($action) {
             case 'export_all':
-                $filename = 'survey_results_'.$value.'.xlsx';
+                $filename = $surveyData['code'].'.xlsx';
                 $exportList[] = @SurveyUtil::export_complete_report_xls($surveyData, $filename, 0, true);
                 break;
             case 'send_to_tutors':
                 $result = SurveyManager::sendToTutors($value);
                 if ($result) {
                     Display::addFlash(
-                        Display::return_message(get_lang('InvitationHasBeenSent').': '.$surveyData['title'], 'confirmation', false)
+                        Display::return_message(
+                            get_lang('InvitationHasBeenSent').': '.$surveyData['title'],
+                            'confirmation',
+                            false
+                        )
                     );
                 } else {
                     Display::addFlash(
-                        Display::return_message(get_lang('InvitationHasBeenNotSent').': '.$surveyData['title'], 'warning', false)
+                        Display::return_message(
+                            get_lang('InvitationHasBeenNotSent').': '.$surveyData['title'],
+                            'warning',
+                            false
+                        )
                     );
                 }
                 break;
@@ -241,7 +248,7 @@ switch ($action) {
         break;
     case 'empty':
         $mysession = api_get_session_id();
-        if ($mysession != 0) {
+        if (0 != $mysession) {
             if (!((api_is_session_general_coach() || api_is_platform_admin()) &&
                 api_is_element_in_the_session(TOOL_SURVEY, $surveyId))) {
                 // The coach can't empty a survey not belonging to his session
@@ -267,12 +274,12 @@ Display::display_header($tool_name, 'Survey');
 Display::display_introduction_section('survey', 'left');
 
 // Action handling: searching
-if (isset($_GET['search']) && $_GET['search'] === 'advanced') {
+if (isset($_GET['search']) && 'advanced' == $_GET['search']) {
     SurveyUtil::display_survey_search_form();
 }
 
 echo '<div class="actions">';
-if (!api_is_session_general_coach() || $extend_rights_for_coachs === 'true') {
+if (!api_is_session_general_coach() || 'true' == $extend_rights_for_coachs) {
     // Action links
     echo '<a href="'.api_get_path(WEB_CODE_PATH).'survey/create_new_survey.php?'.api_get_cidreq().'&amp;action=add">'.
         Display::return_icon('new_survey.png', get_lang('CreateNewSurvey'), '', ICON_SIZE_MEDIUM).'</a> ';
@@ -287,7 +294,7 @@ echo '<a href="'.api_get_self().'?'.api_get_cidreq().'&amp;search=advanced">'.
 echo '</div>';
 
 // Load main content
-if (api_is_session_general_coach() && $extend_rights_for_coachs == 'false') {
+if (api_is_session_general_coach() && 'false' == $extend_rights_for_coachs) {
     SurveyUtil::display_survey_list_for_coach();
 } else {
     SurveyUtil::display_survey_list();

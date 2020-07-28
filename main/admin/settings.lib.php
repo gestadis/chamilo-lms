@@ -13,8 +13,6 @@ use Symfony\Component\Filesystem\Filesystem;
  * @author Guillaume Viguier <guillaume@viguierjust.com>
  *
  * @since Chamilo 1.8.7
- *
- * @package chamilo.admin
  */
 define('CSS_UPLOAD_PATH', api_get_path(SYS_APP_PATH).'Resources/public/css/themes/');
 
@@ -229,7 +227,6 @@ function handlePlugins()
         storePlugins();
         // Add event to the system log.
         $user_id = api_get_user_id();
-        $category = $_GET['category'];
         $installed = $plugin_obj->getInstalledPlugins();
         Event::addEvent(
             LOG_PLUGIN_CHANGE,
@@ -247,7 +244,12 @@ function handlePlugins()
 
     // Plugins NOT installed
     echo Display::page_subheader(get_lang('Plugins'));
-    echo '<form class="form-horizontal" name="plugins" method="post" action="'.api_get_self().'?category='.Security::remove_XSS($_GET['category']).'&sec_token='.$token.'">';
+    echo '<form
+        class="form-horizontal"
+        name="plugins"
+        method="post"
+        action="'.api_get_self().'?category='.Security::remove_XSS($_GET['category']).'&sec_token='.$token.'"
+    >';
     echo '<table class="table table-hover table-striped table-bordered">';
     echo '<tr>';
     echo '<th width="20px">';
@@ -257,39 +259,52 @@ function handlePlugins()
     echo '</th>';
     echo '</tr>';
 
-    /*$plugin_list = array();
-    $my_plugin_list = $plugin_obj->get_plugin_regions();
-    foreach($my_plugin_list as $plugin_item) {
-        $plugin_list[$plugin_item] = $plugin_item;
-    }*/
     $installed = '';
     $notInstalled = '';
+    $isMainPortal = true;
+    if (api_is_multiple_url_enabled()) {
+        $isMainPortal = 1 === api_get_current_access_url_id();
+    }
+
     foreach ($all_plugins as $pluginName) {
         $plugin_info_file = api_get_path(SYS_PLUGIN_PATH).$pluginName.'/plugin.php';
         if (file_exists($plugin_info_file)) {
             $plugin_info = [];
             require $plugin_info_file;
 
-            $officialRibbon = '';
             if (in_array($pluginName, $officialPlugins)) {
-                $officialRibbon = '<div class="ribbon-diagonal ribbon-diagonal-top-right ribbon-diagonal-official"><span>'.get_lang('PluginOfficial').'</span></div>';
+                $officialRibbon = '<div class="ribbon-diagonal ribbon-diagonal-top-right ribbon-diagonal-official">
+                    <span>'.get_lang('PluginOfficial').'</span></div>';
             } else {
-                $officialRibbon = '<div class="ribbon-diagonal ribbon-diagonal-top-right ribbon-diagonal-thirdparty"><span>'.get_lang('PluginThirdParty').'</span></div>';
+                $officialRibbon = '<div class="ribbon-diagonal ribbon-diagonal-top-right ribbon-diagonal-thirdparty">
+                    <span>'.get_lang('PluginThirdParty').'</span></div>';
             }
             $pluginRow = '';
 
-            if (in_array($pluginName, $installed_plugins)) {
+            $isInstalled = in_array($pluginName, $installed_plugins);
+
+            if ($isInstalled) {
                 $pluginRow .= '<tr class="row_selected">';
             } else {
                 $pluginRow .= '<tr>';
             }
+
             $pluginRow .= '<td>';
-            // Checkbox
-            if (in_array($pluginName, $installed_plugins)) {
-                $pluginRow .= '<input type="checkbox" name="plugin_'.$pluginName.'[]" checked="checked">';
+
+            if ($isMainPortal) {
+                if ($isInstalled) {
+                    $pluginRow .= '<input type="checkbox" name="plugin_'.$pluginName.'[]" checked="checked">';
+                } else {
+                    $pluginRow .= '<input type="checkbox" name="plugin_'.$pluginName.'[]">';
+                }
             } else {
-                $pluginRow .= '<input type="checkbox" name="plugin_'.$pluginName.'[]">';
+                if ($isInstalled) {
+                    $pluginRow .= Display::return_icon('check.png');
+                } else {
+                    $pluginRow .= Display::return_icon('checkbox_off.gif');
+                }
             }
+
             $pluginRow .= '</td><td>';
             $pluginRow .= $officialRibbon;
             $pluginRow .= '<h4>'.$plugin_info['title'].' <small>v '.$plugin_info['version'].'</small></h4>';
@@ -297,7 +312,7 @@ function handlePlugins()
             $pluginRow .= '<p>'.get_lang('Author').': '.$plugin_info['author'].'</p>';
 
             $pluginRow .= '<div class="btn-group">';
-            if (in_array($pluginName, $installed_plugins)) {
+            if ($isInstalled) {
                 $pluginRow .= Display::url(
                     '<em class="fa fa-cogs"></em> '.get_lang('Configure'),
                     'configure_plugin.php?name='.$pluginName,
@@ -340,7 +355,7 @@ function handlePlugins()
             $pluginRow .= '</div>';
             $pluginRow .= '</td></tr>';
 
-            if (in_array($pluginName, $installed_plugins)) {
+            if ($isInstalled) {
                 $installed .= $pluginRow;
             } else {
                 $notInstalled .= $pluginRow;
@@ -352,11 +367,14 @@ function handlePlugins()
     echo $notInstalled;
     echo '</table>';
 
-    echo '<div class="form-actions bottom_actions">';
-    echo '<button class="btn btn-primary" type="submit" name="submit_plugins">';
-    echo '<i class="fa fa-check" aria-hidden="true"></i> ';
-    echo  get_lang('EnablePlugins').'</button>';
-    echo '</div>';
+    if ($isMainPortal) {
+        echo '<div class="form-actions bottom_actions">';
+        echo '<button class="btn btn-primary" type="submit" name="submit_plugins">';
+        echo '<i class="fa fa-check" aria-hidden="true"></i> ';
+        echo get_lang('EnablePlugins').'</button>';
+        echo '</div>';
+    }
+
     echo '</form>';
 }
 
