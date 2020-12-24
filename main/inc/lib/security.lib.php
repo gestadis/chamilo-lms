@@ -23,8 +23,6 @@ use ChamiloSession as Session;
  * For basic filtering, use filter()
  * For files inclusions (using dynamic paths) use check_rel_path() and check_abs_path()
  *
- * @package chamilo.library
- *
  * @author Yannick Warnier <ywarnier@beeznest.org>
  */
 
@@ -487,7 +485,7 @@ class Security
      * this method encourages a safe practice for generating icon paths, without using heavy solutions
      * based on HTMLPurifier for example.
      *
-     * @param string $img_path the input path of the image, it could be relative or absolute URL
+     * @param string $image_path the input path of the image, it could be relative or absolute URL
      *
      * @return string returns sanitized image path or an empty string when the image path is not secure
      *

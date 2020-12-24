@@ -165,13 +165,13 @@ in_array(
                 ';
 
             $reportName1 = get_lang('UsersCreatedInTheSelectedPeriod');
-            $reportName2 = get_lang('UserByStatus');
-            $reportName3 = get_lang('UserByLanguage');
-            $reportName4 = get_lang('UserByLanguageCible');
-            $reportName5 = get_lang('UserByCareer');
-            $reportName6 = get_lang('UserByContract');
-            $reportName7 = get_lang('UserByCertificate');
-            $reportName8 = get_lang('UserByAge');
+            $reportName2 = get_lang('UsersByStatus');
+            $reportName3 = get_lang('UsersByLanguage');
+            $reportName4 = get_lang('UsersByTargetLanguage');
+            $reportName5 = get_lang('UsersByCareer');
+            $reportName6 = get_lang('UsersByContract');
+            $reportName7 = get_lang('UsersByCertificate');
+            $reportName8 = get_lang('UsersByAge');
 
             //$url1 = $urlBase.'a=users_active&filter=active&date_start='.$dateStart.'&date_end='.$dateEnd;
             $url2 = $urlBase.'a=users_active&filter=status&date_start='.$dateStart.'&date_end='.$dateEnd;
@@ -231,7 +231,7 @@ in_array(
                     $dateEnd = Security::remove_XSS($_REQUEST['range_end']);
                 }
 
-                $statusId = (int) $_REQUEST['status_id'];
+                $statusId = isset($_REQUEST['status_id']) ? (int) $_REQUEST['status_id'] : 0;
 
                 $conditions = "&date_start=$dateStart&date_end=$dateEnd&status=$statusId";
 
@@ -938,7 +938,7 @@ switch ($report) {
             );
 
             $scoreDisplay = ScoreDisplay::instance();
-            $table = new HTML_Table(['class' => 'data_table']);
+            $table = new HTML_Table(['class' => 'table table-hover table-striped data_table']);
             $headers = [
                 get_lang('Name'),
                 get_lang('Count'),

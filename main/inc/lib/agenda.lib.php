@@ -246,7 +246,7 @@ class Agenda
     ) {
         $start = api_get_utc_datetime($start);
         $end = api_get_utc_datetime($end);
-        $allDay = isset($allDay) && $allDay === 'true' ? 1 : 0;
+        $allDay = isset($allDay) && ($allDay === 'true' || $allDay == 1) ? 1 : 0;
         $id = null;
 
         switch ($this->type) {
@@ -528,7 +528,6 @@ class Agenda
 
             // @todo remove comment code
             $startDateInLocal = new DateTime($newStartDate, new DateTimeZone($timeZone));
-            //$originalOffset = $startDate->getOffset();
             if ($startDateInLocal->format('I') == 0) {
                 // Is saving time? Then fix UTC time to add time
                 $seconds = $startDateInLocal->getOffset();
@@ -536,14 +535,7 @@ class Agenda
                 $startDateFixed = $startDate->format('Y-m-d H:i:s');
                 $startDateInLocalFixed = new DateTime($startDateFixed, new DateTimeZone($timeZone));
                 $newStartDate = $startDateInLocalFixed->format('Y-m-d H:i:s');
-            } else {
-                /*$seconds = $startDateInLocal->getOffset();
-                $startDate->add(new DateInterval("PT".$seconds."S"));
-                $startDateFixed = $startDate->format('Y-m-d H:i:s');
-                $startDateInLocalFixed = new DateTime($startDateFixed, new DateTimeZone($timeZone));
-                $newStartDate = $startDateInLocalFixed->format('Y-m-d H:i:s');*/
             }
-            //var_dump($newStartDate.' - '.$startDateInLocal->format('I'));
             $endDateInLocal = new DateTime($newEndDate, new DateTimeZone($timeZone));
 
             if ($endDateInLocal->format('I') == 0) {
@@ -2947,8 +2939,10 @@ class Agenda
 
         $form = '';
         if (api_is_allowed_to_edit(false, true) ||
-            (api_get_course_setting('allow_user_edit_agenda') == '1' && !api_is_anonymous()) &&
-            api_is_allowed_to_session_edit(false, true)
+            ('personal' === $this->type && !api_is_anonymous() && 'true' === api_get_setting('allow_personal_agenda')) ||
+            (
+                '1' === api_get_course_setting('allow_user_edit_agenda') && !api_is_anonymous() &&
+                api_is_allowed_to_session_edit(false, true))
             || (
                 GroupManager::user_has_access($currentUserId, $groupIid, GroupManager::GROUP_TOOL_CALENDAR)
                 && GroupManager::is_tutor_of_group($currentUserId, $groupInfo)

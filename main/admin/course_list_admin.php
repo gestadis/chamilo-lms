@@ -62,10 +62,7 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
     }
 
     $sql = "$select FROM $table course";
-
-    if ((api_is_platform_admin() || api_is_session_admin()) &&
-        api_is_multiple_url_enabled() && api_get_current_access_url_id() != -1
-    ) {
+    if (api_is_multiple_url_enabled()) {
         $access_url_rel_course_table = Database::get_main_table(TABLE_MAIN_ACCESS_URL_REL_COURSE);
         $sql .= " INNER JOIN $access_url_rel_course_table url_rel_course
                   ON (course.id = url_rel_course.c_id)";
@@ -74,12 +71,13 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
     $tableCourseRelUser = Database::get_main_table(TABLE_MAIN_COURSE_USER);
     $sql .= "
             LEFT JOIN $tableCourseRelUser cu
-            ON (course.id = cu.c_id AND cu.status = ".COURSEMANAGER.")
+            ON (course.id = cu.c_id AND cu.status = ".COURSEMANAGER." )
         ";
 
+    $sql .= ' WHERE 1=1 ';
     if (isset($_GET['keyword'])) {
         $keyword = Database::escape_string("%".trim($_GET['keyword'])."%");
-        $sql .= " WHERE (
+        $sql .= " AND  (
             title LIKE '".$keyword."' OR
             code LIKE '".$keyword."' OR
             visual_code LIKE '".$keyword."'
@@ -96,9 +94,9 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
         $keyword_subscribe = Database::escape_string($_GET['keyword_subscribe']);
         $keyword_unsubscribe = Database::escape_string($_GET['keyword_unsubscribe']);
 
-        $sql .= " WHERE
-                (code LIKE '".$keyword_code."' OR visual_code LIKE '".$keyword_code."') AND
+        $sql .= " AND
                 title LIKE '".$keyword_title."' AND
+                (code LIKE '".$keyword_code."' OR visual_code LIKE '".$keyword_code."') AND
                 course_language LIKE '".$keyword_language."' AND
                 visibility LIKE '".$keyword_visibility."' AND
                 subscribe LIKE '".$keyword_subscribe."' AND
@@ -110,9 +108,7 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
     }
 
     // Adding the filter to see the user's only of the current access_url.
-    if ((api_is_platform_admin() || api_is_session_admin()) &&
-        api_is_multiple_url_enabled() && api_get_current_access_url_id() != -1
-    ) {
+    if (api_is_multiple_url_enabled()) {
         $sql .= " AND url_rel_course.access_url_id = ".api_get_current_access_url_id();
     }
 
@@ -144,7 +140,6 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
 
         return 0;
     }
-
     $sql .= " ORDER BY col$column $direction ";
     $sql .= " LIMIT $from, $number_of_items";
 
@@ -152,6 +147,8 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
     $courses = [];
     $path = api_get_path(WEB_CODE_PATH);
     $coursePath = api_get_path(WEB_COURSE_PATH);
+
+    $icon = Display::return_icon('teacher.png', get_lang('Teacher'), [], ICON_SIZE_TINY);
 
     while ($course = Database::fetch_array($res)) {
         $courseId = $course['id'];
@@ -220,7 +217,9 @@ function get_course_data($from, $number_of_items, $column, $direction, $dataFunc
                     }
                 }
             }
-            $courseItem[] = implode(', ', $teacherList);
+            $courseItem[] = '<ul class="list-inline"><li>'
+                ."$icon ".implode("</li><li>$icon ", $teacherList)
+                .'</li></ul>';
         }
         $courseItem[] = implode(PHP_EOL, $actions);
         $courses[] = $courseItem;
@@ -485,14 +484,14 @@ if (isset($_GET['search']) && $_GET['search'] === 'advanced') {
     //$table->set_header($column++, get_lang('SubscriptionAllowed'), true, 'width="60px"');
     //$table->set_header($column++, get_lang('UnsubscriptionAllowed'), false, 'width="50px"');
     if ($addTeacherColumn) {
-        $table->set_header($column++, get_lang('Teachers'), true);
+        $table->set_header($column++, get_lang('Teachers'), true, ['style' => 'width:350px;']);
     }
     $table->set_header(
         $column++,
         get_lang('Action'),
         false,
         null,
-        ['class' => 'td_actions']
+        ['class' => 'td_actions', 'style' => 'width:145px;']
     );
     $table->set_form_actions(
         ['delete_courses' => get_lang('DeleteCourse')],

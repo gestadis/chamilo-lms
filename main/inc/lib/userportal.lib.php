@@ -7,8 +7,8 @@
  */
 class IndexManager
 {
-    const VIEW_BY_DEFAULT = 0;
-    const VIEW_BY_SESSION = 1;
+    public const VIEW_BY_DEFAULT = 0;
+    public const VIEW_BY_SESSION = 1;
 
     // An instance of the template engine
     // No need to initialize because IndexManager is not static,
@@ -237,8 +237,6 @@ class IndexManager
 
             if (trim($home_top_temp) == '' && api_is_platform_admin()) {
                 $home_top_temp = get_lang('PortalHomepageDefaultIntroduction');
-            } else {
-                $home_top_temp;
             }
             $open = str_replace('{rel_path}', api_get_path(REL_PATH), $home_top_temp);
             $html = api_to_system_encoding($open, api_detect_encoding(strip_tags($open)));
@@ -353,12 +351,16 @@ class IndexManager
 
     public static function studentPublicationBlock()
     {
+        if (api_is_anonymous()) {
+            return [];
+        }
+
         $allow = api_get_configuration_value('allow_my_student_publication_page');
         $items = [];
 
         if ($allow) {
             $items[] = [
-                'icon' => Display::return_icon('lp_student_publication.png', get_lang('StudentPublication')),
+                'icon' => Display::return_icon('lp_student_publication.png', get_lang('StudentPublications')),
                 'link' => api_get_path(WEB_CODE_PATH).'work/publications.php',
                 'title' => get_lang('MyStudentPublications'),
             ];
@@ -891,7 +893,7 @@ class IndexManager
                 'title' => get_lang('Compose'),
             ];
 
-            if (api_get_setting('allow_social_tool') == 'true') {
+            if (api_get_setting('allow_social_tool') === 'true') {
                 $total_invitations = Display::badge($total_invitations);
                 $items[] = [
                     'class' => 'invitations-social',
@@ -935,6 +937,14 @@ class IndexManager
                 'icon' => Display::return_icon('new_group.png', $label),
                 'link' => api_get_path(WEB_CODE_PATH).'social/require_user_linking.php',
                 'title' => $label,
+            ];
+        }
+
+        if (api_get_configuration_value('show_my_lps_page')) {
+            $items[] = [
+                'icon' => Display::return_icon('learnpath.png', get_lang('MyLps')),
+                'link' => api_get_path(WEB_CODE_PATH).'lp/my_list.php',
+                'title' => get_lang('MyLps'),
             ];
         }
 
@@ -1031,7 +1041,7 @@ class IndexManager
 
         // My account section
         if ($show_create_link) {
-            if (api_get_setting('course_validation') == 'true' && !api_is_platform_admin()) {
+            if (api_get_setting('course_validation') === 'true' && !api_is_platform_admin()) {
                 $items[] = [
                     'class' => 'add-course',
                     'icon' => Display::return_icon('new-course.png', get_lang('CreateCourseRequest')),
@@ -1106,6 +1116,19 @@ class IndexManager
                     'title' => get_lang('Dashboard'),
                 ];
             }
+        }
+
+        if (!api_is_anonymous()) {
+            $items[] = [
+                'icon' => Display::return_icon('clock.png', get_lang('LastVisitedCourse')),
+                'link' => api_get_path(WEB_CODE_PATH).'course_home/last_course.php',
+                'title' => get_lang('LastVisitedCourse'),
+            ];
+            $items[] = [
+                'icon' => Display::return_icon('learnpath.png', get_lang('LastVisitedLp')),
+                'link' => api_get_path(WEB_CODE_PATH).'course_home/last_lp.php',
+                'title' => get_lang('LastVisitedLp'),
+            ];
         }
 
         return $items;
@@ -1815,6 +1838,7 @@ class IndexManager
             $listSession = [];
             // Get timestamp in UTC to compare to DB values (in UTC by convention)
             $session_now = strtotime(api_get_utc_datetime(time()));
+            $allowUnsubscribe = api_get_configuration_value('enable_unsubscribe_button_on_my_course_page');
             if (is_array($session_categories)) {
                 foreach ($session_categories as $session_category) {
                     $session_category_id = $session_category['session_category']['id'];
@@ -1957,18 +1981,14 @@ class IndexManager
                                             }
 
                                             $course_session['extrafields'] = CourseManager::getExtraFieldsToBePresented($course['real_id']);
-
-                                            if (api_get_configuration_value(
-                                                'enable_unsubscribe_button_on_my_course_page'
-                                                )
-                                                && '1' === $course['unsubscribe']
-                                            ) {
+                                            if (false === $is_coach_course && $allowUnsubscribe && '1' === $course['unsubscribe']) {
                                                 $course_session['unregister_button'] =
                                                     CoursesAndSessionsCatalog::return_unregister_button(
                                                         ['code' => $course['course_code']],
                                                         Security::get_existing_token(),
                                                         '',
-                                                        ''
+                                                        '',
+                                                        $session_id
                                                     );
                                             }
 

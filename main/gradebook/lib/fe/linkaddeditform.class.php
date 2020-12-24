@@ -37,7 +37,7 @@ class LinkAddEditForm extends FormValidator
             $link->set_session_id(api_get_session_id());
             $link->set_category_id($category_object[0]->get_id());
         } else {
-            die('LinkAddEditForm error: define link_type/category_object or link_object');
+            exit('LinkAddEditForm error: define link_type/category_object or link_object');
         }
 
         $defaults = [];
@@ -128,11 +128,6 @@ class LinkAddEditForm extends FormValidator
                 $values['weight'] = $link->get_weight();
             } else {
                 $cat = Category::load($parent_cat[0]->get_parent_id());
-                //$global_weight = $cat[0]->get_weight();
-                //$values['weight'] = $link->get_weight()/$parent_cat[0]->get_weight()*$global_weight;
-                //var_dump($global_weight, $link->get_weight(), $parent_cat[0]->get_weight());
-                //$weight = $parent_cat[0]->get_weight()* $link->get_weight() / $global_weight;
-                //$values['weight'] = $weight;
                 $values['weight'] = $link->get_weight();
             }
             $defaults['weight_mask'] = $values['weight'];

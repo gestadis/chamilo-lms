@@ -1,4 +1,5 @@
 <?php
+
 /* See license terms in /license.txt */
 
 use Chamilo\CoreBundle\Component\Editor\Connector;
@@ -15,8 +16,6 @@ use Symfony\Component\Filesystem\Filesystem;
  *  This is the export library for Chamilo.
  *	Include/require it in your code to use its functionality.
  *	Several functions below are adaptations from functions distributed by www.nexen.net.
- *
- *  @package chamilo.library
  */
 class Export
 {
@@ -261,7 +260,7 @@ class Export
         unset($data[0]);
 
         $header_attributes = isset($params['header_attributes']) ? $params['header_attributes'] : [];
-        $table = new HTML_Table(['class' => 'data_table', 'repeat_header' => '1']);
+        $table = new HTML_Table(['class' => 'table table-hover table-striped data_table', 'repeat_header' => '1']);
         $row = 0;
         $column = 0;
         foreach ($headers as $header) {

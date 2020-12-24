@@ -357,7 +357,6 @@ function show_add_forum_form($inputvalues = [], $lp_id)
 
     $group = [];
     $group[] = $form->createElement('radio', 'default_view_type', null, get_lang('Flat'), 'flat');
-    $group[] = $form->createElement('radio', 'default_view_type', null, get_lang('Threaded'), 'threaded');
     $group[] = $form->createElement('radio', 'default_view_type', null, get_lang('Nested'), 'nested');
     $form->addGroup($group, 'default_view_type_group', get_lang('DefaultViewType'));
 
@@ -6340,7 +6339,7 @@ function getAttachmentsAjaxTable($postId = 0)
     <div class="control-group " style="'.$style.'">
         <label class="control-label">'.get_lang('AttachmentList').'</label>
         <div class="controls">
-            <table id="attachmentFileList" class="files data_table span10">
+            <table id="attachmentFileList" class="files table table-hover table-striped data_table span10">
                 <tr>
                     <th>'.get_lang('FileName').'</th>
                     <th>'.get_lang('Size').'</th>

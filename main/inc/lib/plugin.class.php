@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CourseBundle\Entity\CTool;
@@ -456,6 +457,37 @@ class Plugin
     }
 
     /**
+     * @param string $variable
+     * @param string $language
+     *
+     * @return string
+     */
+    public function getLangFromFile($variable, $language)
+    {
+        static $langStrings = [];
+
+        if (empty($langStrings[$language])) {
+            $root = api_get_path(SYS_PLUGIN_PATH);
+            $pluginName = $this->get_name();
+
+            $englishPath = "$root$pluginName/lang/$language.php";
+
+            if (is_readable($englishPath)) {
+                $strings = [];
+                include $englishPath;
+
+                $langStrings[$language] = $strings;
+            }
+        }
+
+        if (isset($langStrings[$language][$variable])) {
+            return $langStrings[$language][$variable];
+        }
+
+        return $this->get_lang($variable);
+    }
+
+    /**
      * Caller for the install_course_fields() function.
      *
      * @param int  $courseId
@@ -475,7 +507,7 @@ class Plugin
      *
      * @return bool|null False on error, null otherwise
      */
-    public function install_course_fields($courseId, $add_tool_link = true)
+    public function install_course_fields($courseId, $add_tool_link = true, $iconName = '')
     {
         $plugin_name = $this->get_name();
         $t_course = Database::get_course_table(TABLE_COURSE_SETTING);
@@ -552,7 +584,7 @@ class Plugin
         }
 
         // Add an icon in the table tool list
-        $this->createLinkToCourseTool($plugin_name, $courseId);
+        $this->createLinkToCourseTool($plugin_name, $courseId, $iconName);
     }
 
     /**
@@ -606,14 +638,14 @@ class Plugin
      *
      * @param bool $add_tool_link Whether we want to add a plugin link on the course homepage
      */
-    public function install_course_fields_in_all_courses($add_tool_link = true)
+    public function install_course_fields_in_all_courses($add_tool_link = true, $iconName = '')
     {
         // Update existing courses to add plugin settings
         $table = Database::get_main_table(TABLE_MAIN_COURSE);
         $sql = "SELECT id FROM $table ORDER BY id";
         $res = Database::query($sql);
         while ($row = Database::fetch_assoc($res)) {
-            $this->install_course_fields($row['id'], $add_tool_link);
+            $this->install_course_fields($row['id'], $add_tool_link, $iconName);
         }
     }
 

@@ -142,7 +142,7 @@ class SortableTable extends HTML_Table
 
         if (empty($attributes)) {
             $attributes = [];
-            $attributes['class'] = 'table table-bordered data_table';
+            $attributes['class'] = 'table table-hover table-striped table-bordered data_table';
             $attributes['id'] = $table_id;
         }
 
@@ -219,7 +219,7 @@ class SortableTable extends HTML_Table
             } else {
                 if ('ASC' === $my_get_direction) {
                     $this->direction = 'ASC';
-                } elseif ($my_get_direction === 'DESC') {
+                } elseif ('DESC' === $my_get_direction) {
                     $this->direction = 'DESC';
                 }
             }
@@ -291,7 +291,7 @@ class SortableTable extends HTML_Table
      */
     public function get_pager()
     {
-        if ($this->pager === null) {
+        if (null === $this->pager) {
             $params['mode'] = 'Sliding';
             $params['perPage'] = $this->per_page;
             $params['totalItems'] = $this->get_total_number_of_items();
@@ -388,23 +388,21 @@ class SortableTable extends HTML_Table
         $table_id = 'form_'.$this->table_name.'_id';
         $form = $this->get_page_select_form();
         $nav = $this->get_navigation_html();
-        if ($this->get_total_number_of_items() > $this->default_items_per_page) {
-            $html = '<div class="table-well">';
-            $html .= '<table class="data_table_pagination">';
-            $html .= '<tr>';
-            $html .= '<td style="width:25%;">';
-            $html .= $form;
-            $html .= '</td>';
-            $html .= '<td style="text-align:center;">';
-            $html .= $this->get_table_title();
-            $html .= '</td>';
-            $html .= '<td style="text-align:right;width:25%;">';
-            $html .= $nav;
-            $html .= '</td>';
-            $html .= '</tr>';
-            $html .= '</table>';
-            $html .= '</div>';
-        }
+        $html = '<div class="table-well">';
+        $html .= '<table class="data_table_pagination">';
+        $html .= '<tr>';
+        $html .= '<td style="width:25%;">';
+        $html .= $form;
+        $html .= '</td>';
+        $html .= '<td style="text-align:center;">';
+        $html .= $this->get_table_title();
+        $html .= '</td>';
+        $html .= '<td style="text-align:right;width:25%;">';
+        $html .= $nav;
+        $html .= '</td>';
+        $html .= '</tr>';
+        $html .= '</table>';
+        $html .= '</div>';
 
         if (count($this->form_actions) > 0) {
             $html .= '<form id ="'.$table_id.'" name="form_'.$this->table_name
@@ -1142,7 +1140,7 @@ class SortableTable extends HTML_Table
         $sort = null
     ) {
         $data = [];
-        if ($this->get_data_function !== null) {
+        if (null !== $this->get_data_function) {
             $data = call_user_func(
                 $this->get_data_function,
                 $from,

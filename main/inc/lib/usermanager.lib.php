@@ -4,6 +4,7 @@
 
 use Chamilo\CoreBundle\Entity\ExtraField as EntityExtraField;
 use Chamilo\CoreBundle\Entity\Repository\AccessUrlRepository;
+use Chamilo\CoreBundle\Entity\Session as SessionEntity;
 use Chamilo\CoreBundle\Entity\SkillRelUser;
 use Chamilo\CoreBundle\Entity\SkillRelUserComment;
 use Chamilo\UserBundle\Entity\User;
@@ -23,20 +24,20 @@ use Symfony\Component\Security\Core\Encoder\EncoderFactory;
 class UserManager
 {
     // This constants are deprecated use the constants located in ExtraField
-    const USER_FIELD_TYPE_TEXT = 1;
-    const USER_FIELD_TYPE_TEXTAREA = 2;
-    const USER_FIELD_TYPE_RADIO = 3;
-    const USER_FIELD_TYPE_SELECT = 4;
-    const USER_FIELD_TYPE_SELECT_MULTIPLE = 5;
-    const USER_FIELD_TYPE_DATE = 6;
-    const USER_FIELD_TYPE_DATETIME = 7;
-    const USER_FIELD_TYPE_DOUBLE_SELECT = 8;
-    const USER_FIELD_TYPE_DIVIDER = 9;
-    const USER_FIELD_TYPE_TAG = 10;
-    const USER_FIELD_TYPE_TIMEZONE = 11;
-    const USER_FIELD_TYPE_SOCIAL_PROFILE = 12;
-    const USER_FIELD_TYPE_FILE = 13;
-    const USER_FIELD_TYPE_MOBILE_PHONE_NUMBER = 14;
+    public const USER_FIELD_TYPE_TEXT = 1;
+    public const USER_FIELD_TYPE_TEXTAREA = 2;
+    public const USER_FIELD_TYPE_RADIO = 3;
+    public const USER_FIELD_TYPE_SELECT = 4;
+    public const USER_FIELD_TYPE_SELECT_MULTIPLE = 5;
+    public const USER_FIELD_TYPE_DATE = 6;
+    public const USER_FIELD_TYPE_DATETIME = 7;
+    public const USER_FIELD_TYPE_DOUBLE_SELECT = 8;
+    public const USER_FIELD_TYPE_DIVIDER = 9;
+    public const USER_FIELD_TYPE_TAG = 10;
+    public const USER_FIELD_TYPE_TIMEZONE = 11;
+    public const USER_FIELD_TYPE_SOCIAL_PROFILE = 12;
+    public const USER_FIELD_TYPE_FILE = 13;
+    public const USER_FIELD_TYPE_MOBILE_PHONE_NUMBER = 14;
 
     private static $encryptionMethod;
 
@@ -73,10 +74,13 @@ class UserManager
 
         if (!isset($userManager)) {
             $encoderFactory = self::getEncoderFactory();
+            $passwordUpdater = new \FOS\UserBundle\Util\PasswordUpdater($encoderFactory);
+            $canonicalFieldUpdater = new \FOS\UserBundle\Util\CanonicalFieldsUpdater(
+                new \FOS\UserBundle\Util\Canonicalizer(), new \FOS\UserBundle\Util\Canonicalizer()
+            );
             $userManager = new Chamilo\UserBundle\Entity\Manager\UserManager(
-                $encoderFactory,
-                new \FOS\UserBundle\Util\Canonicalizer(),
-                new \FOS\UserBundle\Util\Canonicalizer(),
+                $passwordUpdater,
+                $canonicalFieldUpdater,
                 Database::getManager(),
                 'Chamilo\\UserBundle\\Entity\\User'
             );
@@ -224,12 +228,24 @@ class UserManager
             $hook->notifyCreateUser(HOOK_EVENT_TYPE_PRE);
         }
 
-        if (false === api_valid_email($email)) {
-            Display::addFlash(
-                Display::return_message(get_lang('PleaseEnterValidEmail').' - '.$email, 'warning')
-            );
+        if ('true' === api_get_setting('registration', 'email')) {
+            // Force email validation.
+            if (false === api_valid_email($email)) {
+                Display::addFlash(
+                   Display::return_message(get_lang('PleaseEnterValidEmail').' - '.$email, 'warning')
+               );
 
-            return false;
+                return false;
+            }
+        } else {
+            // Allow empty email. If email is set, check if is valid.
+            if (!empty($email) && false === api_valid_email($email)) {
+                Display::addFlash(
+                    Display::return_message(get_lang('PleaseEnterValidEmail').' - '.$email, 'warning')
+                );
+
+                return false;
+            }
         }
 
         if ('true' === api_get_setting('login_is_email')) {
@@ -769,7 +785,7 @@ class UserManager
      */
     public static function ensureCASUserExtraFieldExists()
     {
-        if (!UserManager::is_extra_field_available('cas_user')) {
+        if (!self::is_extra_field_available('cas_user')) {
             $extraField = new ExtraField('user');
             if (false === $extraField->save(
                     [
@@ -781,6 +797,21 @@ class UserManager
                     ]
                 )) {
                 throw new Exception(get_lang('FailedToCreateExtraFieldCasUser'));
+            }
+
+            $rules = api_get_configuration_value('cas_user_map');
+            if (!empty($rules) && isset($rules['extra'])) {
+                foreach ($rules['extra'] as $extra) {
+                    $extraField->save(
+                        [
+                            'variable' => $extra,
+                            'field_type' => ExtraField::FIELD_TYPE_TEXT,
+                            'display_text' => $extra,
+                            'visible_to_self' => false,
+                            'filter' => false,
+                        ]
+                    );
+                }
             }
         }
     }
@@ -799,15 +830,19 @@ class UserManager
         self::ensureCASUserExtraFieldExists();
 
         $loginName = 'cas_user_'.$casUser;
-        $defaultValue = get_lang("EditInProfile");
+        $defaultValue = get_lang('EditInProfile');
+        $defaultEmailValue = get_lang('EditInProfile');
         require_once __DIR__.'/../../auth/external_login/functions.inc.php';
+        if ('true' === api_get_setting('login_is_email')) {
+            $defaultEmailValue = $casUser;
+        }
         $userId = external_add_user(
             [
                 'username' => $loginName,
                 'auth_source' => CAS_AUTH_SOURCE,
                 'firstname' => $defaultValue,
                 'lastname' => $defaultValue,
-                'email' => $defaultValue,
+                'email' => $defaultEmailValue,
             ]
         );
         if (false === $userId) {
@@ -817,6 +852,74 @@ class UserManager
         self::update_extra_field_value($userId, 'cas_user', $casUser);
 
         return $loginName;
+    }
+
+    public static function updateCasUser($_user)
+    {
+        $rules = api_get_configuration_value('cas_user_map');
+
+        if (empty($_user)) {
+            return false;
+        }
+
+        if (!empty($rules)) {
+            $userEntity = api_get_user_entity($_user['id']);
+            $attributes = phpCAS::getAttributes();
+            if (isset($rules['fields'])) {
+                $isAdmin = false;
+                foreach ($rules['fields'] as $field => $attributeName) {
+                    if (!isset($attributes[$attributeName])) {
+                        continue;
+                    }
+                    $value = $attributes[$attributeName];
+                    // Check replace.
+                    if (isset($rules['replace'][$attributeName])) {
+                        $value = $rules['replace'][$attributeName][$value];
+                    }
+
+                    switch ($field) {
+                        case 'email':
+                            $userEntity->setEmail($value);
+                            break;
+                        case 'firstname':
+                            $userEntity->setFirstname($value);
+                            break;
+                        case 'lastname':
+                            $userEntity->setLastname($value);
+                            break;
+                        case 'active':
+                            $userEntity->setActive('false' === $value);
+                            break;
+                        case 'status':
+                            if (PLATFORM_ADMIN === (int) $value) {
+                                $value = COURSEMANAGER;
+                                $isAdmin = true;
+                            }
+                            $userEntity->setStatus($value);
+                            break;
+                    }
+
+                    Database::getManager()->persist($userEntity);
+                    Database::getManager()->flush();
+
+                    if ($isAdmin) {
+                        self::addUserAsAdmin($userEntity);
+                    }
+                }
+            }
+
+            if (isset($rules['extra'])) {
+                foreach ($rules['extra'] as $variable) {
+                    if (isset($attributes[$variable])) {
+                        self::update_extra_field_value(
+                            $_user['id'],
+                            $variable,
+                            $attributes[$variable]
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -3471,14 +3574,11 @@ class UserManager
             $coachList = SessionManager::getCoachesBySession($session_id);
             $categoryStart = $row['session_category_date_start'] ? $row['session_category_date_start']->format('Y-m-d') : '';
             $categoryEnd = $row['session_category_date_end'] ? $row['session_category_date_end']->format('Y-m-d') : '';
-            $courseList = self::get_courses_list_by_session(
-                $user_id,
-                $session_id
-            );
+            $courseList = self::get_courses_list_by_session($user_id, $session_id);
             $daysLeft = SessionManager::getDayLeftInSession($row, $user_id);
 
             // User portal filters:
-            if ($ignoreTimeLimit === false) {
+            if (false === $ignoreTimeLimit) {
                 if ($is_time_over) {
                     // History
                     if ($row['duration']) {
@@ -3845,7 +3945,7 @@ class UserManager
         $join_access_url = $where_access_url = '';
         if (api_get_multiple_access_url()) {
             $urlId = api_get_current_access_url_id();
-            if ($urlId != -1) {
+            if (-1 != $urlId) {
                 $tbl_url_session = Database::get_main_table(TABLE_MAIN_ACCESS_URL_REL_SESSION);
                 $join_access_url = " ,  $tbl_url_session url_rel_session ";
                 $where_access_url = " AND access_url_id = $urlId AND url_rel_session.session_id = $session_id ";
@@ -3856,6 +3956,7 @@ class UserManager
         session_rel_course_user table if there are courses registered
         to our user or not */
         $sql = "SELECT DISTINCT
+                    c.title,
                     c.visibility,
                     c.id as real_id,
                     c.code as course_code,
@@ -3893,6 +3994,7 @@ class UserManager
 
         if (api_is_allowed_to_create_course()) {
             $sql = "SELECT DISTINCT
+                        c.title,
                         c.visibility,
                         c.id as real_id,
                         c.code as course_code,
@@ -5587,11 +5689,9 @@ class UserManager
     /**
      * Return the user id of teacher or session administrator.
      *
-     * @param array $courseInfo
-     *
-     * @return mixed The user id, or false if the session ID was negative
+     * @return int|bool The user id, or false if the session ID was negative
      */
-    public static function get_user_id_of_course_admin_or_session_admin($courseInfo)
+    public static function get_user_id_of_course_admin_or_session_admin(array $courseInfo)
     {
         $session = api_get_session_id();
         $table_user = Database::get_main_table(TABLE_MAIN_USER);
@@ -5604,39 +5704,39 @@ class UserManager
 
         $courseId = $courseInfo['real_id'];
 
-        if ($session == 0 || is_null($session)) {
+        if (empty($session)) {
             $sql = 'SELECT u.id uid FROM '.$table_user.' u
                     INNER JOIN '.$table_course_user.' ru
                     ON ru.user_id = u.id
                     WHERE
-                        ru.status = 1 AND
+                        ru.status = '.COURSEMANAGER.' AND
                         ru.c_id = "'.$courseId.'" ';
-            $rs = Database::query($sql);
-            $num_rows = Database::num_rows($rs);
-            if ($num_rows == 1) {
-                $row = Database::fetch_array($rs);
-
-                return $row['uid'];
-            } else {
-                $my_num_rows = $num_rows;
-                $my_user_id = Database::result($rs, $my_num_rows - 1, 'uid');
-
-                return $my_user_id;
-            }
-        } elseif ($session > 0) {
+        } else {
             $sql = 'SELECT u.id uid FROM '.$table_user.' u
                     INNER JOIN '.$table_session_course_user.' sru
                     ON sru.user_id=u.id
                     WHERE
                         sru.c_id="'.$courseId.'" AND
-                        sru.status=2';
-            $rs = Database::query($sql);
-            $row = Database::fetch_array($rs);
-
-            return $row['uid'];
+                        sru.status = '.SessionEntity::COACH;
         }
 
-        return false;
+        $rs = Database::query($sql);
+        $num_rows = Database::num_rows($rs);
+
+        if (0 === $num_rows) {
+            return false;
+        }
+
+        if (1 === $num_rows) {
+            $row = Database::fetch_array($rs);
+
+            return (int) $row['uid'];
+        }
+
+        $my_num_rows = $num_rows;
+        $my_user_id = Database::result($rs, $my_num_rows - 1, 'uid');
+
+        return (int) $my_user_id;
     }
 
     /**
@@ -5672,15 +5772,17 @@ class UserManager
      * Gets the info about a gradebook certificate for a user by course.
      *
      * @param string $course_code The course code
+     * @param int    $session_id
      * @param int    $user_id     The user id
      *
      * @return array if there is not information return false
      */
-    public static function get_info_gradebook_certificate($course_code, $user_id)
+    public static function get_info_gradebook_certificate($course_code, $session_id, $user_id)
     {
         $tbl_grade_certificate = Database::get_main_table(TABLE_MAIN_GRADEBOOK_CERTIFICATE);
         $tbl_grade_category = Database::get_main_table(TABLE_MAIN_GRADEBOOK_CATEGORY);
-        $session_id = api_get_session_id();
+        $session_id = (int) $session_id;
+        $user_id = (int) $user_id;
 
         if (empty($session_id)) {
             $session_condition = ' AND (session_id = "" OR session_id = 0 OR session_id IS NULL )';
@@ -5694,7 +5796,7 @@ class UserManager
                     WHERE
                         course_code = "'.Database::escape_string($course_code).'" '.$session_condition.'
                     LIMIT 1
-                ) AND user_id='.intval($user_id);
+                ) AND user_id='.$user_id;
 
         $rs = Database::query($sql);
         if (Database::num_rows($rs) > 0) {
@@ -7037,7 +7139,7 @@ SQL;
     }
 
     /**
-     * @param int $userInfo
+     * @param int $userId
      *
      * @throws Exception
      */

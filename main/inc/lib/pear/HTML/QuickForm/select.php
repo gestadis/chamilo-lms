@@ -114,6 +114,11 @@ class HTML_QuickForm_select extends HTML_QuickForm_element
         }
     }
 
+    public function setOptions($options)
+    {
+        $this->load($options);
+    }
+
      /**
      * Loads options from different types of data sources
      *
@@ -611,7 +616,7 @@ class HTML_QuickForm_select extends HTML_QuickForm_element
             case FormValidator::LAYOUT_GRID:
             case FormValidator::LAYOUT_BOX:
                 return '
-                        <div class="input-group" style="z-index: auto">
+                        <div class="form-group">
                             <label>{label}</label>
                             {icon}
                             {element}

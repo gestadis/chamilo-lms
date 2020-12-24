@@ -1,11 +1,12 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CoreBundle\Entity\SettingsCurrent;
 use Chamilo\CourseBundle\Entity\CItemProperty;
 use Chamilo\UserBundle\Entity\User;
 use ChamiloSession as Session;
-use PHPMailer\PHPMailer\PHPMailer as PHPMailer;
+use PHPMailer\PHPMailer\PHPMailer;
 use Symfony\Component\Finder\Finder;
 
 /**
@@ -14,12 +15,10 @@ use Symfony\Component\Finder\Finder;
  * This library is in process of being transferred to src/Chamilo/CoreBundle/Component/Utils/ChamiloApi.
  * Whenever a function is transferred to the ChamiloApi class, the places where it is used should include
  * the "use Chamilo\CoreBundle\Component\Utils\ChamiloApi;" statement.
- *
- * @package chamilo.library
  */
 
 // PHP version requirement.
-define('REQUIRED_PHP_VERSION', '5.6');
+define('REQUIRED_PHP_VERSION', '7.1');
 define('REQUIRED_MIN_MEMORY_LIMIT', '128');
 define('REQUIRED_MIN_UPLOAD_MAX_FILESIZE', '10');
 define('REQUIRED_MIN_POST_MAX_SIZE', '10');
@@ -164,6 +163,7 @@ define('SECTION_DASHBOARD', 'dashboard');
 define('SECTION_REPORTS', 'reports');
 define('SECTION_GLOBAL', 'global');
 define('SECTION_INCLUDE', 'include');
+define('SECTION_CUSTOMPAGE', 'custompage');
 
 // CONSTANT name for local authentication source
 define('PLATFORM_AUTH_SOURCE', 'platform');
@@ -283,6 +283,11 @@ define('LOG_QUESTION_CREATED', 'question_created');
 define('LOG_QUESTION_UPDATED', 'question_updated');
 define('LOG_QUESTION_DELETED', 'question_deleted');
 define('LOG_QUESTION_REMOVED_FROM_QUIZ', 'question_removed_from_quiz');
+
+define('LOG_SURVEY_ID', 'survey_id');
+define('LOG_SURVEY_CREATED', 'survey_created');
+define('LOG_SURVEY_DELETED', 'survey_deleted');
+define('LOG_SURVEY_CLEAN_RESULTS', 'survey_clean_results');
 
 define('USERNAME_PURIFIER', '/[^0-9A-Za-z_\.-]/');
 
@@ -481,6 +486,8 @@ define('RESULT_DISABLE_DONT_SHOW_SCORE_ONLY_IF_USER_FINISHES_ATTEMPTS_SHOW_ALWAY
 define('RESULT_DISABLE_RANKING', 6);
 define('RESULT_DISABLE_SHOW_ONLY_IN_CORRECT_ANSWER', 7);
 define('RESULT_DISABLE_SHOW_SCORE_AND_EXPECTED_ANSWERS_AND_RANKING', 8);
+define('RESULT_DISABLE_RADAR', 9);
+define('RESULT_DISABLE_SHOW_SCORE_ATTEMPT_SHOW_ANSWERS_LAST_ATTEMPT_NO_FEEDBACK', 10);
 
 define('EXERCISE_MAX_NAME_SIZE', 80);
 
@@ -1181,19 +1188,19 @@ function api_protect_course_script($print_headers = false, $allow_session_admins
             default:
             case COURSE_VISIBILITY_CLOSED:
                 // Completely closed: the course is only accessible to the teachers. - 0
-                if (api_get_user_id() && !api_is_anonymous() && $isAllowedInCourse) {
+                if ($isAllowedInCourse && api_get_user_id() && !api_is_anonymous()) {
                     $is_visible = true;
                 }
                 break;
             case COURSE_VISIBILITY_REGISTERED:
                 // Private - access authorized to course members only - 1
-                if (api_get_user_id() && !api_is_anonymous() && $isAllowedInCourse) {
+                if ($isAllowedInCourse && api_get_user_id() && !api_is_anonymous()) {
                     $is_visible = true;
                 }
                 break;
             case COURSE_VISIBILITY_OPEN_PLATFORM:
                 // Open - access allowed for users registered on the platform - 2
-                if (api_get_user_id() && !api_is_anonymous() && $isAllowedInCourse) {
+                if ($isAllowedInCourse && api_get_user_id() && !api_is_anonymous()) {
                     $is_visible = true;
                 }
                 break;
@@ -1209,10 +1216,9 @@ function api_protect_course_script($print_headers = false, $allow_session_admins
                 break;
         }
 
-        //If password is set and user is not registered to the course then the course is not visible
-        if ($isAllowedInCourse == false &&
-            isset($course_info['registration_code']) &&
-            !empty($course_info['registration_code'])
+        // If password is set and user is not registered to the course then the course is not visible.
+        if (false == $isAllowedInCourse &&
+            isset($course_info['registration_code']) && !empty($course_info['registration_code'])
         ) {
             $is_visible = false;
         }
@@ -1245,6 +1251,44 @@ function api_protect_course_script($print_headers = false, $allow_session_admins
         return false;
     }
 
+    if ($is_visible && 'true' === api_get_plugin_setting('positioning', 'tool_enable')) {
+        $plugin = Positioning::create();
+        $block = $plugin->get('block_course_if_initial_exercise_not_attempted');
+        if ('true' === $block) {
+            $currentPath = $_SERVER['PHP_SELF'];
+            // Allowed only this course paths.
+            $paths = [
+                '/plugin/positioning/start.php',
+                '/plugin/positioning/start_student.php',
+                '/main/course_home/course_home.php',
+                '/main/exercise/overview.php',
+            ];
+
+            if (!in_array($currentPath, $paths, true)) {
+                // Check if entering an exercise.
+                global $current_course_tool;
+                if ('quiz' !== $current_course_tool) {
+                    $initialData = $plugin->getInitialExercise($course_info['real_id'], $session_id);
+                    if ($initialData && isset($initialData['exercise_id'])) {
+                        $results = Event::getExerciseResultsByUser(
+                            api_get_user_id(),
+                            $initialData['exercise_id'],
+                            $course_info['real_id'],
+                            $session_id
+                        );
+                        if (empty($results)) {
+                            api_not_allowed($print_headers);
+
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    api_block_inactive_user();
+
     return true;
 }
 
@@ -1271,7 +1315,66 @@ function api_protect_admin_script($allow_sessions_admins = false, $allow_drh = f
         return false;
     }
 
+    api_block_inactive_user();
+
     return true;
+}
+
+/**
+ * Blocks inactive users with a currently active session from accessing more pages "live".
+ *
+ * @return bool Returns true if the feature is disabled or the user account is still enabled.
+ *              Returns false (and shows a message) if the feature is enabled *and* the user is disabled.
+ */
+function api_block_inactive_user()
+{
+    $data = true;
+    if (api_get_configuration_value('security_block_inactive_users_immediately') != 1) {
+        return $data;
+    }
+
+    $userId = api_get_user_id();
+    $homeUrl = api_get_path(WEB_PATH);
+    if ($userId == 0) {
+        return $data;
+    }
+
+    $sql = "SELECT active FROM ".Database::get_main_table(TABLE_MAIN_USER)."
+            WHERE id = $userId";
+
+    $result = Database::query($sql);
+    if (Database::num_rows($result) > 0) {
+        $result_array = Database::fetch_array($result);
+        $data = (bool) $result_array['active'];
+    }
+    if ($data == false) {
+        $tpl = new Template(null, true, true, false, true, false, true, 0);
+        $tpl->assign('hide_login_link', 1);
+
+        //api_not_allowed(true, get_lang('AccountInactive'));
+        // we were not in a course, return to home page
+        $msg = Display::return_message(
+            get_lang('AccountInactive'),
+            'error',
+            false
+        );
+
+        $msg .= '<p class="text-center">
+                 <a class="btn btn-default" href="'.$homeUrl.'">'.get_lang('BackHome').'</a></p>';
+
+        if (api_is_anonymous()) {
+            $form = api_get_not_allowed_login_form();
+            $msg .= '<div class="well">';
+            $msg .= $form->returnForm();
+            $msg .= '</div>';
+        }
+
+        $tpl->assign('content', $msg);
+        $tpl->display_one_col_template();
+        exit;
+    }
+
+    return $data;
 }
 
 /**
@@ -1310,6 +1413,7 @@ function api_block_anonymous_users($printHeaders = true)
 
         return false;
     }
+    api_block_inactive_user();
 
     return true;
 }
@@ -2200,6 +2304,15 @@ function api_get_course_entity($courseId = 0)
     return Database::getManager()->getRepository('ChamiloCoreBundle:Course')->find($courseId);
 }
 
+function api_get_group_entity($id = 0)
+{
+    if (empty($id)) {
+        $id = api_get_group_id();
+    }
+
+    return Database::getManager()->getRepository('ChamiloCourseBundle:CGroupInfo')->find($id);
+}
+
 /**
  * @param int $id
  *
@@ -2351,7 +2464,7 @@ function api_format_course_array($course_data)
             null,
             null,
             true,
-            false
+            true
         );
     }
 
@@ -3739,7 +3852,7 @@ function api_is_anonymous($user_id = null, $db_check = false)
 
     if ($db_check) {
         $info = api_get_user_info($user_id);
-        if ($info['status'] == ANONYMOUS) {
+        if (false === $info || $info['status'] == ANONYMOUS) {
             return true;
         }
     }
@@ -5521,15 +5634,16 @@ function copyr($source, $dest, $exclude = [], $copied_files = [])
 }
 
 /**
- * @todo: Using DIRECTORY_SEPARATOR is not recommended, this is an obsolete approach.
- * Documentation header to be added here.
- *
  * @param string $pathname
  * @param string $base_path_document
  * @param int    $session_id
+ * @param array
+ * @param string
  *
  * @return mixed True if directory already exists, false if a file already exists at
  *               the destination and null if everything goes according to plan
+ *@todo: Using DIRECTORY_SEPARATOR is not recommended, this is an obsolete approach.
+ * Documentation header to be added here.
  */
 function copy_folder_course_session(
     $pathname,
@@ -5537,14 +5651,12 @@ function copy_folder_course_session(
     $session_id,
     $course_info,
     $document,
-    $source_course_id
+    $source_course_id,
+    $originalFolderNameList = [],
+    $originalBaseName = ''
 ) {
-    $table = Database::get_course_table(TABLE_DOCUMENT);
-    $session_id = intval($session_id);
-    $source_course_id = intval($source_course_id);
-
     // Check whether directory already exists.
-    if (is_dir($pathname) || empty($pathname)) {
+    if (empty($pathname) || is_dir($pathname)) {
         return true;
     }
 
@@ -5555,18 +5667,29 @@ function copy_folder_course_session(
         return false;
     }
 
+    //error_log('checking:');
+    //error_log(str_replace($base_path_document.DIRECTORY_SEPARATOR, '', $pathname));
+    $baseNoDocument = str_replace('document', '', $originalBaseName);
+    $folderTitles = explode('/', $baseNoDocument);
+    $folderTitles = array_filter($folderTitles);
+
+    //error_log($baseNoDocument);error_log(print_r($folderTitles, 1));
+
+    $table = Database::get_course_table(TABLE_DOCUMENT);
+    $session_id = (int) $session_id;
+    $source_course_id = (int) $source_course_id;
     $course_id = $course_info['real_id'];
     $folders = explode(DIRECTORY_SEPARATOR, str_replace($base_path_document.DIRECTORY_SEPARATOR, '', $pathname));
     $new_pathname = $base_path_document;
-    $path = '';
 
-    foreach ($folders as $folder) {
+    $path = '';
+    foreach ($folders as $index => $folder) {
         $new_pathname .= DIRECTORY_SEPARATOR.$folder;
         $path .= DIRECTORY_SEPARATOR.$folder;
 
         if (!file_exists($new_pathname)) {
             $path = Database::escape_string($path);
-
+            //error_log("path: $path");
             $sql = "SELECT * FROM $table
                     WHERE
                         c_id = $source_course_id AND
@@ -5578,17 +5701,29 @@ function copy_folder_course_session(
 
             if (0 == $num_rows) {
                 mkdir($new_pathname, api_get_permissions_for_new_directories());
+                $title = basename($new_pathname);
+
+                if (isset($folderTitles[$index + 1])) {
+                    $checkPath = $folderTitles[$index + 1];
+                    //error_log("check $checkPath");
+                    if (isset($originalFolderNameList[$checkPath])) {
+                        $title = $originalFolderNameList[$checkPath];
+                        //error_log('use this name: '.$title);
+                    }
+                }
 
                 // Insert new folder with destination session_id.
                 $params = [
                     'c_id' => $course_id,
                     'path' => $path,
                     'comment' => $document->comment,
-                    'title' => basename($new_pathname),
+                    'title' => $title,
                     'filetype' => 'folder',
                     'size' => '0',
                     'session_id' => $session_id,
                 ];
+
+                //error_log("old $folder"); error_log("Add doc $title in $path");
                 $document_id = Database::insert($table, $params);
                 if ($document_id) {
                     $sql = "UPDATE $table SET id = iid WHERE iid = $document_id";
@@ -5609,7 +5744,7 @@ function copy_folder_course_session(
                 }
             }
         }
-    } // en foreach
+    }
 }
 
 // TODO: chmodr() is a better name. Some corrections are needed. Documentation header to be added here.
@@ -6559,6 +6694,13 @@ function api_request_uri()
  */
 function api_get_current_access_url_id()
 {
+    if ('cli' === PHP_SAPI) {
+        $accessUrlId = api_get_configuration_value('access_url');
+        if (!empty($accessUrlId)) {
+            return $accessUrlId;
+        }
+    }
+
     static $id;
     if (!empty($id)) {
         return (int) $id;
@@ -7346,7 +7488,7 @@ function api_check_browscap()
  */
 function api_get_js($file)
 {
-    return '<script type="text/javascript" src="'.api_get_path(WEB_LIBRARY_PATH).'javascript/'.$file.'"></script>'."\n";
+    return '<script src="'.api_get_path(WEB_LIBRARY_PATH).'javascript/'.$file.'"></script>'."\n";
 }
 
 /**
@@ -7356,7 +7498,7 @@ function api_get_js($file)
  */
 function api_get_asset($file)
 {
-    return '<script type="text/javascript" src="'.api_get_path(WEB_PUBLIC_PATH).'assets/'.$file.'"></script>'."\n";
+    return '<script src="'.api_get_path(WEB_PUBLIC_PATH).'assets/'.$file.'"></script>'."\n";
 }
 
 /**
@@ -8098,7 +8240,7 @@ function api_coach_can_edit_view_results($courseId = null, $session_id = null)
  */
 function api_get_js_simple($file)
 {
-    return '<script type="text/javascript" src="'.$file.'"></script>'."\n";
+    return '<script src="'.$file.'"></script>'."\n";
 }
 
 function api_set_settings_and_plugins()
@@ -8192,8 +8334,8 @@ function api_set_settings_and_plugins()
 function api_set_more_memory_and_time_limits()
 {
     if (function_exists('ini_set')) {
-        api_set_memory_limit('256M');
-        ini_set('max_execution_time', 1800);
+        api_set_memory_limit('2048M');
+        ini_set('max_execution_time', 3600);
     }
 }
 
@@ -9646,7 +9788,6 @@ function api_get_relative_path($from, $to)
  *
  * @param string $type
  * @param string $serialized
- * @param bool   $ignoreErrors. Optional.
  *
  * @return mixed
  */

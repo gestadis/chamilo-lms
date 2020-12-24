@@ -20,13 +20,15 @@ $learnPath = Session::read('oLP');
 
 /* Header and action code */
 $htmlHeadXtra[] = '<script>'.
-$learnPath->get_js_dropdown_array().
-'$().ready(function() {'."\n".
-  'if ($(\'#previous\')) {'."\n".
-    'if(\'parent is\'+$(\'#idParent\').val()) {'.
-      'load_cbo($(\'#idParent\').val());'."\n".
-  '}}'."\n".
-'});</script>';
+$learnPath->get_js_dropdown_array().'
+$(function() {
+    if ($(\'#previous\')) {
+        if(\'parent is\'+$(\'#idParent\').val()) {
+            load_cbo($(\'#idParent\').val());
+        }
+    }
+});
+</script>';
 
 /* Constants and variables */
 $is_allowed_to_edit = api_is_allowed_to_edit(null, true);
@@ -102,7 +104,7 @@ echo '<div class="col-md-3">';
 echo '</div>';
 
 echo '<div class="col-md-9">';
-if (isset($is_success) && $is_success === true) {
+if (isset($is_success) && true === $is_success) {
     $msg = '<div class="lp_message" style="margin-bottom:10px;">';
     $msg .= 'The item has been moved.';
     $msg .= '</div>';

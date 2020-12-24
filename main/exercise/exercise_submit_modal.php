@@ -8,6 +8,7 @@ use ChamiloSession as Session;
  * @author Julio Montoya <gugli100@gmail.com>
  */
 require_once __DIR__.'/../inc/global.inc.php';
+$current_course_tool = TOOL_QUIZ;
 
 api_protect_course_script();
 
@@ -36,7 +37,33 @@ $questionNum = (int) $_GET['num'];
 $questionId = $questionList[$questionNum];
 $choiceValue = isset($_GET['choice']) ? $_GET['choice'] : '';
 $hotSpot = isset($_GET['hotspot']) ? $_GET['hotspot'] : '';
+$tryAgain = isset($_GET['tryagain']) && 1 === (int) $_GET['tryagain'];
+
+$allowTryAgain = false;
+if ($tryAgain) {
+    // Check if try again exists in this question, otherwise only allow one attempt BT#15827.
+    $objQuestionTmp = Question::read($questionId);
+    $answerType = $objQuestionTmp->selectType();
+    $showResult = false;
+    $objAnswerTmp = new Answer($questionId, api_get_course_int_id());
+    $answers = $objAnswerTmp->getAnswers();
+    if (!empty($answers)) {
+        foreach ($answers as $answerData) {
+            if (isset($answerData['destination'])) {
+                $itemList = explode('@@', $answerData['destination']);
+                if (isset($itemList[0]) && !empty($itemList[0])) {
+                    $allowTryAgain = true;
+                    break;
+                }
+            }
+        }
+    }
+}
+
 $loaded = isset($_GET['loaded']);
+if ($allowTryAgain) {
+    unset($exerciseResult[$questionId]);
+}
 
 if (empty($choiceValue) && isset($exerciseResult[$questionId])) {
     $choiceValue = $exerciseResult[$questionId];
@@ -54,6 +81,16 @@ if (!empty($choiceValue)) {
     }
 }
 
+$header = '';
+$exeId = 0;
+if ($objExercise->getFeedbackType() === EXERCISE_FEEDBACK_TYPE_POPUP) {
+    $exeId = Session::read('exe_id');
+    $header = '
+        <div class="modal-header">
+            <h4 class="modal-title" id="global-modal-title">'.get_lang('Incorrect').'</h4>
+        </div>';
+}
+
 echo '<script>
 function tryAgain() {
     $(function () {
@@ -63,7 +100,7 @@ function tryAgain() {
 
 function SendEx(num) {
     if (num == -1) {
-        window.location.href = "exercise_result.php?'.api_get_cidreq().'&take_session=1&exerciseId='.$exerciseId.'&num="+num+"&learnpath_item_id='.$learnpath_item_id.'&learnpath_id='.$learnpath_id.'";
+        window.location.href = "exercise_result.php?'.api_get_cidreq().'&exe_id='.$exeId.'&take_session=1&exerciseId='.$exerciseId.'&num="+num+"&learnpath_item_id='.$learnpath_item_id.'&learnpath_id='.$learnpath_id.'";
     } else {
         num -= 1;
         window.location.href = "exercise_submit.php?'.api_get_cidreq().'&tryagain=1&exerciseId='.$exerciseId.'&num="+num+"&learnpath_item_id='.$learnpath_item_id.'&learnpath_id='.$learnpath_id.'";
@@ -71,14 +108,6 @@ function SendEx(num) {
     return false;
 }
 </script>';
-
-$header = '';
-if ($objExercise->getFeedbackType() === EXERCISE_FEEDBACK_TYPE_POPUP) {
-    $header = '
-        <div class="modal-header">
-            <h4 class="modal-title" id="global-modal-title">'.get_lang('Incorrect').'</h4>
-        </div>';
-}
 
 echo '<div id="delineation-container">';
 // Getting the options by js
@@ -169,6 +198,7 @@ $choice[$questionId] = isset($choiceValue) ? $choiceValue : null;
 if (!is_array($exerciseResult)) {
     $exerciseResult = [];
 }
+$saveResults = (int) $objExercise->getFeedbackType() == EXERCISE_FEEDBACK_TYPE_POPUP;
 
 // if the user has answered at least one question
 if (is_array($choice)) {
@@ -198,7 +228,6 @@ $objAnswerTmp = new Answer($questionId, api_get_course_int_id());
 if (EXERCISE_FEEDBACK_TYPE_DIRECT === $objExercise->getFeedbackType()) {
     $showResult = true;
 }
-
 switch ($answerType) {
     case MULTIPLE_ANSWER:
         if (is_array($choiceValue)) {
@@ -229,12 +258,12 @@ switch ($answerType) {
 
 ob_start();
 $result = $objExercise->manage_answer(
-    0,
+    $exeId,
     $questionId,
     $choiceValue,
     'exercise_result',
-    null,
-    false,
+    [],
+    $saveResults,
     false,
     $showResult,
     null,
@@ -278,11 +307,8 @@ if ($objExercise->getFeedbackType() === EXERCISE_FEEDBACK_TYPE_DIRECT) {
     }
 } else {
     $message = get_lang('Incorrect');
-    //$contents = Display::return_message($message, 'warning');
-
     if ($answerCorrect) {
         $message = get_lang('Correct');
-    //$contents = Display::return_message($message, 'success');
     } else {
         if ($partialCorrect) {
             $message = get_lang('PartialCorrect');
@@ -292,7 +318,7 @@ if ($objExercise->getFeedbackType() === EXERCISE_FEEDBACK_TYPE_DIRECT) {
     $comments = '';
     if ($answerType != HOT_SPOT_DELINEATION) {
         if (isset($result['correct_answer_id'])) {
-            $table = new HTML_Table(['class' => 'table data_table']);
+            $table = new HTML_Table(['class' => 'table table-hover table-striped data_table']);
             $row = 0;
             $table->setCellContents($row, 0, get_lang('YourAnswer'));
             if ($answerType != DRAGGABLE) {

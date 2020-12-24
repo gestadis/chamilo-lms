@@ -3,8 +3,6 @@
 
 /**
  * Exams script.
- *
- * @package chamilo.tracking
  */
 require_once __DIR__.'/../inc/global.inc.php';
 
@@ -131,7 +129,8 @@ if (!$exportToXLS) {
     echo '<h3>'.sprintf(get_lang('FilteringWithScoreX'), $filter_score).'%</h3>';
 }
 
-$html = '<table  class="data_table">';
+$html = '<div class="table-responsive">';
+$html .= '<table  class="table table-hover table-striped data_table">';
 if ($global) {
     $html .= '<tr>';
     $html .= '<th>'.get_lang('Courses').'</th>';
@@ -188,7 +187,7 @@ if (!empty($courseList) && is_array($courseList)) {
             $exerciseCount = $exerciseCount + $exerciseCount * count($newSessionList) + $exerciseSessionCount;
 
             // Add course and session list.
-            if ($exerciseCount == 0) {
+            if (0 == $exerciseCount) {
                 $exerciseCount = 2;
             }
             $html .= "<tr>
@@ -202,7 +201,7 @@ if (!empty($courseList) && is_array($courseList)) {
         $result = Database::query($sql);
 
         // If main tool is visible.
-        if (Database::result($result, 0, 'visibility') == 1) {
+        if (1 == Database::result($result, 0, 'visibility')) {
             // Getting the exam list.
             if ($global) {
                 $sql = "SELECT quiz.title, id, session_id
@@ -341,6 +340,7 @@ if (!empty($courseList) && is_array($courseList)) {
 }
 
 $html .= '</table>';
+$html .= '</div>';
 
 if (!$exportToXLS) {
     echo $html;

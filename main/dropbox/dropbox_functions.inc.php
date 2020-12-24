@@ -816,7 +816,7 @@ function getUserOwningThisMailing($mailingPseudoId, $owner = 0, $or_die = '')
     $result = Database::query($sql);
 
     if (!($res = Database::fetch_array($result))) {
-        die(get_lang('GeneralError').' (code 901)');
+        exit(get_lang('GeneralError').' (code 901)');
     }
     if ($owner == 0) {
         return $res['uploader_id'];
@@ -824,7 +824,7 @@ function getUserOwningThisMailing($mailingPseudoId, $owner = 0, $or_die = '')
     if ($res['uploader_id'] == $owner) {
         return true;
     }
-    die(get_lang('GeneralError').' (code '.$or_die.')');
+    exit(get_lang('GeneralError').' (code '.$or_die.')');
 }
 
 /**
@@ -1147,7 +1147,7 @@ function feedback($array, $url)
 /**
  * This function returns the html code to display the feedback messages on a given dropbox file.
  *
- * @param $feedback_array an array that contains all the feedback messages about the given document
+ * @param array $feedback an array that contains all the feedback messages about the given document
  *
  * @return string code
  *

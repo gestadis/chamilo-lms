@@ -11,33 +11,33 @@ use Chamilo\CoreBundle\Entity\Tag;
  */
 class ExtraField extends Model
 {
-    const FIELD_TYPE_TEXT = 1;
-    const FIELD_TYPE_TEXTAREA = 2;
-    const FIELD_TYPE_RADIO = 3;
-    const FIELD_TYPE_SELECT = 4;
-    const FIELD_TYPE_SELECT_MULTIPLE = 5;
-    const FIELD_TYPE_DATE = 6;
-    const FIELD_TYPE_DATETIME = 7;
-    const FIELD_TYPE_DOUBLE_SELECT = 8;
-    const FIELD_TYPE_DIVIDER = 9;
-    const FIELD_TYPE_TAG = 10;
-    const FIELD_TYPE_TIMEZONE = 11;
-    const FIELD_TYPE_SOCIAL_PROFILE = 12;
-    const FIELD_TYPE_CHECKBOX = 13;
-    const FIELD_TYPE_MOBILE_PHONE_NUMBER = 14;
-    const FIELD_TYPE_INTEGER = 15;
-    const FIELD_TYPE_FILE_IMAGE = 16;
-    const FIELD_TYPE_FLOAT = 17;
-    const FIELD_TYPE_FILE = 18;
-    const FIELD_TYPE_VIDEO_URL = 19;
-    const FIELD_TYPE_LETTERS_ONLY = 20;
-    const FIELD_TYPE_ALPHANUMERIC = 21;
-    const FIELD_TYPE_LETTERS_SPACE = 22;
-    const FIELD_TYPE_ALPHANUMERIC_SPACE = 23;
-    const FIELD_TYPE_GEOLOCALIZATION = 24;
-    const FIELD_TYPE_GEOLOCALIZATION_COORDINATES = 25;
-    const FIELD_TYPE_SELECT_WITH_TEXT_FIELD = 26;
-    const FIELD_TYPE_TRIPLE_SELECT = 27;
+    public const FIELD_TYPE_TEXT = 1;
+    public const FIELD_TYPE_TEXTAREA = 2;
+    public const FIELD_TYPE_RADIO = 3;
+    public const FIELD_TYPE_SELECT = 4;
+    public const FIELD_TYPE_SELECT_MULTIPLE = 5;
+    public const FIELD_TYPE_DATE = 6;
+    public const FIELD_TYPE_DATETIME = 7;
+    public const FIELD_TYPE_DOUBLE_SELECT = 8;
+    public const FIELD_TYPE_DIVIDER = 9;
+    public const FIELD_TYPE_TAG = 10;
+    public const FIELD_TYPE_TIMEZONE = 11;
+    public const FIELD_TYPE_SOCIAL_PROFILE = 12;
+    public const FIELD_TYPE_CHECKBOX = 13;
+    public const FIELD_TYPE_MOBILE_PHONE_NUMBER = 14;
+    public const FIELD_TYPE_INTEGER = 15;
+    public const FIELD_TYPE_FILE_IMAGE = 16;
+    public const FIELD_TYPE_FLOAT = 17;
+    public const FIELD_TYPE_FILE = 18;
+    public const FIELD_TYPE_VIDEO_URL = 19;
+    public const FIELD_TYPE_LETTERS_ONLY = 20;
+    public const FIELD_TYPE_ALPHANUMERIC = 21;
+    public const FIELD_TYPE_LETTERS_SPACE = 22;
+    public const FIELD_TYPE_ALPHANUMERIC_SPACE = 23;
+    public const FIELD_TYPE_GEOLOCALIZATION = 24;
+    public const FIELD_TYPE_GEOLOCALIZATION_COORDINATES = 25;
+    public const FIELD_TYPE_SELECT_WITH_TEXT_FIELD = 26;
+    public const FIELD_TYPE_TRIPLE_SELECT = 27;
     public $columns = [
         'id',
         'field_type',
@@ -156,6 +156,9 @@ class ExtraField extends Model
             case 'forum_post':
                 $this->extraFieldType = EntityExtraField::FORUM_POST_TYPE;
                 break;
+            case 'track_exercise':
+                $this->extraFieldType = EntityExtraField::TRACK_EXERCISE_FIELD_TYPE;
+                break;
         }
 
         $this->pageUrl = 'extra_fields.php?type='.$this->type;
@@ -185,11 +188,13 @@ class ExtraField extends Model
             'forum_category',
             'forum_post',
             'exercise',
+            'track_exercise',
         ];
 
         if (api_get_configuration_value('allow_scheduled_announcements')) {
             $result[] = 'scheduled_announcement';
         }
+        sort($result);
 
         return $result;
     }
@@ -865,7 +870,7 @@ class ExtraField extends Model
                             $extra_data['extra_'.$field['variable']]['extra_'.$field['variable']] = $field_value;
                             break;
                         case self::FIELD_TYPE_TRIPLE_SELECT:
-                            list($level1, $level2, $level3) = explode(';', $field_value);
+                            [$level1, $level2, $level3] = explode(';', $field_value);
 
                             $extra_data["extra_$variable"]["extra_$variable"] = $level1;
                             $extra_data["extra_$variable"]["extra_{$variable}_second"] = $level2;
@@ -1151,7 +1156,6 @@ class ExtraField extends Model
                                 'checkbox',
                                 'extra_'.$field_details['variable'],
                                 null,
-                                //$field_details['display_text'].'<br />',
                                 get_lang('Yes'),
                                 $checkboxAttributes
                             );
@@ -1174,9 +1178,13 @@ class ExtraField extends Model
                         if (empty($defaultValueId)) {
                             $options[''] = get_lang('SelectAnOption');
                         }
-                        foreach ($field_details['options'] as $optionDetails) {
-                            $options[$optionDetails['option_value']] = $optionDetails['display_text'];
+
+                        if (isset($field_details['options']) && !empty($field_details['options'])) {
+                            foreach ($field_details['options'] as $optionDetails) {
+                                $options[$optionDetails['option_value']] = $optionDetails['display_text'];
+                            }
                         }
+
                         $form->addElement(
                             'select',
                             'extra_'.$field_details['variable'],
@@ -1902,6 +1910,17 @@ class ExtraField extends Model
     }
 
     /**
+     * Gets the set of values of an extra_field searching for the variable name.
+     *
+     * Example:
+     * <code>
+     * <?php
+     * $extraField = new ExtraField('lp_item');
+     * $extraFieldArray =  $extraField->get_handler_field_info_by_field_variable('authorlpitem');
+     * echo "<pre>".var_export($extraFieldArray,true)."</pre>";
+     * ?>
+     * </code>
+     *
      * @param string $variable
      *
      * @return array|bool
@@ -3334,7 +3353,7 @@ JAVASCRIPT;
         if (!empty($options)) {
             foreach ($options as $option) {
                 foreach ($option as $sub_option) {
-                    if ('0' != $sub_option['option_value']) {
+                    if ('0' == $sub_option['option_value']) {
                         continue;
                     }
 

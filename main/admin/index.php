@@ -508,12 +508,10 @@ $items[] = [
     'label' => get_lang('ExportSessionListXMLCSV'),
 ];
 
-if (api_is_global_platform_admin()) {
-    $items[] = [
-        'url' => '../coursecopy/copy_course_session.php',
-        'label' => get_lang('CopyFromCourseInSessionToAnotherSession'),
-    ];
-}
+$items[] = [
+    'url' => '../coursecopy/copy_course_session.php',
+    'label' => get_lang('CopyFromCourseInSessionToAnotherSession'),
+];
 
 $allowCareer = api_get_configuration_value('allow_session_admin_read_careers');
 
@@ -525,6 +523,12 @@ if (api_is_platform_admin() || ($allowCareer && api_is_session_admin())) {
             'label' => get_lang('MoveUserStats'),
         ];
     }
+
+    $items[] = [
+        'url' => '../coursecopy/move_users_from_course_to_session.php',
+        'label' => get_lang('MoveUsersFromCourseToSession'),
+    ];
+
     $items[] = [
         'url' => 'career_dashboard.php',
         'label' => get_lang('CareersAndPromotions'),
@@ -771,6 +775,21 @@ if (api_is_platform_admin()) {
         'url' => 'https://chamilo.org/',
         'label' => get_lang('ChamiloHomepage'),
     ];
+    // Custom linking to user guides in the existing languages
+    $guideLinks = [
+        'french' => 'v/1.11.x-fr/',
+        'spanish' => 'v/1.11.x-es/',
+        'dutch' => 'v/1.11.x-nl/',
+        'galician' => 'v/1.11.x-ga/',
+    ];
+    $guideLink = 'https://docs.chamilo.org/';
+    if (!empty($guideLinks[$language_interface])) {
+        $guideLink .= $guideLinks[$language_interface];
+    }
+    $items[] = [
+        'url' => $guideLink,
+        'label' => get_lang('UserGuides'),
+    ];
     $items[] = [
         'url' => 'https://forum.chamilo.org/',
         'label' => get_lang('ChamiloForum'),
@@ -908,7 +927,7 @@ if (api_is_platform_admin()) {
             }
 
             if (!is_writable($adminExtraContentDir)) {
-                die;
+                exit;
             }
 
             $fullFilePath = $adminExtraContentDir.$extraData['block'];

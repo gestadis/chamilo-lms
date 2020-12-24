@@ -1049,7 +1049,7 @@ class GradebookUtils
         $columns = count($printable_data[0]);
         $has_data = is_array($printable_data[1]) && count($printable_data[1]) > 0;
 
-        $table = new HTML_Table(['class' => 'data_table']);
+        $table = new HTML_Table(['class' => 'table table-hover table-striped data_table']);
         $row = 0;
         $column = 0;
         $table->setHeaderContents($row, $column, get_lang('NumberAbbreviation'));
@@ -1560,6 +1560,7 @@ class GradebookUtils
     ) {
         $userInfo = api_get_user_info($userId);
         $model = ExerciseLib::getCourseScoreModel();
+        /** @var Category $cat */
         $cat = $cats[0];
         $allcat = $cats[0]->get_subcategories(
             $userId,
@@ -1629,19 +1630,37 @@ class GradebookUtils
         }
 
         $pdf->params['student_info'] = $userInfo;
+        $extraRows = [];
+        if (api_get_configuration_value('allow_gradebook_comments')) {
+            $commentInfo = self::getComment($cat->get_id(), $userId);
+            if ($commentInfo) {
+                $extraRows[] = [
+                    'label' => get_lang('Comment'),
+                    'content' => $commentInfo['comment'],
+                ];
+            }
+        }
+
         $file = api_get_path(SYS_ARCHIVE_PATH).uniqid().'.html';
 
-        $content =
-            $table.
-            $graph.
-            '<br />'.get_lang('Feedback').'<br />
-            <textarea class="form-control" rows="5" cols="100">&nbsp;</textarea>';
+        $settings = api_get_configuration_value('gradebook_pdf_export_settings');
+        $showFeedBack = true;
+        if (isset($settings['hide_feedback_textarea']) && $settings['hide_feedback_textarea']) {
+            $showFeedBack = false;
+        }
 
+        $feedback = '';
+        if ($showFeedBack) {
+            $feedback = '<br />'.get_lang('Feedback').'<br />
+            <textarea class="form-control" rows="5" cols="100">&nbsp;</textarea>';
+        }
+        $content = $table.$graph.$feedback;
         $result = $pdf->html_to_pdf_with_template(
             $content,
             $saveToFile,
             $saveToHtmlFile,
-            true
+            true,
+            $extraRows
         );
 
         if ($saveToHtmlFile) {
@@ -1649,5 +1668,40 @@ class GradebookUtils
         }
 
         return $file;
+    }
+
+    public static function getComment($gradeBookId, $userId)
+    {
+        $gradeBookId = (int) $gradeBookId;
+        $userId = (int) $userId;
+
+        $table = Database::get_main_table(TABLE_MAIN_GRADEBOOK_COMMENT);
+        $sql = "SELECT * FROM $table
+                WHERE user_id = $userId AND gradebook_id = $gradeBookId";
+        $result = Database::query($sql);
+
+        return Database::fetch_array($result);
+    }
+
+    public static function saveComment($gradeBookId, $userId, $comment)
+    {
+        $commentInfo = self::getComment($gradeBookId, $userId);
+        $table = Database::get_main_table(TABLE_MAIN_GRADEBOOK_COMMENT);
+        if (empty($commentInfo)) {
+            $params = [
+                'gradebook_id' => $gradeBookId,
+                'user_id' => $userId,
+                'comment' => $comment,
+                'created_at' => api_get_utc_datetime(),
+                'updated_at' => api_get_utc_datetime(),
+            ];
+            Database::insert($table, $params);
+        } else {
+            $params = [
+                'comment' => $comment,
+                'updated_at' => api_get_utc_datetime(),
+            ];
+            Database::update($table, $params, ['id = ?' => $commentInfo['id']]);
+        }
     }
 }

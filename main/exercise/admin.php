@@ -49,6 +49,10 @@ require_once __DIR__.'/../inc/global.inc.php';
 $current_course_tool = TOOL_QUIZ;
 $this_section = SECTION_COURSES;
 
+if (isset($_GET['r']) && 1 == $_GET['r']) {
+    Exercise::cleanSessionVariables();
+}
+
 // Access control
 api_protect_course_script(true);
 
@@ -138,7 +142,7 @@ if (!empty($_GET['action']) && $_GET['action'] == 'exportqti2' && !empty($_GET['
 }
 
 // Exercise object creation.
-if (!is_object($objExercise)) {
+if (!($objExercise instanceof Exercise)) {
     // creation of a new exercise if wrong or not specified exercise ID
     if ($exerciseId) {
         $objExercise = new Exercise();
@@ -148,12 +152,12 @@ if (!is_object($objExercise)) {
             $showPagination = true;
         }
         $objExercise->read($exerciseId, $parseQuestionList);
+        Session::write('objExercise', $objExercise);
     }
-    // saves the object into the session
-    Session::write('objExercise', $objExercise);
 }
 
 if (empty($objExercise)) {
+    Session::erase('objExercise');
     header('Location: '.api_get_path(WEB_CODE_PATH).'exercise/exercise.php?'.api_get_cidreq());
     exit;
 }
@@ -336,12 +340,13 @@ if ($inATest) {
         api_get_path(WEB_CODE_PATH).'exercise/exercise_report.php?'.api_get_cidreq().'&exerciseId='.$objExercise->id
     );
 
-    echo '<a href="'.api_get_path(WEB_CODE_PATH).'exercise/exercise_admin.php?'.api_get_cidreq().'&modifyExercise=yes&exerciseId='.$objExercise->id.'">'.
+    echo '<a
+        href="'.api_get_path(WEB_CODE_PATH).'exercise/exercise_admin.php?'.api_get_cidreq().'&modifyExercise=yes&exerciseId='.$objExercise->id.'">'.
         Display::return_icon('settings.png', get_lang('ModifyExercise'), '', ICON_SIZE_MEDIUM).'</a>';
 
     $maxScoreAllQuestions = 0;
     if ($showPagination === false) {
-        $questionList = $objExercise->selectQuestionList(true, true);
+        $questionList = $objExercise->selectQuestionList(true, $objExercise->random > 0 ? false : true);
         if (!empty($questionList)) {
             foreach ($questionList as $questionItemId) {
                 $question = Question::read($questionItemId);
@@ -366,16 +371,48 @@ if ($inATest) {
     }
 
     $alert = '';
+
     if ($showPagination === false) {
+        $originalSelectionType = $objExercise->questionSelectionType;
+        $objExercise->questionSelectionType = EX_Q_SELECTION_ORDERED;
+
+        $fullQuestionsScore = array_reduce(
+            $objExercise->selectQuestionList(true, true),
+            function ($acc, $questionId) {
+                $objQuestionTmp = Question::read($questionId);
+
+                return $acc + $objQuestionTmp->selectWeighting();
+            },
+            0
+        );
+
+        $objExercise->questionSelectionType = $originalSelectionType;
+
         $alert .= sprintf(
             get_lang('XQuestionsWithTotalScoreY'),
             $nbrQuestions,
-            $maxScoreAllQuestions
+            $fullQuestionsScore
         );
     }
     if ($objExercise->random > 0) {
         $alert .= '<br />'.sprintf(get_lang('OnlyXQuestionsPickedRandomly'), $objExercise->random);
+        $alert .= sprintf(
+            '<br>'.get_lang('XQuestionsSelectedWithTotalScoreY'),
+            $objExercise->random,
+            $maxScoreAllQuestions
+        );
     }
+
+    if ($showPagination === false) {
+        if ($objExercise->questionSelectionType >= EX_Q_SELECTION_CATEGORIES_ORDERED_QUESTIONS_ORDERED) {
+            $alert .= sprintf(
+                '<br>'.get_lang('XQuestionsSelectedWithTotalScoreY'),
+                count($questionList),
+                $maxScoreAllQuestions
+            );
+        }
+    }
+
     echo Display::return_message($alert, 'normal', false);
 } elseif (isset($_GET['newQuestion'])) {
     // we are in create a new question from question pool not in a test
@@ -421,6 +458,7 @@ if ($newQuestion || $editQuestion) {
             echo '</div>';
         } else {
             require 'question_admin.inc.php';
+            ExerciseLib::showTestsWhereQuestionIsUsed($objQuestion->iid, $objExercise->selectId());
         }
     }
 }
@@ -446,7 +484,6 @@ if ($objExercise->getFeedbackType() == EXERCISE_FEEDBACK_TYPE_EXAM) {
     echo Display::return_message(get_lang('TestFeedbackNotShown'), 'normal');
 }
 
-Session::write('objExercise', $objExercise);
 Session::write('objQuestion', $objQuestion);
 Session::write('objAnswer', $objAnswer);
 Display::display_footer();

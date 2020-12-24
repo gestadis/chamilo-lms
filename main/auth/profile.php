@@ -13,6 +13,7 @@ use ChamiloSession as Session;
  */
 $cidReset = true;
 require_once __DIR__.'/../inc/global.inc.php';
+api_block_inactive_user();
 
 $this_section = SECTION_MYPROFILE;
 $allowSocialTool = api_get_setting('allow_social_tool') === 'true';
@@ -83,7 +84,7 @@ $table_user = Database::get_main_table(TABLE_MAIN_USER);
 /*
  * Get initial values for all fields.
  */
-$user_data = api_get_user_info(
+$user_data = $originalUserInfo = api_get_user_info(
     api_get_user_id(),
     false,
     false,
@@ -245,10 +246,22 @@ if (is_profile_editable() && api_get_setting('user_selected_theme') === 'true') 
 //    EXTENDED PROFILE  this make the page very slow!
 if (api_get_setting('extended_profile') === 'true') {
     $width_extended_profile = 500;
+    //    MY PERSONAL OPEN AREA
+    $form->addHtmlEditor(
+        'openarea',
+        [get_lang('MyPersonalOpenArea'), get_lang('MyPersonalOpenAreaHelp')],
+        false,
+        false,
+        [
+            'ToolbarSet' => 'Profile',
+            'Width' => $width_extended_profile,
+            'Height' => '350',
+        ]
+    );
     //    MY COMPETENCES
     $form->addHtmlEditor(
         'competences',
-        get_lang('MyCompetences'),
+        [get_lang('MyCompetences'), get_lang('MyCompetencesHelp')],
         false,
         false,
         [
@@ -260,7 +273,7 @@ if (api_get_setting('extended_profile') === 'true') {
     //    MY DIPLOMAS
     $form->addHtmlEditor(
         'diplomas',
-        get_lang('MyDiplomas'),
+        [get_lang('MyDiplomas'), get_lang('MyDiplomasHelp')],
         false,
         false,
         [
@@ -272,7 +285,7 @@ if (api_get_setting('extended_profile') === 'true') {
     // WHAT I AM ABLE TO TEACH
     $form->addHtmlEditor(
         'teach',
-        get_lang('MyTeach'),
+        [get_lang('MyTeach'), get_lang('MyTeachingCapabilitiesHelp')],
         false,
         false,
         [
@@ -283,22 +296,10 @@ if (api_get_setting('extended_profile') === 'true') {
     );
 
     //    MY PRODUCTIONS
-    $form->addElement('file', 'production', get_lang('MyProductions'));
+    $form->addElement('file', 'production', [get_lang('MyProductions'), get_lang('MyProductionsHelp')]);
     if ($production_list = UserManager::build_production_list(api_get_user_id(), '', true)) {
         $form->addElement('static', 'productions_list', null, $production_list);
     }
-    //    MY PERSONAL OPEN AREA
-    $form->addHtmlEditor(
-        'openarea',
-        get_lang('MyPersonalOpenArea'),
-        false,
-        false,
-        [
-            'ToolbarSet' => 'Profile',
-            'Width' => $width_extended_profile,
-            'Height' => '350',
-        ]
-    );
     // openarea is untrimmed for maximum openness
     $form->applyFilter(['competences', 'diplomas', 'teach', 'openarea'], 'stripslashes');
     $form->applyFilter(['competences', 'diplomas', 'teach'], 'trim');
@@ -671,6 +672,49 @@ if ($form->validate()) {
         true
     );
     Session::write('_user', $userInfo);
+
+    $notification = api_get_configuration_value('user_notification_settings');
+    if (!empty($notification)) {
+        foreach ($notification as $label => $notificationSettings) {
+            $sendMessage = false;
+            if (isset($notificationSettings['if_field_changes'])) {
+                foreach ($notificationSettings['if_field_changes'] as $field) {
+                    if ($originalUserInfo[$field] != $userInfo[$field]) {
+                        $sendMessage = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($sendMessage) {
+                $subject = $notificationSettings['subject'];
+                $content = $notificationSettings['content'];
+                $userInfo['extra_fields'] = UserManager::get_extra_user_data(api_get_user_id());
+                $template = new Template();
+                $template->assign('old', $originalUserInfo);
+                $template->assign('new', $userInfo);
+                $content = $template->fetch($template->get_template($content));
+
+                $emails = explode(',', $notificationSettings['email']);
+                foreach ($emails as $email) {
+                    api_mail_html(
+                        '',
+                        $email,
+                        $subject,
+                        $content,
+                        $userInfo['complete_name'],
+                        $notificationSettings['sender_email'],
+                        [
+                            'reply_to' => [
+                                'mail' => $userInfo['mail'],
+                                'name' => $userInfo['complete_name'],
+                            ],
+                        ]
+                    );
+                }
+            }
+        }
+    }
 
     if ($hook) {
         Database::getManager()->clear(User::class); // Avoid cache issue (user entity is used before)

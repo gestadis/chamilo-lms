@@ -120,6 +120,22 @@ class ExtraFieldOption extends Model
     }
 
     /**
+     * Save option.
+     *
+     * Example:
+     * <code>
+     * <?php
+     * $fieldOption = new ExtraFieldOption('user');
+     * $fieldOption->saveOptions([
+     * 'field_id'=> 1,
+     * 'option_value'=> 1,
+     * 'display_text'=> 'extra value option 1',
+     * 'option_order'=>0
+     * ]);
+     * echo "<pre>".var_export($fieldOption,true)."</pre>";
+     * ?>
+     * </code>
+     *
      * @param array $params
      * @param bool  $showQuery
      *
@@ -150,6 +166,20 @@ class ExtraFieldOption extends Model
 
     /**
      * Saves an option into the corresponding *_field_options table.
+     *
+     * Example:
+     * <code>
+     * <?php
+     * $fieldOption = new ExtraFieldOption('user');
+     * $fieldOption->save([
+     * 'field_id'=> 1,
+     * 'option_value'=> 1,
+     * 'display_text'=> 'extra value option 1',
+     * 'option_order=>0'
+     * ]);
+     * echo "<pre>".var_export($fieldOption,true)."</pre>";
+     * ?>
+     * </code>
      *
      * @param array $params    Parameters to be considered for the insertion
      * @param bool  $showQuery Whether to show the query (sent to the parent save() method)
@@ -499,6 +529,15 @@ class ExtraFieldOption extends Model
     /**
      * Gets an array of options for a specific field.
      *
+     * Example:
+     * <code>
+     * <?php
+     * $fieldOption = new ExtraFieldOption('user');
+     * $fieldOption->get_field_options_by_field(1);
+     * echo "<pre>".var_export($fieldOption,true)."</pre>";
+     * ?>
+     * </code>
+     *
      * @param int  $field_id        The field ID
      * @param bool $add_id_in_array Whether to add the row ID in the result
      * @param null $ordered_by      Extra ordering query bit
@@ -696,7 +735,7 @@ class ExtraFieldOption extends Model
      */
     public function getPriorityOptions()
     {
-        return  [
+        return [
             '' => get_lang('SelectAnOption'),
             1 => get_lang('Success'),
             2 => get_lang('Info'),
@@ -777,7 +816,7 @@ class ExtraFieldOption extends Model
 
         $defaults = [];
 
-        if ($action === 'edit') {
+        if ('edit' == $action) {
             // Setting the defaults
             $defaults = $this->get($id, false);
             $form->freeze('option_value');

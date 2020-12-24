@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CourseBundle\Entity\CQuizAnswer;
@@ -28,6 +29,7 @@ abstract class Question
     public $category_list;
     public $parent_id;
     public $category;
+    public $mandatory;
     public $isContent;
     public $course;
     public $feedback;
@@ -91,6 +93,7 @@ abstract class Question
         $this->course = api_get_course_info();
         $this->category_list = [];
         $this->parent_id = 0;
+        $this->mandatory = 0;
         // See BT#12611
         $this->questionTypeWithFeedback = [
             MATCHING,
@@ -164,8 +167,20 @@ abstract class Question
                 $objQuestion->extra = $object->extra;
                 $objQuestion->course = $course_info;
                 $objQuestion->feedback = isset($object->feedback) ? $object->feedback : '';
-                $objQuestion->category = TestCategory::getCategoryForQuestion($id, $course_id);
                 $objQuestion->code = isset($object->code) ? $object->code : '';
+                $categoryInfo = TestCategory::getCategoryInfoForQuestion($id, $course_id);
+
+                if (!empty($categoryInfo)) {
+                    if (isset($categoryInfo['category_id'])) {
+                        $objQuestion->category = (int) $categoryInfo['category_id'];
+                    }
+
+                    if (api_get_configuration_value('allow_mandatory_question_in_category') &&
+                        isset($categoryInfo['mandatory'])
+                    ) {
+                        $objQuestion->mandatory = (int) $categoryInfo['mandatory'];
+                    }
+                }
 
                 if ($getExerciseList) {
                     $tblQuiz = Database::get_course_table(TABLE_QUIZ_TEST);
@@ -467,6 +482,11 @@ abstract class Question
         $this->category = $category;
     }
 
+    public function setMandatory($value)
+    {
+        $this->mandatory = (int) $value;
+    }
+
     /**
      * @param int $value
      *
@@ -527,8 +547,8 @@ abstract class Question
     }
 
     /**
-     * in this version, a question can only have 1 category
-     * if category is 0, then question has no category then delete the category entry.
+     * In this version, a question can only have 1 category.
+     * If category is 0, then question has no category then delete the category entry.
      *
      * @param int $categoryId
      * @param int $courseId
@@ -558,9 +578,15 @@ abstract class Question
                         c_id = ".$courseId;
             $res = Database::query($sql);
             $row = Database::fetch_array($res);
+            $allowMandatory = api_get_configuration_value('allow_mandatory_question_in_category');
             if ($row['nb'] > 0) {
+                $extraMandatoryCondition = '';
+                if ($allowMandatory) {
+                    $extraMandatoryCondition = ", mandatory = {$this->mandatory}";
+                }
                 $sql = "UPDATE $table
                         SET category_id = $categoryId
+                        $extraMandatoryCondition
                         WHERE
                             question_id = $question_id AND
                             c_id = ".$courseId;
@@ -569,6 +595,15 @@ abstract class Question
                 $sql = "INSERT INTO $table (c_id, question_id, category_id)
                         VALUES (".$courseId.", $question_id, $categoryId)";
                 Database::query($sql);
+
+                if ($allowMandatory) {
+                    $id = Database::insert_id();
+                    if ($id) {
+                        $sql = "UPDATE $table SET mandatory = {$this->mandatory}
+                                WHERE iid = $id";
+                        Database::query($sql);
+                    }
+                }
             }
 
             return true;
@@ -909,7 +944,7 @@ abstract class Question
     }
 
     /**
-     * updates the question in the data base
+     * Updates the question in the database.
      * if an exercise ID is provided, we add that exercise ID into the exercise list.
      *
      * @author Olivier Brouckaert
@@ -977,7 +1012,7 @@ abstract class Question
                 $this->search_engine_edit($exerciseId);
             }
         } else {
-            // Creates a new question
+            // Creates a new question.
             $sql = "SELECT max(position)
                     FROM $TBL_QUESTIONS as question,
                     $TBL_EXERCISE_QUESTION as test_question
@@ -1403,6 +1438,10 @@ abstract class Question
                         question_id = ".$id;
             Database::query($sql);
 
+            // Add extra fields.
+            $extraField = new ExtraFieldValue('question');
+            $extraField->deleteValuesByItem($this->iid);
+
             api_item_property_update(
                 $this->course,
                 TOOL_QUIZ,
@@ -1419,7 +1458,7 @@ abstract class Question
         } else {
             // just removes the exercise from the list
             $this->removeFromList($deleteFromEx, $courseId);
-            if (api_get_setting('search_enabled') == 'true' && extension_loaded('xapian')) {
+            if (api_get_setting('search_enabled') === 'true' && extension_loaded('xapian')) {
                 // disassociate question with this exercise
                 $this->search_engine_edit($deleteFromEx, false, true);
             }
@@ -1448,7 +1487,7 @@ abstract class Question
      *
      * @param array $courseInfo Course info of the destination course
      *
-     * @return false|string ID of the new question
+     * @return false|int ID of the new question
      */
     public function duplicate($courseInfo = [])
     {
@@ -1505,6 +1544,10 @@ abstract class Question
                     SET id = iid
                     WHERE iid = $newQuestionId";
             Database::query($sql);
+
+            // Add extra fields.
+            $extraField = new ExtraFieldValue('question');
+            $extraField->copy($this->iid, $newQuestionId);
 
             if (!empty($options)) {
                 // Saving the quiz_options
@@ -1630,7 +1673,7 @@ abstract class Question
             echo $includeFile;
 
             echo '<script type="text/javascript" charset="utf-8">
-            $(document).ready(function () {
+            $(function() {
                 $(".create_img_link").click(function(e){
                     e.preventDefault();
                     e.stopPropagation();
@@ -1640,12 +1683,10 @@ abstract class Question
                 });
 
                 $("input[name=\'imageZoom\']").on("click", function(){
-                    console.log("click en campo");
                     var elf = $("#elfinder").elfinder({
                         url : "'.api_get_path(WEB_LIBRARY_PATH).'elfinder/connectorAction.php?'.api_get_cidreq().'",
                         getFileCallback: function(file) {
                             var filePath = file; //file contains the relative url.
-                            console.log(filePath);
                             var imgPath = "<img src = \'"+filePath+"\'/>";
                             $("input[name=\'imageZoom\']").val(filePath.url);
                             $("#elfinder").remove(); //close the window after image is selected
@@ -1695,12 +1736,11 @@ abstract class Question
         }
 
         $form->addButtonAdvancedSettings('advanced_params');
-        $form->addElement('html', '<div id="advanced_params_options" style="display:none">');
+        $form->addHtml('<div id="advanced_params_options" style="display:none">');
 
         if (isset($zoomOptions['options'])) {
             $form->addElement('text', 'imageZoom', get_lang('ImageURL'));
             $form->addElement('text', 'imageWidth', get_lang('PixelWidth'));
-
             $form->addButton('btn_create_img', get_lang('AddToEditor'), 'plus', 'info', 'small', 'create_img_link');
         }
 
@@ -1713,26 +1753,32 @@ abstract class Question
         );
 
         if ($this->type != MEDIA_QUESTION) {
-            // Advanced parameters
-            $select_level = self::get_default_levels();
+            // Advanced parameters.
             $form->addElement(
                 'select',
                 'questionLevel',
                 get_lang('Difficulty'),
-                $select_level
+                self::get_default_levels()
             );
 
-            // Categories
-            $tabCat = TestCategory::getCategoriesIdAndName();
+            // Categories.
             $form->addElement(
                 'select',
                 'questionCategory',
                 get_lang('Category'),
-                $tabCat
+                TestCategory::getCategoriesIdAndName()
             );
 
-            global $text;
+            if (EX_Q_SELECTION_CATEGORIES_ORDERED_QUESTIONS_RANDOM == $exercise->getQuestionSelectionType() &&
+                api_get_configuration_value('allow_mandatory_question_in_category')
+            ) {
+                $form->addCheckBox(
+                    'mandatory',
+                    get_lang('IsMandatory')
+                );
+            }
 
+            global $text;
             switch ($this->type) {
                 case UNIQUE_ANSWER:
                     $buttonGroup = [];
@@ -1813,20 +1859,40 @@ abstract class Question
         $extraField->addElements($form, $this->iid);
 
         // default values
-        $defaults = [];
-        $defaults['questionName'] = $this->question;
-        $defaults['questionDescription'] = $this->description;
-        $defaults['questionLevel'] = $this->level;
-        $defaults['questionCategory'] = $this->category;
-        $defaults['feedback'] = $this->feedback;
 
         // Came from he question pool
-        if (isset($_GET['fromExercise'])) {
-            $form->setDefaults($defaults);
-        }
+        if (isset($_GET['fromExercise'])
+            || (!isset($_GET['newQuestion']) || $isContent)
+        ) {
+            try {
+                $form->getElement('questionName')->setValue($this->question);
+            } catch (Exception $exception) {
+            }
 
-        if (!isset($_GET['newQuestion']) || $isContent) {
-            $form->setDefaults($defaults);
+            try {
+                $form->getElement('questionDescription')->setValue($this->description);
+            } catch (Exception $e) {
+            }
+
+            try {
+                $form->getElement('questionLevel')->setValue($this->level);
+            } catch (Exception $e) {
+            }
+
+            try {
+                $form->getElement('questionCategory')->setValue($this->category);
+            } catch (Exception $e) {
+            }
+
+            try {
+                $form->getElement('feedback')->setValue($this->feedback);
+            } catch (Exception $e) {
+            }
+
+            try {
+                $form->getElement('mandatory')->setValue($this->mandatory);
+            } catch (Exception $e) {
+            }
         }
 
         /*if (!empty($_REQUEST['myid'])) {
@@ -1850,6 +1916,7 @@ abstract class Question
         $this->updateDescription($form->getSubmitValue('questionDescription'));
         $this->updateLevel($form->getSubmitValue('questionLevel'));
         $this->updateCategory($form->getSubmitValue('questionCategory'));
+        $this->setMandatory($form->getSubmitValue('mandatory'));
         $this->setFeedback($form->getSubmitValue('feedback'));
 
         //Save normal question if NOT media
@@ -1869,8 +1936,6 @@ abstract class Question
 
     /**
      * abstract function which creates the form to create / edit the answers of the question.
-     *
-     * @param FormValidator $form
      */
     abstract public function createAnswersForm($form);
 
@@ -2188,7 +2253,7 @@ abstract class Question
                 ['class' => 'question_description']
             );
         } else {
-            if ($score['pass'] == true) {
+            if (true == $score['pass']) {
                 $message = Display::div(
                     sprintf(
                         get_lang('ReadingQuestionCongratsSpeedXReachedForYWords'),
@@ -2206,6 +2271,12 @@ abstract class Question
                 );
             }
             $header .= $message.'<br />';
+        }
+
+        if ($exercise->hideComment && $this->type == HOT_SPOT) {
+            $header .= Display::return_message(get_lang('ResultsOnlyAvailableOnline'));
+
+            return $header;
         }
 
         if (isset($score['pass']) && $score['pass'] === false) {
@@ -2240,10 +2311,10 @@ abstract class Question
         $tbl_quiz_question = Database::get_course_table(TABLE_QUIZ_QUESTION);
         $tbl_quiz_rel_question = Database::get_course_table(TABLE_QUIZ_TEST_QUESTION);
 
-        $quiz_id = intval($quiz_id);
+        $quiz_id = (int) $quiz_id;
         $max_score = (float) $max_score;
-        $type = intval($type);
-        $level = intval($level);
+        $type = (int) $type;
+        $level = (int) $level;
 
         // Get the max position
         $sql = "SELECT max(position) as max_position
@@ -2483,9 +2554,13 @@ abstract class Question
      */
     public function showFeedback($exercise)
     {
+        if (false === $exercise->hideComment) {
+            return false;
+        }
+
         return
             in_array($this->type, $this->questionTypeWithFeedback) &&
-            $exercise->getFeedbackType() != EXERCISE_FEEDBACK_TYPE_EXAM;
+            EXERCISE_FEEDBACK_TYPE_EXAM != $exercise->getFeedbackType();
     }
 
     /**

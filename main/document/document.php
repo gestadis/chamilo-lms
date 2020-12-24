@@ -37,6 +37,9 @@ $parent_id = null;
 $lib_path = api_get_path(LIBRARY_PATH);
 $actionsRight = '';
 $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : '';
+if (isset($_POST['currentFile']) && !empty($_POST['currentFile']) && empty($action)) {
+    $action = 'replace';
+}
 $allowUseTool = false;
 
 if ($allowDownloadDocumentsByApiKey) {
@@ -213,6 +216,81 @@ $currentUrl = api_get_self().'?'.api_get_cidreq().'&id='.$document_id;
 $curdirpath = isset($_GET['curdirpath']) ? Security::remove_XSS($_GET['curdirpath']) : null;
 
 switch ($action) {
+    case 'replace':
+        if (($isAllowedToEdit ||
+                $groupMemberWithUploadRights ||
+                DocumentManager::isBasicCourseFolder($curdirpath, $sessionId) ||
+                DocumentManager::is_my_shared_folder(api_get_user_id(), $curdirpath, $sessionId) ||
+                DocumentManager::is_my_shared_folder(api_get_user_id(), $moveTo, $sessionId)) &&
+            isset($_POST['currentFile'])
+        ) {
+            $fileTarget = $_POST['currentFile'];
+            if (isset($_FILES) && isset($_FILES['file_'.$fileTarget])) {
+                $fileId = (int) $_POST['id_'.$fileTarget];
+                if (!$isAllowedToEdit) {
+                    if (api_is_coach()) {
+                        if (!DocumentManager::is_visible_by_id(
+                            $fileId,
+                            $courseInfo,
+                            $sessionId,
+                            api_get_user_id()
+                        )
+                        ) {
+                            api_not_allowed();
+                        }
+                    }
+
+                    if (DocumentManager::check_readonly($courseInfo, api_get_user_id(), '', $fileId, true)) {
+                        api_not_allowed();
+                    }
+                }
+
+                $documentInfo = DocumentManager::get_document_data_by_id(
+                    $fileId,
+                    $courseInfo['code'],
+                    false,
+                    $sessionId
+                );
+                GroupManager::allowUploadEditDocument(
+                    $userId,
+                    $courseId,
+                    $group_properties,
+                    $documentInfo,
+                    true
+                );
+                // Check whether the document is in the database.
+                if (!empty($documentInfo)) {
+                    $file = $_FILES['file_'.$fileTarget];
+                    if ($documentInfo['filetype'] == 'file') {
+                        $updateDocument = DocumentManager::writeContentIntoDocument(
+                            $courseInfo,
+                            null,
+                            $base_work_dir,
+                            $sessionId,
+                            $fileId,
+                            $groupIid,
+                            $file
+                        );
+                        if ($updateDocument) {
+                            Display::addFlash(
+                                Display::return_message(
+                                    get_lang('OverwritenFile').': '.$documentInfo['title'],
+                                    'success'
+                                )
+                            );
+                        } else {
+                            Display::addFlash(Display::return_message(get_lang('Impossible'), 'error'));
+                        }
+                    }
+                } else {
+                    Display::addFlash(Display::return_message(get_lang('FileNotFound'), 'warning'));
+                }
+
+                header("Location: $currentUrl");
+                exit;
+            }
+        }
+        break;
     case 'delete_item':
         if ($isAllowedToEdit ||
             $groupMemberWithUploadRights ||
@@ -1086,8 +1164,10 @@ if ($isAllowedToEdit || $groupMemberWithUploadRights ||
                     DocumentManager::updateDbInfo(
                         'update',
                         $document_to_move['path'],
-                        $moveTo.'/'.basename($document_to_move['path'])
+                        $moveTo.'/',
+                        $doc_id
                     );
+                    // $moveTo.'/' .basename($document_to_move['path'])
 
                     // Update database item property
                     api_item_property_update(
@@ -1759,6 +1839,16 @@ if ($isAllowedToEdit ||
             api_get_path(WEB_CODE_PATH).'document/add_link.php?'.api_get_cidreq().'&id='.$documentIdFromGet
         );
     }
+
+    $hook = HookDocumentAction::create();
+    if (!empty($hook)) {
+        $data = $hook->notifyDocumentAction(HOOK_EVENT_TYPE_PRE);
+        if (isset($data['actions'])) {
+            foreach ($data['actions'] as $action) {
+                $actionsLeft .= $action;
+            }
+        }
+    }
 }
 
 if (!isset($_GET['keyword']) && !$is_certificate_mode) {
@@ -1787,7 +1877,7 @@ if (!$is_certificate_mode && false === $disableSearch) {
         [],
         FormValidator::LAYOUT_INLINE
     );
-    $form->addText('keyword', '', false, ['class' => 'col-md-2']);
+    $form->addText('keyword', get_lang('SearchTerm'), false, ['class' => 'col-md-2']);
     $form->addHidden('cidReq', api_get_course_id());
     $form->addHidden('id_session', api_get_session_id());
     $form->addHidden('gidReq', $groupId);
@@ -2197,7 +2287,22 @@ if (false === $disableQuotaMessage && count($documentAndFolders) > 1) {
     </script>';
     echo '<span id="course_quota"></span>';
 }
-
+echo '<script>
+        $(function() {
+            $(".removeHiddenFile").click(function(){
+               $.each($(".replaceIndividualFile"),function(a,b){
+                   $(b).addClass("hidden");
+               });
+               data = $(this).data("id");
+               $(".upload_element_"+data).removeClass("hidden");
+               $.each($("[name=\'currentFile\']"),function(a,b){
+                   $(b).val(data);
+               });
+            });
+            $("form[name=form_teacher_table]").prop("enctype","multipart/form-data")
+        });
+        </script>
+    ';
 if (!empty($table_footer)) {
     echo Display::return_message($table_footer, 'warning');
 }

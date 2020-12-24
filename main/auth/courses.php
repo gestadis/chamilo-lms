@@ -106,11 +106,11 @@ switch ($action) {
         exit;
         break;
     case 'subscribe_course':
+        $courseCodeToSubscribe = isset($_GET['course_code']) ? Security::remove_XSS($_GET['course_code']) : '';
         if (api_is_anonymous()) {
             header('Location: '.api_get_path(WEB_CODE_PATH).'auth/inscription.php?c='.$courseCodeToSubscribe);
             exit;
         }
-        $courseCodeToSubscribe = isset($_GET['course_code']) ? Security::remove_XSS($_GET['course_code']) : '';
         if (Security::check_token('get')) {
             $courseInfo = api_get_course_info($courseCodeToSubscribe);
             CourseManager::autoSubscribeToCourse($courseCodeToSubscribe);
@@ -518,19 +518,9 @@ switch ($action) {
                             $courseUrl.$course['directory'].'/index.php?id_session=0',
                             ['class' => 'btn btn-primary']
                         );
-                        if (!$courseClosed) {
-                            if ($course_unsubscribe_allowed) {
-                                $course['unregister_formatted'] = CoursesAndSessionsCatalog::return_unregister_button(
-                                    $course,
-                                    $stok,
-                                    $searchTerm,
-                                    $categoryCode
-                                );
-                            }
-                        }
-                    } elseif ($userRegisteredInCourseAsTeacher) {
-                        // if user registered as teacher
-                        if ($course_unsubscribe_allowed) {
+                        if (!$courseClosed && $course_unsubscribe_allowed &&
+                            false === $userRegisteredInCourseAsTeacher
+                        ) {
                             $course['unregister_formatted'] = CoursesAndSessionsCatalog::return_unregister_button(
                                 $course,
                                 $stok,
@@ -538,6 +528,17 @@ switch ($action) {
                                 $categoryCode
                             );
                         }
+                    } elseif ($userRegisteredInCourseAsTeacher) {
+                        // if user registered as teacher
+                        // Updated teacher cannot unregister himself.
+                        /*if ($course_unsubscribe_allowed) {
+                            $course['unregister_formatted'] = CoursesAndSessionsCatalog::return_unregister_button(
+                                $course,
+                                $stok,
+                                $searchTerm,
+                                $categoryCode
+                            );
+                        }*/
                     } else {
                         // if user not registered in the course
                         if (!$courseClosed) {
@@ -623,7 +624,8 @@ switch ($action) {
                 $requirementsData = $repository->checkRequirementsForUser(
                     $sequences,
                     SequenceResource::SESSION_TYPE,
-                    $userId
+                    $userId,
+                    $sessionId
                 );
 
                 $continueWithSubscription = $repository->checkSequenceAreCompleted($requirementsData);

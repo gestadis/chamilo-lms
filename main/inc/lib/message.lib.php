@@ -453,6 +453,7 @@ class MessageManager
      * @param array  $smsParameters
      * @param bool   $checkCurrentAudioId
      * @param bool   $forceTitleWhenSendingEmail force the use of $title as subject instead of "You have a new message"
+     * @param int    $status                     Message status
      *
      * @return bool
      */
@@ -1475,7 +1476,6 @@ class MessageManager
                         get_lang('Me').'</b>';
                     break;
                 case self::MESSAGE_TYPE_OUTBOX:
-
                     $message_content .= get_lang('From').':&nbsp;'.$name.'</b> '.api_strtolower(get_lang('To')).' <b>'.
                         $receiverUserInfo['complete_name_with_username'].'</b>';
                     break;
@@ -2312,9 +2312,8 @@ class MessageManager
         }
 
         $actions = ['reply', 'mark_as_unread', 'mark_as_read', 'forward', 'delete'];
-        $html = self::getMessageGrid(self::MESSAGE_TYPE_INBOX, $keyword, $actions);
 
-        return $html;
+        return self::getMessageGrid(self::MESSAGE_TYPE_INBOX, $keyword, $actions);
     }
 
     /**

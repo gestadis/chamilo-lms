@@ -315,14 +315,14 @@ if (api_get_setting('documents_default_visibility_defined_in_course') === 'true'
     $globalGroup[get_lang('DocumentsDefaultVisibility')] = $group;
 }
 
-$group = [
-    $form->createElement('radio', 'show_system_folders', null, get_lang('Yes'), 1),
-    $form->createElement('radio', 'show_system_folders', null, get_lang('No'), 2),
-];
+if (api_get_setting('show_default_folders') == 'true') {
+    $group = [
+        $form->createElement('radio', 'show_system_folders', null, get_lang('Yes'), 1),
+        $form->createElement('radio', 'show_system_folders', null, get_lang('No'), 2),
+    ];
 
-$globalGroup[get_lang('ShowSystemFolders')] = $group;
-
-$myButton = $form->addButtonSave(get_lang('SaveSettings'), 'submit_save', true);
+    $globalGroup[get_lang('ShowSystemFolders')] = $group;
+}
 
 $group = [];
 $group[] = $form->createElement(
@@ -335,6 +335,7 @@ $group[] = $form->createElement(
 $group[] = $form->createElement('radio', 'enable_document_auto_launch', null, get_lang('Deactivate'), 0);
 $globalGroup[get_lang('DocumentAutoLaunch')] = $group;
 
+$myButton = $form->addButtonSave(get_lang('SaveSettings'), 'submit_save', true);
 $globalGroup[] = $myButton;
 
 $form->addPanelOption(
@@ -675,6 +676,13 @@ if ($allowLPReturnLink === 'true') {
             null,
             get_lang('MyCourses'),
             2
+        ),
+        $form->createElement(
+            'radio',
+            'lp_return_link',
+            null,
+            get_lang('RedirectToPortalHome'),
+            3
         ),
     ];
     $form->addGroup($group, '', [get_lang('LpReturnLink')]);
@@ -1052,7 +1060,7 @@ if ($form->validate() && is_settings_editable()) {
 
     // update the extra fields
     $courseFieldValue = new ExtraFieldValue('course');
-    $courseFieldValue->saveFieldValues($updateValues);
+    $courseFieldValue->saveFieldValues($updateValues, true);
 
     $appPlugin->saveCourseSettingsHook($updateValues);
     $courseParams = api_get_cidreq();

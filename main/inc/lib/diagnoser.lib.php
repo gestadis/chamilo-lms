@@ -84,7 +84,7 @@ class Diagnoser
 
             $headers = $data['headers'];
             $results = $data['data'];
-            $table = new HTML_Table(['class' => 'data_table']);
+            $table = new HTML_Table(['class' => 'table table-hover table-striped data_table']);
 
             $column = 0;
             foreach ($headers as $header) {
@@ -625,6 +625,11 @@ class Diagnoser
             ],
             'openssl' => [ //required only for DKIM e-mail signatures
                 'link' => 'https://php.net/openssl',
+                'expected' => 2,
+                'comment' => get_lang('ExtensionShouldBeLoaded'),
+            ],
+            'bcmath' => [
+                'link' => 'https://php.net/bcmath',
                 'expected' => 2,
                 'comment' => get_lang('ExtensionShouldBeLoaded'),
             ],

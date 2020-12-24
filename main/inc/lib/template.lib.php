@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CoreBundle\Component\Utils\ChamiloApi;
@@ -662,6 +663,14 @@ class Template
                 $css[] = api_get_path(WEB_CSS_PATH).$this->themeDir.'learnpath.css';
             }
         }
+        if (CustomPages::enabled()) {
+            $cssCustomPage = api_get_path(SYS_CSS_PATH).$this->themeDir."custompage.css";
+            if (is_file($cssCustomPage)) {
+                $css[] = api_get_path(WEB_CSS_PATH).$this->themeDir.'custompage.css';
+            } else {
+                $css[] = api_get_path(WEB_CSS_PATH).'custompage.css';
+            }
+        }
 
         $css[] = api_get_cdn_path(api_get_path(WEB_CSS_PATH).$this->themeDir.'default.css');
         $css[] = api_get_cdn_path(ChamiloApi::getEditorBlockStylePath());
@@ -799,7 +808,7 @@ class Template
         }
 
         foreach ($bowerJsFiles as $file) {
-            $js_file_to_string .= '<script type="text/javascript" src="'.api_get_cdn_path(api_get_path(WEB_PUBLIC_PATH).'assets/'.$file).'"></script>'."\n";
+            $js_file_to_string .= '<script src="'.api_get_cdn_path(api_get_path(WEB_PUBLIC_PATH).'assets/'.$file).'"></script>'."\n";
         }
 
         foreach ($js_files as $file) {
@@ -807,9 +816,20 @@ class Template
         }
 
         // Loading email_editor js
-        if (!api_is_anonymous() && api_get_setting('allow_email_editor') === 'true') {
-            $template = $this->get_template('mail_editor/email_link.js.tpl');
-            $js_file_to_string .= $this->fetch($template);
+        if (api_get_setting('allow_email_editor') === 'true') {
+            $link = 'email_editor.php';
+            if (!api_is_anonymous()) {
+                $this->assign('email_editor', $link);
+                $template = $this->get_template('mail_editor/email_link.js.tpl');
+                $js_file_to_string .= $this->fetch($template);
+            } else {
+                if (api_get_configuration_value('allow_email_editor_for_anonymous')) {
+                    $link = 'email_editor_external.php';
+                    $this->assign('email_editor', $link);
+                    $template = $this->get_template('mail_editor/email_link.js.tpl');
+                    $js_file_to_string .= $this->fetch($template);
+                }
+            }
         }
 
         if (!$disable_js_and_css_files) {
@@ -869,8 +889,8 @@ class Template
             //Do not include the global chat in LP
             if ($this->show_learnpath == false && $this->show_footer == true && $this->hide_global_chat == false) {
                 $js_files[] = 'chat/js/chat.js';
-                $bower .= '<script type="text/javascript" src="'.api_get_path(WEB_PUBLIC_PATH).'assets/linkifyjs/linkify.js"></script>';
-                $bower .= '<script type="text/javascript" src="'.api_get_path(WEB_PUBLIC_PATH).'assets/linkifyjs/linkify-jquery.js"></script>';
+                $bower .= '<script src="'.api_get_path(WEB_PUBLIC_PATH).'assets/linkifyjs/linkify.js"></script>';
+                $bower .= '<script src="'.api_get_path(WEB_PUBLIC_PATH).'assets/linkifyjs/linkify-jquery.js"></script>';
             }
         }
         $js_file_to_string = '';
@@ -1122,7 +1142,7 @@ class Template
         $form->addHidden('logout', 1);
         $form->addButton(
             'casLogoutButton',
-            is_null($label) ? sprintf(get_lang('LogoutWithYourAccount'), api_get_setting("Institution")) : $label,
+            is_null($label) ? sprintf(get_lang('LogoutWithYourAccountFromX'), api_get_setting("Institution")) : $label,
             api_get_setting("casLogoURL"),
             'primary',
             null,
@@ -1333,9 +1353,6 @@ class Template
         $this->responseCode = $code;
     }
 
-    /**
-     * @param string $code
-     */
     public function getResponseCode()
     {
         return $this->responseCode;
@@ -1380,8 +1397,18 @@ class Template
             if (!empty($courseInfo)) {
                 $courseParams = api_get_cidreq();
             }
-            $url = api_get_path(WEB_CODE_PATH).'ticket/tickets.php?project_id='.$defaultProjectId.'&'.$courseParams;
 
+            $extraParams = '';
+            if (api_get_configuration_value('ticket_lp_quiz_info_add')) {
+                if (isset($_GET['exerciseId']) && !empty($_GET['exerciseId'])) {
+                    $extraParams = '&exerciseId='.(int) $_GET['exerciseId'];
+                }
+
+                if (isset($_GET['lp_id']) && !empty($_GET['lp_id'])) {
+                    $extraParams .= '&lpId='.(int) $_GET['lp_id'];
+                }
+            }
+            $url = api_get_path(WEB_CODE_PATH).'ticket/tickets.php?project_id='.$defaultProjectId.'&'.$courseParams.$extraParams;
             $allow = TicketManager::userIsAllowInProject(api_get_user_info(), $defaultProjectId);
 
             if ($allow) {
@@ -1836,14 +1863,14 @@ class Template
     private function assignFavIcon()
     {
         // Default root chamilo favicon
-        $favico = '<link rel="shortcut icon" href="'.api_get_path(WEB_PATH).'favicon.ico" type="image/x-icon" />';
+        $favico = '<link rel="icon" href="'.api_get_path(WEB_PATH).'favicon.png" type="image/png" />';
 
         //Added to verify if in the current Chamilo Theme exist a favicon
         $favicoThemeUrl = api_get_path(SYS_CSS_PATH).$this->themeDir.'images/';
 
         //If exist pick the current chamilo theme favicon
-        if (is_file($favicoThemeUrl.'favicon.ico')) {
-            $favico = '<link rel="shortcut icon" href="'.api_get_path(WEB_CSS_PATH).$this->themeDir.'images/favicon.ico" type="image/x-icon" />';
+        if (is_file($favicoThemeUrl.'favicon.png')) {
+            $favico = '<link rel="icon" href="'.api_get_path(WEB_CSS_PATH).$this->themeDir.'images/favicon.png" type="image/png" />';
         }
 
         if (api_is_multiple_url_enabled()) {
@@ -1857,10 +1884,10 @@ class Template
                 $clean_url = str_replace('/', '-', $clean_url);
                 $clean_url .= '/';
                 $homep = api_get_path(WEB_HOME_PATH).$clean_url; //homep for Home Path
-                $icon_real_homep = api_get_path(SYS_APP_PATH).'home/'.$clean_url;
+                $icon_real_homep = api_get_path(SYS_HOME_PATH).$clean_url;
                 //we create the new dir for the new sites
                 if (is_file($icon_real_homep.'favicon.ico')) {
-                    $favico = '<link rel="shortcut icon" href="'.$homep.'favicon.ico" type="image/x-icon" />';
+                    $favico = '<link rel="icon" href="'.$homep.'favicon.png" type="image/png" />';
                 }
             }
         }

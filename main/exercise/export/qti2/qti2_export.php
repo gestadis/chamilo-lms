@@ -60,15 +60,13 @@ class ImsAssessmentItem
             }
         }
 
-        $string = '<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+        return '<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqti_v2p1 imsqti_v2p1.xsd"
                 identifier="'.$this->questionIdent.'"
                 title = "'.htmlspecialchars(formatExerciseQtiText($this->question->selectTitle())).'"
                 category = "'.$categoryTitle.'"
         >'."\n";
-
-        return $string;
     }
 
     /**
@@ -170,7 +168,7 @@ class ImsSection
 
     public function start_section()
     {
-        return '<section 
+        return '<section
             ident = "EXO_'.$this->exercise->selectId().'"
             title = "'.cleanAttribute(formatExerciseQtiDescription($this->exercise->selectTitle())).'"
         >'."\n";
@@ -264,7 +262,8 @@ class ImsSection
                   ."<questestinterop>\n";
             $foot = "</questestinterop>\n";
         }
-        $out = $head
+
+        return $head
              .$this->start_section()
              .$this->export_duration()
              .$this->export_presentation()
@@ -272,8 +271,6 @@ class ImsSection
              .$this->exportQuestions()
              .$this->end_section()
              .$foot;
-
-        return $out;
     }
 }
 
@@ -394,7 +391,7 @@ class ImsItem
      *
      * This is a default behaviour, some classes may want to override this.
      *
-     * @param $standalone: Boolean stating if it should be exported as a stand-alone question
+     * @param bool $standalone Boolean stating if it should be exported as a stand-alone question
      *
      * @return string string, the XML flow for an Item
      *

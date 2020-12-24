@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 /**
@@ -133,15 +134,7 @@ EOT;
     {
         return '
         <style>
-            .form_list {
-                display: grid;
-                grid-template-columns:  repeat(auto-fill, minmax(300px, 1fr));;
-                grid-gap: 10px 30px;
-                gap: 10px 30px;
-            }
-            .form_list .input-group {
-                display:block;
-            }
+
         </style>
         <form{attributes}>
             <div class="form_list">
@@ -553,18 +546,26 @@ EOT;
      * @param string $name          Element name (for form treatment purposes)
      * @param bool   $createElement Whether to use the create or add method
      * @param array  $attributes
+     * @param string $size
+     * @param string $class
      *
      * @return HTML_QuickForm_button
      */
-    public function addButtonSend($label, $name = 'submit', $createElement = false, $attributes = [])
-    {
+    public function addButtonSend(
+        $label,
+        $name = 'submit',
+        $createElement = false,
+        $attributes = [],
+        $size = 'default',
+        $class = ''
+    ) {
         return $this->addButton(
             $name,
             $label,
             'paper-plane',
             'primary',
-            null,
-            null,
+            $size,
+            $class,
             $attributes,
             $createElement
         );
@@ -1646,6 +1647,51 @@ EOT;
     public function addUserAvatar($name, $label, $imageSize = 'small', $subtitle = '')
     {
         return $this->addElement('UserAvatar', $name, $label, ['image_size' => $imageSize, 'sub_title' => $subtitle]);
+    }
+
+    public function addCaptcha()
+    {
+        $ajax = api_get_path(WEB_AJAX_PATH).'form.ajax.php?a=get_captcha';
+        $options = [
+            'width' => 220,
+            'height' => 90,
+            'callback' => $ajax.'&var='.basename(__FILE__, '.php'),
+            'sessionVar' => basename(__FILE__, '.php'),
+            'imageOptions' => [
+                'font_size' => 20,
+                'font_path' => api_get_path(SYS_FONTS_PATH).'opensans/',
+                'font_file' => 'OpenSans-Regular.ttf',
+                //'output' => 'gif'
+            ],
+        ];
+
+        $captcha_question = $this->addElement(
+            'CAPTCHA_Image',
+            'captcha_question',
+            '',
+            $options
+        );
+        $this->addElement('static', null, null, get_lang('ClickOnTheImageForANewOne'));
+
+        $this->addElement(
+            'text',
+            'captcha',
+            get_lang('EnterTheLettersYouSee'),
+            ['size' => 40]
+        );
+        $this->addRule(
+            'captcha',
+            get_lang('EnterTheCharactersYouReadInTheImage'),
+            'required',
+            null,
+            'client'
+        );
+        $this->addRule(
+            'captcha',
+            get_lang('TheTextYouEnteredDoesNotMatchThePicture'),
+            'CAPTCHA',
+            $captcha_question
+        );
     }
 
     /**
