@@ -75,7 +75,7 @@ class IndexManager
      */
     public static function setDefaultMyCourseView($view, $userId)
     {
-        setcookie('defaultMyCourseView'.$userId, $view);
+        api_set_cookie('defaultMyCourseView'.$userId, $view);
     }
 
     /**
@@ -1068,14 +1068,12 @@ class IndexManager
         }
 
         // Sort courses
-        if (api_get_configuration_value('view_grid_courses') != true) {
-            $items[] = [
-                'class' => 'order-course',
-                'icon' => Display::return_icon('order-course.png', get_lang('SortMyCourses')),
-                'link' => api_get_path(WEB_CODE_PATH).'auth/sort_my_courses.php',
-                'title' => get_lang('SortMyCourses'),
-            ];
-        }
+        $items[] = [
+            'class' => 'order-course',
+            'icon' => Display::return_icon('order-course.png', get_lang('SortMyCourses')),
+            'link' => api_get_path(WEB_CODE_PATH).'auth/sort_my_courses.php',
+            'title' => get_lang('SortMyCourses'),
+        ];
 
         // Session history
         if (isset($_GET['history']) && intval($_GET['history']) == 1) {
@@ -1129,6 +1127,24 @@ class IndexManager
                 'link' => api_get_path(WEB_CODE_PATH).'course_home/last_lp.php',
                 'title' => get_lang('LastVisitedLp'),
             ];
+        }
+
+        if (api_is_teacher()) {
+            if (api_get_configuration_value('my_courses_show_pending_work')) {
+                $items[] = [
+                    'icon' => Display::return_icon('work.png', get_lang('StudentPublicationToCorrect')),
+                    'link' => api_get_path(WEB_CODE_PATH).'work/pending.php',
+                    'title' => get_lang('StudentPublicationToCorrect'),
+                ];
+            }
+
+            if (api_get_configuration_value('my_courses_show_pending_exercise_attempts')) {
+                $items[] = [
+                    'icon' => Display::return_icon('quiz.png', get_lang('PendingAttempts')),
+                    'link' => api_get_path(WEB_CODE_PATH).'exercise/pending.php',
+                    'title' => get_lang('PendingAttempts'),
+                ];
+            }
         }
 
         return $items;
@@ -2411,7 +2427,7 @@ class IndexManager
     private static function getHtmlForCourse(
         $courseInfo,
         $userCategoryId,
-        $displayButton = false,
+        $displayButton,
         $loadDirs
     ) {
         if (empty($courseInfo)) {

@@ -302,6 +302,8 @@ $_configuration['system_stable'] = NEW_VERSION_STABLE;
 // Allows to do a remove_XSS in course introduction with user status COURSEMANAGERLOWSECURITY
 // in order to accept all embed type videos (like vimeo, wistia, etc)
 // $_configuration['course_introduction_html_strict_filtering'] = true;
+// Allows to do a remove_XSS in question of exersice with user status COURSEMANAGER
+// $_configuration['question_exercise_html_strict_filtering'] = true;
 // Prevents the duplicate upload in assignments
 // $_configuration['assignment_prevent_duplicate_upload'] = false;
 //Show student progress in My courses page
@@ -920,6 +922,15 @@ ALTER TABLE portfolio ADD CONSTRAINT FK_A9ED1062613FECDF FOREIGN KEY (session_id
 ALTER TABLE portfolio ADD CONSTRAINT FK_A9ED106212469DE2 FOREIGN KEY (category_id) REFERENCES portfolio_category (id) ON DELETE SET NULL;
 ALTER TABLE portfolio_category ADD CONSTRAINT FK_7AC64359A76ED395 FOREIGN KEY (user_id) REFERENCES user (id);
 INSERT INTO settings_current(variable, subkey, type, category, selected_value, title, comment, scope, subkeytext, access_url_changeable) VALUES('course_create_active_tools','portfolio','checkbox','Tools','true','CourseCreateActiveToolsTitle','CourseCreateActiveToolsComment',NULL,'Portfolio', 0);
+CREATE TABLE portfolio_comment (id INT AUTO_INCREMENT NOT NULL, author_id INT NOT NULL, item_id INT NOT NULL, tree_root INT DEFAULT NULL, parent_id INT DEFAULT NULL, content LONGTEXT NOT NULL, date DATETIME NOT NULL, is_important TINYINT(1) DEFAULT '0' NOT NULL, lft INT NOT NULL, lvl INT NOT NULL, rgt INT NOT NULL, score DOUBLE PRECISION DEFAULT NULL, INDEX IDX_C2C17DA2F675F31B (author_id), INDEX IDX_C2C17DA2126F525E (item_id), INDEX IDX_C2C17DA2A977936C (tree_root), INDEX IDX_C2C17DA2727ACA70 (parent_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+ALTER TABLE portfolio_comment ADD CONSTRAINT FK_C2C17DA2F675F31B FOREIGN KEY (author_id) REFERENCES user (id);
+ALTER TABLE portfolio_comment ADD CONSTRAINT FK_C2C17DA2126F525E FOREIGN KEY (item_id) REFERENCES portfolio (id);
+ALTER TABLE portfolio_comment ADD CONSTRAINT FK_C2C17DA2A977936C FOREIGN KEY (tree_root) REFERENCES portfolio_comment (id) ON DELETE CASCADE;
+ALTER TABLE portfolio_comment ADD CONSTRAINT FK_C2C17DA2727ACA70 FOREIGN KEY (parent_id) REFERENCES portfolio_comment (id) ON DELETE CASCADE;
+ALTER TABLE portfolio ADD origin INT DEFAULT NULL, ADD origin_type INT DEFAULT NULL;
+ALTER TABLE portfolio ADD score DOUBLE PRECISION DEFAULT NULL;
+INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, visible_to_self, visible_to_others, changeable, created_at) VALUES (19, 10, 'tags', 'tags', 1, 1, 1, NOW());
+CREATE TABLE portfolio_attachment (id INT AUTO_INCREMENT NOT NULL, path VARCHAR(255) NOT NULL, comment LONGTEXT DEFAULT NULL, size INT NOT NULL, filename VARCHAR(255) NOT NULL, origin_id INT NOT NULL, origin_type INT NOT NULL, PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
 */
 // In 1.11.8, before enabling this feature, you also need to:
 // - edit src/Chamilo/CoreBundle/Entity/Portfolio.php and PortfolioCategory.php
@@ -970,8 +981,11 @@ VALUES (2, 13, 'session_courses_read_only_mode', 'Lock Course In Session', 1, 1,
 // Hide announcement "sent to" label
 // $_configuration['hide_announcement_sent_to_users_info'] = false;
 
-// Hide gradebook graph
+// Hide gradebook graph.
 // $_configuration['gradebook_hide_graph'] = false;
+
+// Hide gradebook table for student.
+// $_configuration['gradebook_hide_table'] = false;
 
 // Hide gradebook "download report in PDF" button
 // $_configuration['gradebook_hide_pdf_report_button'] = false;
@@ -983,6 +997,8 @@ VALUES (2, 13, 'session_courses_read_only_mode', 'Lock Course In Session', 1, 1,
 // Set to true to disable the new personal data page inside the social network
 // menu
 // $_configuration['disable_gdpr'] = true;
+// Set the LinkedIn organization id BT#17468
+//$_configuration['linkedin_organization_id'] = false;
 
 // GDPR requires users to be informed of the Data Protection Officer name and
 // contact point. These can only be defined here for now, but will be moved to
@@ -1145,10 +1161,6 @@ $_configuration['profile_fields_visibility'] = [
  Only applied for courses/sessions with extra field "new_tracking_system" to "1"
 */
 //$_configuration['lp_minimum_time'] = false;
-
-// Track LP attempts using the new tracking system.
-// Requires to add an LP extra field called "track_lp_item" (checkbox) in order to use this feature.
-//$_configuration['use_new_tracking_in_lp_item'] = false;
 
 // Add collapsable option for user course categories
 // ALTER TABLE user_course_category ADD collapsed TINYINT(1) DEFAULT NULL;
@@ -1774,7 +1786,8 @@ $_configuration['auth_password_links'] = [
 // Disable change user visibility tool icon.
 //$_configuration['disable_change_user_visibility_for_public_courses'] = true;
 
-// Add another layer of security by checking if the user is disabled at every page load (might generate considerable extra DB load)
+// Add another layer of security by checking if the user is disabled
+// at every page load (might generate considerable extra DB load)
 // $_configuration['security_block_inactive_users_immediately'] = false;
 
 // Allow all office suite documents to be uploaded in the "My files" section of the social network
@@ -1809,6 +1822,36 @@ ALTER TABLE gradebook_comment ADD CONSTRAINT FK_C3B70763AD3ED51C FOREIGN KEY (gr
 
 // Allow anon users to send emails to the platform admin.
 // $_configuration['allow_email_editor_for_anonymous'] = true;
+
+// Add certificate footer. Add your template main/template/default/export/pdf_certificate_footer.tpl
+// $_configuration['add_certificate_pdf_footer'] = true;
+
+// Shows a popup with the list of answered/unanswered questions before sending a test.
+// $_configuration['quiz_check_all_answers_before_end_test'] = true;
+
+// Custom cloud link URLS, this requires enable_add_file_link = true
+// $_configuration['documents_custom_cloud_link_list'] = ['links' => ['example.com', 'example2.com']];
+
+// Shows exercise session attempts in the base course.
+// $_configuration['show_exercise_session_attempts_in_base_course'] = false;
+
+// Allow coach users to always edit announcements inside active/past sessions.
+// $_configuration['allow_coach_to_edit_announcements'] = false;
+
+// Show invisible LP in the course home for students. BT#17744
+//$_configuration['show_invisible_lp_in_course_home'] = true;
+
+// Show start/end date in LP list for students.
+//$_configuration['lp_start_and_end_date_visible_in_student_view'] = true;
+
+// Show all student publications (from course and from all sessions) in the work/pending.php page if true. BT#18352
+//$_configuration['assignment_base_course_teacher_access_to_all_session'] = true;
+
+// Show a link to the work/pending.php page in my courses (user_portal)
+//$_configuration['my_courses_show_pending_work'] = true;
+
+// Show exercise report from all courses in a new page: exercise/pending.php
+//$_configuration['my_courses_show_pending_exercise_attempts'] = true;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes

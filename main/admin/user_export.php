@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 $cidReset = true;
@@ -8,7 +9,6 @@ $this_section = SECTION_PLATFORM_ADMIN;
 
 api_protect_admin_script();
 
-// Database table definitions
 $course_table = Database::get_main_table(TABLE_MAIN_COURSE);
 $user_table = Database::get_main_table(TABLE_MAIN_USER);
 $course_user_table = Database::get_main_table(TABLE_MAIN_COURSE_USER);
@@ -34,11 +34,11 @@ if (api_is_multiple_url_enabled()) {
     $access_url_id = api_get_current_access_url_id();
     if ($access_url_id != -1) {
         $sql = "SELECT code,visual_code,title
-            FROM $course_table as c
-            INNER JOIN $tbl_course_rel_access_url as course_rel_url
-            ON (c.id = course_rel_url.c_id)
-            WHERE access_url_id = $access_url_id
-            ORDER BY visual_code";
+                FROM $course_table as c
+                INNER JOIN $tbl_course_rel_access_url as course_rel_url
+                ON (c.id = course_rel_url.c_id)
+                WHERE access_url_id = $access_url_id
+                ORDER BY visual_code";
     }
 }
 $result = Database::query($sql);
@@ -88,7 +88,10 @@ if ($form->validate()) {
                 u.status		AS Status,
                 u.official_code	AS OfficialCode,
                 u.phone		AS Phone,
-                u.registration_date AS RegistrationDate";
+                u.registration_date AS RegistrationDate,
+                u.active    AS Active,
+                u.expiration_date
+            ";
     if (strlen($course_code) > 0) {
         $sql .= " FROM $user_table u, $course_user_table cu
                     WHERE
@@ -102,7 +105,7 @@ if ($form->validate()) {
                     WHERE
                         u.user_id = scu.user_id AND
                         scu.c_id = $courseSessionId AND
-                        scu.session_id = $sessionId 
+                        scu.session_id = $sessionId
                     ORDER BY lastname,firstname";
         $filename = 'export_users_'.$courseSessionCode.'_'.$sessionInfo['name'].'_'.api_get_local_time();
     } else {
@@ -138,6 +141,7 @@ if ($form->validate()) {
                     'OfficialCode',
                     'PhoneNumber',
                     'RegistrationDate',
+                    'Active',
                 ];
             } else {
                 $data[] = [
@@ -152,6 +156,7 @@ if ($form->validate()) {
                     'OfficialCode',
                     'PhoneNumber',
                     'RegistrationDate',
+                    'Active',
                 ];
             }
 
@@ -162,13 +167,22 @@ if ($form->validate()) {
     }
 
     $res = Database::query($sql);
+    $now = time();
     while ($user = Database::fetch_array($res, 'ASSOC')) {
-        $student_data = UserManager:: get_extra_user_data(
+        if (!empty($user['expiration_date']) && '0000-00-00 00:00:00' !== $user['expiration_date']) {
+            $expirationDate = api_strtotime($user['expiration_date'], 'UTC');
+            if ($expirationDate < $now) {
+                $user['Active'] = -1;
+            }
+            unset($user['expiration_date']);
+        }
+
+        $studentData = UserManager:: get_extra_user_data(
             $user['UserId'],
             true,
             false
         );
-        foreach ($student_data as $key => $value) {
+        foreach ($studentData as $key => $value) {
             $key = substr($key, 6);
             if (is_array($value)) {
                 $user[$key] = $value['extra_'.$key];

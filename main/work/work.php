@@ -163,6 +163,7 @@ switch ($action) {
 
         if ($form->validate()) {
             $values = $form->getSubmitValues();
+
             $result = addDir(
                 $values,
                 $user_id,

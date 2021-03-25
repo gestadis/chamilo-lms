@@ -147,6 +147,7 @@ define('TOOL_ATTENDANCE', 'attendance');
 define('TOOL_COURSE_PROGRESS', 'course_progress');
 define('TOOL_PORTFOLIO', 'portfolio');
 define('TOOL_PLAGIARISM', 'compilatio');
+define('TOOL_XAPI', 'xapi');
 
 // CONSTANTS defining Chamilo interface sections
 define('SECTION_CAMPUS', 'mycampus');
@@ -229,6 +230,7 @@ define('LOG_EXERCISE_RESULT_DELETE', 'exe_result_deleted');
 define('LOG_EXERCISE_ATTEMPT_DELETE', 'exe_attempt_deleted');
 define('LOG_LP_ATTEMPT_DELETE', 'lp_attempt_deleted');
 define('LOG_QUESTION_RESULT_DELETE', 'qst_attempt_deleted');
+define('LOG_QUESTION_SCORE_UPDATE', 'score_attempt_updated');
 
 define('LOG_MY_FOLDER_CREATE', 'my_folder_created');
 define('LOG_MY_FOLDER_CHANGE', 'my_folder_changed');
@@ -398,6 +400,7 @@ define('LINK_FORUM_THREAD', 5);
 define('LINK_ATTENDANCE', 7);
 define('LINK_SURVEY', 8);
 define('LINK_HOTPOTATOES', 9);
+define('LINK_PORTFOLIO', 10);
 
 // Score display types constants
 define('SCORE_DIV', 1); // X / Y
@@ -543,6 +546,7 @@ define('ITEM_TYPE_STUDENT_PUBLICATION', 6);
 define('ITEM_TYPE_ATTENDANCE', 8);
 define('ITEM_TYPE_SURVEY', 9);
 define('ITEM_TYPE_FORUM_THREAD', 10);
+define('ITEM_TYPE_PORTFOLIO', 11);
 
 // one big string with all question types, for the validator in pear/HTML/QuickForm/Rule/QuestionType
 define(
@@ -3786,7 +3790,7 @@ function api_is_allowed($tool, $action, $task_id = 0)
         // Getting the permissions of the task.
         if ($task_id != 0) {
             $task_permissions = get_permissions('task', $task_id);
-            /* !!! */$_SESSION['total_permissions'][$_course['code']] = $task_permissions;
+            $_SESSION['total_permissions'][$_course['code']] = $task_permissions;
         }
         //print_r($_SESSION['total_permissions']);
 
@@ -8727,6 +8731,12 @@ function api_is_allowed_in_course()
     return Session::read('is_allowed_in_course');
 }
 
+function api_set_cookie($name, $value, $expires = 0)
+{
+    $expires = (int) $expires;
+    setcookie($name, $value, $expires, '', '', api_is_https(), true);
+}
+
 /**
  * Set the cookie to go directly to the course code $in_firstpage
  * after login.
@@ -8735,7 +8745,7 @@ function api_is_allowed_in_course()
  */
 function api_set_firstpage_parameter($value)
 {
-    setcookie('GotoCourse', $value);
+    api_set_cookie('GotoCourse', $value);
 }
 
 /**
@@ -8744,7 +8754,7 @@ function api_set_firstpage_parameter($value)
  */
 function api_delete_firstpage_parameter()
 {
-    setcookie('GotoCourse', '', time() - 3600);
+    api_set_cookie('GotoCourse', '', time() - 3600);
 }
 
 /**
@@ -9093,7 +9103,7 @@ function api_get_users_status_ignored_in_reports($format = 'array')
  */
 function api_set_site_use_cookie_warning_cookie()
 {
-    setcookie('ChamiloUsesCookies', 'ok', time() + 31556926);
+    api_set_cookie('ChamiloUsesCookies', 'ok', time() + 31556926);
 }
 
 /**

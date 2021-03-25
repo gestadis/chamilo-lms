@@ -44,6 +44,7 @@ if (!in_array(
     $action,
     [
         'get_exercise_results',
+        'get_exercise_pending_results',
         'get_exercise_results_report',
         'get_work_student_list_overview',
         'get_hotpotatoes_exercise_results',
@@ -53,6 +54,7 @@ if (!in_array(
         'get_work_user_list',
         'get_work_user_list_others',
         'get_work_user_list_all',
+        'get_work_pending_list',
         'get_timelines',
         'get_user_skill_ranking',
         'get_usergroups',
@@ -557,6 +559,21 @@ switch ($action) {
         $work_id = $_REQUEST['work_id'];
         $count = get_count_work($work_id);
         break;
+    case 'get_work_pending_list':
+        require_once api_get_path(SYS_CODE_PATH).'work/work.lib.php';
+        $courseId = $_REQUEST['course'] ?? 0;
+        $status = $_REQUEST['status'] ?? 0;
+        $count = getAllWork(
+            null,
+            null,
+            null,
+            null,
+            $whereCondition,
+            true,
+            $courseId,
+            $status
+        );
+        break;
     case 'get_work_user_list_others':
         require_once api_get_path(SYS_CODE_PATH).'work/work.lib.php';
         $work_id = $_REQUEST['work_id'];
@@ -615,6 +632,52 @@ switch ($action) {
             true
         );
         break;
+    case 'get_exercise_pending_results':
+        if (false === api_is_teacher()) {
+            exit;
+        }
+
+        $courseId = $_REQUEST['course_id'] ?? 0;
+        $exerciseId = $_REQUEST['exercise_id'] ?? 0;
+        $status = $_REQUEST['status'] ?? 0;
+        if (isset($_GET['filter_by_user']) && !empty($_GET['filter_by_user'])) {
+            $filter_user = (int) $_GET['filter_by_user'];
+            if (empty($whereCondition)) {
+                $whereCondition .= " te.exe_user_id  = '$filter_user'";
+            } else {
+                $whereCondition .= " AND te.exe_user_id  = '$filter_user'";
+            }
+        }
+
+        if (isset($_GET['group_id_in_toolbar']) && !empty($_GET['group_id_in_toolbar'])) {
+            $groupIdFromToolbar = (int) $_GET['group_id_in_toolbar'];
+            if (!empty($groupIdFromToolbar)) {
+                if (empty($whereCondition)) {
+                    $whereCondition .= " te.group_id  = '$groupIdFromToolbar'";
+                } else {
+                    $whereCondition .= " AND group_id  = '$groupIdFromToolbar'";
+                }
+            }
+        }
+
+        if (!empty($whereCondition)) {
+            $whereCondition = " AND $whereCondition";
+        }
+
+        if (!empty($courseId)) {
+            $whereCondition .= " AND te.c_id = $courseId";
+        }
+
+        $count = ExerciseLib::get_count_exam_results(
+            $exerciseId,
+            $whereCondition,
+            '',
+            false,
+            true,
+            $status
+        );
+
+        break;
     case 'get_exercise_results':
         $exercise_id = $_REQUEST['exerciseId'];
 
@@ -642,10 +705,7 @@ switch ($action) {
             $whereCondition = " AND $whereCondition";
         }
 
-        $count = ExerciseLib::get_count_exam_results(
-            $exercise_id,
-            $whereCondition
-        );
+        $count = ExerciseLib::get_count_exam_results($exercise_id, $whereCondition);
         break;
     case 'get_exercise_results_report':
         api_protect_admin_script();
@@ -878,29 +938,36 @@ switch ($action) {
         $keyword = isset($_REQUEST['keyword']) ? $_REQUEST['keyword'] : '';
 
         $course_id = api_get_course_int_id();
+        $sessionId = api_get_session_id();
         $options = [];
         $options['course_id'] = $course_id;
-        $options['session_id'] = api_get_session_id();
+        $options['session_id'] = $sessionId;
 
         switch ($type) {
             case 'not_registered':
-                $options['where'] = [' (course_id IS NULL OR course_id != ?) ' => $course_id];
+                if (empty($sessionId)) {
+                    $options['where'] = [' (course_id IS NULL OR course_id != ?) ' => $course_id];
+                } else {
+                    $options['where'] = [' (session_id IS NULL OR session_id != ?) ' => $sessionId];
+                }
                 if (!empty($keyword)) {
                     $options['where']['AND name like %?% '] = $keyword;
                 }
                 $count = $obj->getUserGroupNotInCourse(
                     $options,
                     $groupFilter,
-                    true,
                     true
                 );
                 break;
             case 'registered':
-                $options['where'] = [' usergroup.course_id = ? ' => $course_id];
+                if (empty($sessionId)) {
+                    $options['where'] = [' usergroup.course_id = ? ' => $course_id];
+                } else {
+                    $options['where'] = [' usergroup.session_id = ? ' => $sessionId];
+                }
                 $count = $obj->getUserGroupInCourse(
                     $options,
                     $groupFilter,
-                    true,
                     true
                 );
                 break;
@@ -1371,6 +1438,38 @@ switch ($action) {
             $whereCondition
         );
         break;
+    case 'get_work_pending_list':
+        api_block_anonymous_users();
+        if (false === api_is_teacher()) {
+            exit;
+        }
+        $plagiarismColumns = [];
+        if (api_get_configuration_value('allow_compilatio_tool')) {
+            $plagiarismColumns = ['compilatio'];
+        }
+        $columns = [
+            'course',
+            'work_name',
+            'fullname',
+            'title',
+            'qualification',
+            'sent_date',
+            'qualificator_id',
+            'correction',
+        ];
+        $columns = array_merge($columns, $plagiarismColumns);
+        $columns[] = 'actions';
+        $result = getAllWork(
+            $start,
+            $limit,
+            $sidx,
+            $sord,
+            $whereCondition,
+            false,
+            $courseId,
+            $status
+        );
+        break;
     case 'get_work_user_list_others':
         $plagiarismColumns = [];
         if (api_get_configuration_value('allow_compilatio_tool')) {
@@ -1446,6 +1545,46 @@ switch ($action) {
                 $whereCondition
             );
         }
+        break;
+    case 'get_exercise_pending_results':
+        $columns = [
+            'course',
+            'exercise',
+            'firstname',
+            'lastname',
+            'username',
+            'exe_duration',
+            'start_date',
+            'exe_date',
+            'score',
+            'user_ip',
+            'status',
+            'actions',
+        ];
+        $officialCodeInList = api_get_setting('show_official_code_exercise_result_list');
+        if ($officialCodeInList === 'true') {
+            $columns = array_merge(['official_code'], $columns);
+        }
+
+        $result = ExerciseLib::get_exam_results_data(
+            $start,
+            $limit,
+            $sidx,
+            $sord,
+            $exerciseId,
+            $whereCondition,
+            false,
+            null,
+            false,
+            false,
+            [],
+            false,
+            false,
+            false,
+            true,
+            $status
+        );
+
         break;
     case 'get_exercise_results':
         $is_allowedToEdit = api_is_allowed_to_edit(null, true) ||
@@ -1539,7 +1678,7 @@ switch ($action) {
         if (!empty($categoryList)) {
             foreach ($categoryList as $categoryInfo) {
                 $label = 'category_'.$categoryInfo['id'];
-                if ($operation == 'excel') {
+                if ($operation === 'excel') {
                     $columns[] = $label.'_score_percentage';
                     $columns[] = $label.'_only_score';
                     $columns[] = $label.'_total';
@@ -2360,27 +2499,26 @@ switch ($action) {
         $columns = ['name', 'users', 'status', 'group_type', 'actions'];
         $options['order'] = "name $sord";
         $options['limit'] = "$start , $limit";
-        $options['session_id'] = api_get_session_id();
+        $options['session_id'] = $sessionId;
         switch ($type) {
             case 'not_registered':
-                $options['where'] = [' (course_id IS NULL OR course_id != ?) ' => $course_id];
+                if (empty($sessionId)) {
+                    $options['where'] = [' (course_id IS NULL OR course_id != ?) ' => $course_id];
+                } else {
+                    $options['where'] = [' (session_id IS NULL OR session_id != ?) ' => $sessionId];
+                }
                 if (!empty($keyword)) {
                     $options['where']['AND name like %?% '] = $keyword;
                 }
                 $result = $obj->getUserGroupNotInCourse(
                     $options,
-                    $groupFilter,
-                    false,
-                    true
+                    $groupFilter
                 );
-            // $result = $obj->getUserGroupNotInCourse($options, $groupFilter);
                 break;
             case 'registered':
                 $result = $obj->getUserGroupInCourse(
                     $options,
-                    $groupFilter,
-                    false,
-                    true
+                    $groupFilter
                 );
                 break;
         }
@@ -2393,7 +2531,6 @@ switch ($action) {
             foreach ($result as $group) {
                 $countUsers = count($obj->get_users_by_usergroup($group['id']));
                 $group['users'] = $countUsers;
-
                 if (!empty($countUsers)) {
                     $group['users'] = Display::url(
                         $countUsers,
@@ -2465,6 +2602,7 @@ $allowed_actions = [
     'get_session_progress',
     'get_exercise_progress',
     'get_exercise_results',
+    'get_exercise_pending_results',
     'get_exercise_results_report',
     'get_work_student_list_overview',
     'get_hotpotatoes_exercise_results',
@@ -2474,6 +2612,7 @@ $allowed_actions = [
     'get_work_user_list',
     'get_work_user_list_others',
     'get_work_user_list_all',
+    'get_work_pending_list',
     'get_timelines',
     'get_grade_models',
     'get_event_email_template',

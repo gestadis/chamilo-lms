@@ -225,6 +225,8 @@ $form_search = new FormValidator(
     [],
     FormValidator::LAYOUT_INLINE
 );
+$renderer = $form_search->defaultRenderer();
+$renderer->setCustomElementTemplate('<span>{element}</span>');
 $form_search->addHidden('from', Security::remove_XSS($from));
 $form_search->addHidden('session_id', $sessionId);
 $form_search->addHidden('id_session', $sessionId);
@@ -1031,7 +1033,7 @@ if ($export_csv) {
     }
     ob_end_clean();
 
-    $csvContentInSession = Session::read('csv_content');
+    $csvContentInSession = Session::read('csv_content', []);
 
     // Adding headers before the content.
     array_unshift($csvContentInSession, $csv_headers);

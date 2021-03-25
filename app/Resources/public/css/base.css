@@ -2795,8 +2795,6 @@ div.admin_section h4 {
 }
 
 .exercise_save_now_button img {
-    position: relative;
-    top: 4px;
 }
 
 .exercise_save_now_button {
@@ -3265,6 +3263,10 @@ form .formw .freeze {
 .label {
     font-weight: normal;
     font-size: 90%;
+}
+.label.origin-style {
+    font-weight: bold;
+    font-size: 75%;
 }
 
 .requirements td {
@@ -6107,6 +6109,10 @@ div#chat-remote-video video {
     border-color: #0077b5;
 }
 
+.txt-linkedin {
+    color: #0a66c2;
+}
+
 /**** END SOCIAL MEDIA ****/
 
 /**** ABOUT SESSION ****/
@@ -6570,23 +6576,6 @@ div#chat-remote-video video {
 
 .grid-courses .items .toolbar > div {
     text-align: center;
-}
-
-.grid-courses .items .image .black-shadow {
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    box-sizing: border-box;
-    position: absolute;
-    background: rgba(0, 0, 0, 0.7) none repeat scroll 0 0;
-    padding: 40px 10px 10px;
-}
-
-.grid-courses .items .image .hovered-course {
-    opacity: 1;
-    transition: all 0.3s ease 0s;
 }
 
 .grid-courses .items .toolbar .info {
@@ -7918,7 +7907,7 @@ a.sessionView {
 
 #dates {
     width: 800px;
-    height: 60px;
+    height: 70px;
     overflow: hidden;
 }
 
@@ -9485,6 +9474,32 @@ ul.dropdown-menu.inner > li > a {
     border-color: red;
     grid-column: span 2;
 }
+
+.portfolio-items.row .thumbnail .caption h3,
+.portfolio-item.thumbnail .caption .h3 {
+    margin-top: 0;
+}
+
+.portfolio-items .thumbnail .portfolio-actions a > img,
+.portfolio-item.thumbnail .portfolio-actions a > img {
+    display: inline;
+}
+
+.fa-ul.list-inline {
+    margin-left: -15px;
+}
+.fa-ul.list-inline li {
+    margin-left: 45px;
+    padding: 0;
+}
+
+.embed-responsive-9by16 {
+    padding-bottom: 177.77%;
+}
+.embed-responsive-4by3 {
+    padding-bottom: 133.33%;
+}
+
 /* CSS Responsive */
 @media (min-width: 1025px) and (max-width: 1200px) {
     .sidebar-scorm {
@@ -10186,6 +10201,7 @@ ul.dropdown-menu.inner > li > a {
         clear: none;
     }
 
+    .portfolio-items.row .col-md-6:nth-child(2n+1),
     .col-md-3.course-tool:nth-child(4n+1) {
         clear: left;
     }
@@ -10511,7 +10527,7 @@ ul.dropdown-menu.inner > li > a {
 #registration input.register-profile[value='5']:after,
 #registration input.register-profile[value='1']:after
 {
-    top:-5px;
+    top: -5px;
     left: -2px;
 }
 
@@ -10524,4 +10540,3 @@ ul.dropdown-menu.inner > li > a {
 .form-inline .bootstrap-select.form-control:not([class*="col-"]) {
     width: 100%;
 }
-

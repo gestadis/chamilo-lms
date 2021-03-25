@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 /**
@@ -154,8 +155,9 @@ class Agenda
      */
     public function setType($type)
     {
+        $type = (string) trim($type);
         $typeList = $this->getTypes();
-        if (in_array($type, $typeList)) {
+        if (in_array($type, $typeList, true)) {
             $this->type = $type;
         }
     }
@@ -628,8 +630,12 @@ class Agenda
         }
 
         foreach ($generatedDates as $dateInfo) {
-            $start = api_get_local_time($dateInfo['start']);
-            $end = api_get_local_time($dateInfo['end']);
+//            $start = api_get_local_time($dateInfo['start']);
+//            $end = api_get_local_time($dateInfo['end']);
+            // On line 529 in function generateDatesByType there is a @todo remove comment code
+            // just before the part updating the date in local time so keep both synchronised
+            $start = $dateInfo['start'];
+            $end = $dateInfo['end'];
             $this->addEvent(
                 $start,
                 $end,
