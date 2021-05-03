@@ -1,4 +1,5 @@
 <?php
+
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CourseBundle\Entity\CGroupRelUser;
@@ -399,7 +400,15 @@ class GroupManager
      */
     public static function create_class_groups($categoryId)
     {
-        $options['where'] = [' usergroup.course_id = ? ' => api_get_course_int_id()];
+        $options = [];
+        $sessionId = api_get_session_id();
+        if (empty($sessionId)) {
+            $options['where'] = [' usergroup.course_id = ? ' => api_get_course_int_id()];
+        } else {
+            $options['session_id'] = $sessionId;
+            $options['where'] = [' usergroup.session_id = ? ' => $sessionId];
+        }
+
         $obj = new UserGroup();
         $classes = $obj->getUserGroupInCourse($options);
         $group_ids = [];
@@ -1225,9 +1234,9 @@ class GroupManager
                     g.id = $group_id";
 
         if (!empty($column) && !empty($direction)) {
-            $column = Database::escape_string($column, null, false);
-            $direction = ('ASC' == $direction ? 'ASC' : 'DESC');
-            $sql .= " ORDER BY $column $direction";
+            $column = Database::escape_string($column);
+            $direction = ('ASC' === $direction ? 'ASC' : 'DESC');
+            $sql .= " ORDER BY `$column` $direction";
         }
 
         if (!empty($start) && !empty($limit)) {

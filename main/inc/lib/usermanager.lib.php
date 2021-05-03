@@ -176,7 +176,7 @@ class UserManager
      * @param string        $expirationDate          Account expiration date (optional, defaults to null)
      * @param int           $active                  Whether the account is enabled or disabled by default
      * @param int           $hr_dept_id              The department of HR in which the user is registered (defaults to 0)
-     * @param array         $extra                   Extra fields
+     * @param array         $extra                   Extra fields (prefix labels with "extra_")
      * @param string        $encrypt_method          Used if password is given encrypted. Set to an empty string by default
      * @param bool          $send_mail
      * @param bool          $isAdmin
@@ -436,8 +436,18 @@ class UserManager
             $extra['item_id'] = $userId;
 
             if (is_array($extra) && count($extra) > 0) {
-                $courseFieldValue = new ExtraFieldValue('user');
-                $courseFieldValue->saveFieldValues($extra);
+                $userFieldValue = new ExtraFieldValue('user');
+                // Force saving of extra fields (otherwise, if the current
+                // user is not admin, fields not visible to the user - most
+                // of them - are just ignored)
+                $userFieldValue->saveFieldValues(
+                    $extra,
+                    true,
+                    null,
+                    null,
+                    null,
+                    true
+                );
             } else {
                 // Create notify settings by default
                 self::update_extra_field_value(
@@ -557,7 +567,7 @@ class UserManager
                         $layoutContent = $tplContent->get_template('mail/new_user_first_email_confirmation.tpl');
                         $emailBody = $tplContent->fetch($layoutContent);
 
-                        if (!empty($emailBodyTemplate) &&
+                        if (!empty($emailTemplate) &&
                             isset($emailTemplate['new_user_first_email_confirmation.tpl']) &&
                             !empty($emailTemplate['new_user_first_email_confirmation.tpl'])
                         ) {
@@ -584,7 +594,7 @@ class UserManager
                         $layoutContent = $tplContent->get_template('mail/new_user_second_email_confirmation.tpl');
                         $emailBody = $tplContent->fetch($layoutContent);
 
-                        if (!empty($emailBodyTemplate) &&
+                        if (!empty($emailTemplate) &&
                             isset($emailTemplate['new_user_second_email_confirmation.tpl']) &&
                             !empty($emailTemplate['new_user_second_email_confirmation.tpl'])
                         ) {
@@ -681,7 +691,7 @@ class UserManager
                     $layoutContent = $tplContent->get_template('mail/content_registration_platform_to_admin.tpl');
                     $emailBody = $tplContent->fetch($layoutContent);
 
-                    if (!empty($emailBodyTemplate) &&
+                    if (!empty($emailTemplate) &&
                         isset($emailTemplate['content_registration_platform_to_admin.tpl']) &&
                         !empty($emailTemplate['content_registration_platform_to_admin.tpl'])
                     ) {
@@ -692,7 +702,6 @@ class UserManager
                     }
 
                     $subject = get_lang('UserAdded');
-
                     foreach ($adminList as $adminId => $data) {
                         MessageManager::send_message_simple(
                             $adminId,
@@ -2589,6 +2598,15 @@ class UserManager
             $filename = $user_id.'_'.$filename;
         }
 
+        if (!file_exists($source_file)) {
+            return false;
+        }
+
+        $mimeContentType = mime_content_type($source_file);
+        if (false === strpos($mimeContentType, 'image')) {
+            return false;
+        }
+
         //Crop the image to adjust 1:1 ratio
         $image = new Image($source_file);
         $image->crop($cropParameters);
@@ -2865,7 +2883,7 @@ class UserManager
             $field_filter = (int) $field_filter;
             $sqlf .= " AND filter = $field_filter ";
         }
-        $sqlf .= " ORDER BY ".$columns[$column]." $sort_direction ";
+        $sqlf .= " ORDER BY `".$columns[$column]."` $sort_direction ";
         if ($number_of_items != 0) {
             $sqlf .= " LIMIT ".intval($from).','.intval($number_of_items);
         }
@@ -4459,7 +4477,9 @@ class UserManager
 
         // all the information of the field
         $sql = "SELECT DISTINCT id, tag from $table_user_tag
-                WHERE field_id = $field_id AND tag LIKE '$tag%' ORDER BY tag LIMIT $limit";
+                WHERE field_id = $field_id AND tag LIKE '$tag%'
+                ORDER BY tag
+                LIMIT $limit";
         $result = Database::query($sql);
         $return = [];
         if (Database::num_rows($result) > 0) {
@@ -5478,7 +5498,6 @@ class UserManager
                             $userConditions
                     )
                     $teacherSelect
-
                 ) as t1";
 
         if ($getSql) {
@@ -5502,7 +5521,7 @@ class UserManager
             if (!empty($column) && !empty($direction)) {
                 // Fixing order due the UNIONs
                 $column = str_replace('u.', '', $column);
-                $orderBy = " ORDER BY $column $direction ";
+                $orderBy = " ORDER BY `$column` $direction ";
             }
         }
 

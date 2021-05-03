@@ -484,7 +484,7 @@ class learnpath
     public function add_item(
         $parent,
         $previous,
-        $type = 'dir',
+        $type,
         $id,
         $title,
         $description,
@@ -2391,55 +2391,71 @@ class learnpath
             }
 
             if ($is_visible) {
-                $subscriptionSettings = self::getSubscriptionSettings();
-
-                // Check if the subscription users/group to a LP is ON
-                if (isset($row['subscribe_users']) && $row['subscribe_users'] == 1 &&
-                    $subscriptionSettings['allow_add_users_to_lp'] === true
-                ) {
-                    // Try group
-                    $is_visible = false;
-                    // Checking only the user visibility
-                    $userVisibility = api_get_item_visibility(
-                        $courseInfo,
-                        'learnpath',
-                        $row['id'],
-                        $sessionId,
-                        $student_id,
-                        'LearnpathSubscription'
-                    );
-
-                    if ($userVisibility == 1) {
-                        $is_visible = true;
-                    } else {
-                        $userGroups = GroupManager::getAllGroupPerUserSubscription($student_id, $courseId);
-                        if (!empty($userGroups)) {
-                            foreach ($userGroups as $groupInfo) {
-                                $groupId = $groupInfo['iid'];
-                                $userVisibility = api_get_item_visibility(
-                                    $courseInfo,
-                                    'learnpath',
-                                    $row['id'],
-                                    $sessionId,
-                                    null,
-                                    'LearnpathSubscription',
-                                    $groupId
-                                );
-
-                                if ($userVisibility == 1) {
-                                    $is_visible = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
+                $is_visible = self::isUserSubscribedToLp(
+                    $row,
+                    (int) $student_id,
+                    $courseInfo,
+                    (int) $sessionId
+                );
             }
 
             return $is_visible;
         }
 
         return false;
+    }
+
+    public static function isUserSubscribedToLp(
+        array $lpInfo,
+        int $studentId,
+        array $courseInfo,
+        int $sessionId = 0
+    ): bool {
+        $subscriptionSettings = self::getSubscriptionSettings();
+
+        // Check if the subscription users/group to a LP is ON
+        if (isset($lpInfo['subscribe_users']) && $lpInfo['subscribe_users'] == 1 &&
+            $subscriptionSettings['allow_add_users_to_lp'] === true
+        ) {
+            // Checking only the user visibility
+            $userVisibility = api_get_item_visibility(
+                $courseInfo,
+                'learnpath',
+                $lpInfo['id'],
+                $sessionId,
+                $studentId,
+                'LearnpathSubscription'
+            );
+
+            if (1 == $userVisibility) {
+                return true;
+            }
+
+            // Try group
+            $userGroups = GroupManager::getAllGroupPerUserSubscription($studentId, $courseInfo['real_id']);
+
+            if (!empty($userGroups)) {
+                foreach ($userGroups as $groupInfo) {
+                    $userVisibility = api_get_item_visibility(
+                        $courseInfo,
+                        'learnpath',
+                        $lpInfo['id'],
+                        $sessionId,
+                        null,
+                        'LearnpathSubscription',
+                        $groupInfo['iid']
+                    );
+
+                    if (1 == $userVisibility) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -2574,6 +2590,7 @@ class learnpath
         // path, then the rules are completely different: we assume only one
         // item exists and the progress of the LP depends on the score
         $scoreAsProgressSetting = api_get_configuration_value('lp_score_as_progress_enable');
+
         if ($scoreAsProgressSetting === true) {
             $scoreAsProgress = $this->getUseScoreAsProgress();
             if ($scoreAsProgress) {
@@ -2605,6 +2622,7 @@ class learnpath
         if ($completeItems > $total_items) {
             $completeItems = $total_items;
         }
+
         if ($mode == '%') {
             if ($total_items > 0) {
                 $percentage = ((float) $completeItems / (float) $total_items) * 100;
@@ -5596,10 +5614,14 @@ class learnpath
                 if ($debug) {
                     error_log('start_current_item will save item with prereq: '.$prereq_check);
                 }
-                $this->items[$this->current]->save(false, $prereq_check);
+
+                $saveStatus = learnpathItem::isLpItemAutoComplete($this->current);
+                if ($saveStatus) {
+                    $this->items[$this->current]->save(false, $prereq_check);
+                }
             }
             // If sco, then it is supposed to have been updated by some other call.
-            if ($item_type == 'sco') {
+            if ($item_type === 'sco') {
                 $this->items[$this->current]->restart();
             }
         }
@@ -12408,9 +12430,9 @@ EOD;
     /**
      * @param int $courseId
      *
-     * @return CLpCategory[]
+     * @return array|CLpCategory[]
      */
-    public static function getCategories($courseId)
+    public static function getCategories($courseId, $withNoneCategory = false)
     {
         $em = Database::getManager();
 
@@ -12418,7 +12440,18 @@ EOD;
         /** @var SortableRepository $repo */
         $repo = $em->getRepository('ChamiloCourseBundle:CLpCategory');
 
-        return $repo->getBySortableGroupsQuery(['cId' => $courseId])->getResult();
+        $categories = $repo->getBySortableGroupsQuery(['cId' => $courseId])->getResult();
+
+        if ($withNoneCategory) {
+            $categoryTest = new CLpCategory();
+            $categoryTest->setId(0)
+                ->setName(get_lang('WithOutCategory'))
+                ->setPosition(0);
+
+            array_unshift($categories, $categoryTest);
+        }
+
+        return $categories;
     }
 
     public static function getCategorySessionId($id)
@@ -14164,6 +14197,20 @@ EOD;
                 ]
             );
         }
+    }
+
+    public static function findLastView(int $lpId, int $studentId, int $courseId, int $sessionId = 0)
+    {
+        $tblLpView = Database::get_course_table(TABLE_LP_VIEW);
+
+        $sessionCondition = api_get_session_condition($sessionId);
+
+        $sql = "SELECT iid FROM $tblLpView
+            WHERE c_id = $courseId AND lp_id = $lpId AND user_id = $studentId $sessionCondition
+            ORDER BY view_count DESC";
+        $result = Database::query($sql);
+
+        return Database::fetch_assoc($result);
     }
 
     /**

@@ -162,6 +162,8 @@ class ExtraField extends Model
             case 'portfolio':
                 $this->extraFieldType = EntityExtraField::PORTFOLIO_TYPE;
                 break;
+            case 'lp_view':
+                $this->extraFieldType = EntityExtraField::LP_VIEW_TYPE;
         }
 
         $this->pageUrl = 'extra_fields.php?type='.$this->type;
@@ -192,6 +194,7 @@ class ExtraField extends Model
             'forum_post',
             'exercise',
             'track_exercise',
+            'lp_view',
         ];
 
         if (api_get_configuration_value('allow_scheduled_announcements')) {
@@ -1943,10 +1946,7 @@ class ExtraField extends Model
         if (Database::num_rows($result)) {
             $row = Database::fetch_array($result, 'ASSOC');
             if ($row) {
-                $row['display_text'] = $this->translateDisplayName(
-                    $row['variable'],
-                    $row['display_text']
-                );
+                $row['display_text'] = self::translateDisplayName($row['variable'], $row['display_text']);
 
                 // All the options of the field
                 $sql = "SELECT * FROM $this->table_field_options
@@ -2884,11 +2884,10 @@ JAVASCRIPT;
         if (!empty($options['where'])) {
             $where .= ' AND '.$options['where'];
         }
-        //}
 
         $order = '';
         if (!empty($options['order'])) {
-            $order = ' ORDER BY '.$options['order'];
+            $order = " ORDER BY ".$options['order']." ";
         }
         $limit = '';
         if (!empty($options['limit'])) {

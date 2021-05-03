@@ -803,7 +803,7 @@ class SessionManager
         $options
     ) {
         //escaping vars
-        $sessionId = $sessionId == 'T' ? 'T' : intval($sessionId);
+        $sessionId = $sessionId === 'T' ? 'T' : intval($sessionId);
         $courseId = intval($courseId);
 
         //tables
@@ -813,7 +813,7 @@ class SessionManager
 
         $course = api_get_course_info_by_id($courseId);
         $sessionCond = 'and session_id = %s';
-        if ($sessionId == 'T') {
+        if ($sessionId === 'T') {
             $sessionCond = '';
         }
 
@@ -830,7 +830,7 @@ class SessionManager
 
         $order = null;
         if (!empty($options['order'])) {
-            $order = " ORDER BY ".$options['order'];
+            $order = " ORDER BY ".$options['order']." ";
         }
 
         $sql = "SELECT u.id as user_id, u.lastname, u.firstname, u.username, u.email, s.c_id
@@ -2091,7 +2091,7 @@ class SessionManager
                         FROM $tbl_session_rel_course_rel_user
                         WHERE session_id = $sessionId AND c_id = $courseId AND status<>2";
                 $rs = Database::query($sql);
-                list($nbr_users) = Database::fetch_array($rs);
+                [$nbr_users] = Database::fetch_array($rs);
                 // update the session-course relation to add the users total
                 $sql = "UPDATE $tbl_session_rel_course SET nbr_users = $nbr_users
                         WHERE session_id = $sessionId AND c_id = $courseId";
@@ -2315,7 +2315,7 @@ class SessionManager
                         c_id = $courseId AND
                         status <> 2";
             $result = Database::query($sql);
-            list($userCount) = Database::fetch_array($result);
+            [$userCount] = Database::fetch_array($result);
 
             // update the session-course relation to add the users total
             $sql = "UPDATE $tableSessionCourse
@@ -2450,7 +2450,7 @@ class SessionManager
                 FROM $tbl_session_rel_course_rel_user
                 WHERE session_id = $session_id AND c_id = $courseId AND status <> 2";
         $rs = Database::query($sql);
-        list($nbr_users) = Database::fetch_array($rs);
+        [$nbr_users] = Database::fetch_array($rs);
         // update the session-course relation to add the users total
         $sql = "UPDATE $tbl_session_rel_course
                 SET nbr_users = $nbr_users
@@ -3347,7 +3347,7 @@ class SessionManager
             }
 
             if (!empty($order)) {
-                $sql_query .= " ORDER BY $order $direction ";
+                $sql_query .= " ORDER BY `$order` $direction ";
             }
         }
 
@@ -3672,6 +3672,16 @@ class SessionManager
                                 user_id = $userId AND
                                 relation_type =".SESSION_RELATION_TYPE_RRHH;
                     Database::query($sql);
+
+                    Event::addEvent(
+                        LOG_SESSION_DELETE_USER,
+                        LOG_USER_ID,
+                        $userId,
+                        api_get_utc_datetime(),
+                        api_get_user_id(),
+                        null,
+                        $row['session_id']
+                    );
                 }
             }
         }
@@ -3679,7 +3689,7 @@ class SessionManager
         // Inserting new sessions list.
         if (!empty($sessions_list) && is_array($sessions_list)) {
             foreach ($sessions_list as $session_id) {
-                $session_id = intval($session_id);
+                $session_id = (int) $session_id;
                 $sql = "SELECT session_id
                         FROM $tbl_session_rel_user
                         WHERE
@@ -3696,6 +3706,17 @@ class SessionManager
                                 '".api_get_utc_datetime()."'
                             )";
                     Database::query($sql);
+
+                    Event::addEvent(
+                        LOG_SESSION_ADD_USER,
+                        LOG_USER_ID,
+                        $userId,
+                        api_get_utc_datetime(),
+                        api_get_user_id(),
+                        null,
+                        $session_id
+                    );
+
                     $affected_rows++;
                 }
             }
@@ -3896,7 +3917,9 @@ class SessionManager
                 break;
             case SESSIONADMIN:
                 $sessionQuery = '';
-                $sqlInjectJoins .= " AND s.session_admin_id = $userId ";
+                if (api_get_setting('allow_session_admins_to_manage_all_sessions') != 'true') {
+                    $sqlInjectJoins .= " AND s.session_admin_id = $userId ";
+                }
                 break;
             default:
                 $sessionQuery = "SELECT sru.session_id
@@ -6265,7 +6288,7 @@ class SessionManager
 
         if (!empty($column) && !empty($direction)) {
             $column = str_replace('u.', '', $column);
-            $sql .= " ORDER BY $column $direction ";
+            $sql .= " ORDER BY `$column` $direction ";
         }
 
         $limitCondition = '';
@@ -6765,23 +6788,42 @@ class SessionManager
         if (!empty($list)) {
             $userSessionList = [];
             foreach ($list as $data) {
-                $userInfo = api_get_user_info_from_username($data['Username']);
-                $sessionInfo = self::get_session_by_name($data['SessionName']);
+                $sessionInfo = [];
+                if (isset($data['SessionId'])) {
+                    $sessionInfo = api_get_session_info($data['SessionId']);
+                }
+
+                if (isset($data['SessionName']) && empty($sessionInfo)) {
+                    $sessionInfo = self::get_session_by_name($data['SessionName']);
+                }
 
                 if (empty($sessionInfo)) {
-                    Display::addFlash(Display::return_message(get_lang('NoSessionId').' - '.$data['SessionName'], 'warning'));
+                    $sessionData = isset($data['SessionName']) ? $data['SessionName'] : $data['SessionId'];
+                    Display::addFlash(
+                        Display::return_message(get_lang('SessionNotFound').' - '.$sessionData, 'warning')
+                    );
+                    continue;
                 }
 
-                if (empty($userInfo)) {
-                    Display::addFlash(Display::return_message(get_lang('UserDoesNotExist').' - '.$data['Username'], 'warning'));
-                }
+                $userList = explode(',', $data['Username']);
 
-                if (!empty($userInfo) && !empty($sessionInfo)) {
-                    $userSessionList[$userInfo['user_id']]['session_list'][] = [
-                        'session_id' => $sessionInfo['id'],
-                        'session_info' => $sessionInfo,
-                    ];
-                    $userSessionList[$userInfo['user_id']]['user_info'] = $userInfo;
+                foreach ($userList as $username) {
+                    $userInfo = api_get_user_info_from_username($username);
+
+                    if (empty($userInfo)) {
+                        Display::addFlash(
+                            Display::return_message(get_lang('UserDoesNotExist').' - '.$username, 'warning')
+                        );
+                        continue;
+                    }
+
+                    if (!empty($userInfo) && !empty($sessionInfo)) {
+                        $userSessionList[$userInfo['user_id']]['session_list'][] = [
+                            'session_id' => $sessionInfo['id'],
+                            'session_info' => $sessionInfo,
+                        ];
+                        $userSessionList[$userInfo['user_id']]['user_info'] = $userInfo;
+                    }
                 }
             }
 

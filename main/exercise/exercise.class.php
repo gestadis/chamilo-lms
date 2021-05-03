@@ -666,7 +666,7 @@ class Exercise
             if (!empty($sidx) && !empty($sord)) {
                 if ('question' === $sidx) {
                     if (in_array(strtolower($sord), ['desc', 'asc'])) {
-                        $orderCondition = " ORDER BY q.$sidx $sord";
+                        $orderCondition = " ORDER BY `q.$sidx` $sord";
                     }
                 }
             }
@@ -2487,13 +2487,69 @@ class Exercise
             $extraField->addElements(
                 $form,
                 $this->iId,
-                ['notifications'], //exclude
+                [
+                    'notifications',
+                    'remedialcourselist',
+                    'advancedcourselist',
+                ], //exclude
                 false, // filter
                 false, // tag as select
                 [], //show only fields
                 [], // order fields
                 [] // extra data
             );
+
+            // See BT#18165
+            $remedialList = [
+                'remedialcourselist' => 'RemedialCourses',
+                'advancedcourselist' => 'AdvancedCourses',
+            ];
+            $extraFieldExercice = new ExtraField('exercise');
+            $extraFieldExerciceValue = new ExtraFieldValue('exercise');
+            $pluginRemedial = api_get_plugin_setting('remedial_course', 'enabled') === 'true';
+            if ($pluginRemedial) {
+                $sessionId = api_get_session_id();
+                $userId = api_get_user_id();
+                foreach ($remedialList as $item => $label) {
+                    $remedialField = $extraFieldExercice->get_handler_field_info_by_field_variable($item);
+                    $optionRemedial = [];
+                    $defaults[$item] = [];
+                    $remedialExtraValue = $extraFieldExerciceValue->get_values_by_handler_and_field_id($this->iId, $remedialField['id']);
+                    $defaults[$item] = isset($remedialExtraValue['value']) ? explode(';', $remedialExtraValue['value']) : [];
+                    if ($sessionId != 0) {
+                        $courseList = SessionManager::getCoursesInSession($sessionId);
+                        foreach ($courseList as $course) {
+                            $courseSession = api_get_course_info_by_id($course);
+                            if (!empty($courseSession) && isset($courseSession['real_id'])) {
+                                $courseId = $courseSession['real_id'];
+                                if (api_get_course_int_id() != $courseId) {
+                                    $optionRemedial[$courseId] = $courseSession['title'];
+                                }
+                            }
+                        }
+                    } else {
+                        $courseList = CourseManager::get_course_list();
+                        foreach ($courseList as $course) {
+                            if (!empty($course) && isset($course['real_id'])) {
+                                $courseId = $course['real_id'];
+                                if (api_get_course_int_id() != $courseId) {
+                                    $optionRemedial[$courseId] = $course['title'];
+                                }
+                            }
+                        }
+                    }
+                    unset($optionRemedial[0]);
+                    $form->addSelect(
+                        "extra_".$item,
+                        get_plugin_lang($label, RemedialCoursePlugin::class),
+                        $optionRemedial,
+                        [
+                            'placeholder' => get_lang('SelectAnOption'),
+                            'multiple' => 'multiple',
+                        ]
+                    );
+                }
+            }
 
             $settings = api_get_configuration_value('exercise_finished_notification_settings');
             if (!empty($settings)) {
@@ -5818,7 +5874,11 @@ class Exercise
                             $quesId,
                             1,
                             $hotspotValue,
-                            $exerciseResultCoordinates[$quesId]
+                            $exerciseResultCoordinates[$quesId],
+                            false,
+                            0,
+                            $learnpath_id,
+                            $learnpath_item_id
                         );
                     } else {
                         if ($final_answer == 0) {
@@ -5832,7 +5892,11 @@ class Exercise
                                         $quesId,
                                         $idx,
                                         0,
-                                        $val
+                                        $val,
+                                        false,
+                                        0,
+                                        $learnpath_id,
+                                        $learnpath_item_id
                                     );
                                 }
                             }
@@ -5846,7 +5910,11 @@ class Exercise
                                         $quesId,
                                         $idx,
                                         $hotspotValue,
-                                        $val
+                                        $val,
+                                        false,
+                                        0,
+                                        $learnpath_id,
+                                        $learnpath_item_id
                                     );
                                 }
                             }
@@ -6111,7 +6179,9 @@ class Exercise
                             $hotspotValue,
                             $val,
                             false,
-                            $this->id
+                            $this->id,
+                            $learnpath_id,
+                            $learnpath_item_id
                         );
                     }
                 } else {
@@ -6566,8 +6636,13 @@ class Exercise
         $lpId = 0,
         $lpItemId = 0,
         $lpItemViewId = 0,
-        $filterByAdmin = true
+        $filterByAdmin = true,
+        $sessionId = 0
     ) {
+        $sessionId = (int) $sessionId;
+        if ($sessionId == 0) {
+            $sessionId = $this->sessionId;
+        }
         // 1. By default the exercise is visible
         $isVisible = true;
         $message = null;
@@ -6739,6 +6814,24 @@ class Exercise
             }
         }
 
+        $remedialCoursePlugin = RemedialCoursePlugin::create();
+
+        // BT#18165
+        $exerciseAttempts = $this->selectAttempts();
+        if ($exerciseAttempts > 0) {
+            $userId = api_get_user_id();
+            $attemptCount = Event::get_attempt_count_not_finished(
+                $userId,
+                $this->id,
+                $lpId,
+                $lpItemId,
+                $lpItemViewId
+            );
+            $message .= RemedialCoursePlugin::create()->getAdvancedCourseList($this, $userId, api_get_session_id());
+            if ($attemptCount >= $exerciseAttempts) {
+                $message .= $remedialCoursePlugin->getRemedialCourseList($this, $userId, api_get_session_id());
+            }
+        }
         // 4. We check if the student have attempts
         if ($isVisible) {
             $exerciseAttempts = $this->selectAttempts();
@@ -6772,7 +6865,7 @@ class Exercise
                             api_get_user_id(),
                             $this->iId,
                             $this->course_id,
-                            $this->sessionId,
+                            $sessionId,
                             $lpId,
                             $lpItemId
                         );
@@ -6784,7 +6877,12 @@ class Exercise
                                     get_lang('ExerciseBlockBecausePercentageX'),
                                     $blockPercentage
                                 );
-                                $isVisible = false;
+                                $isVisible = false; // See BT#18165
+                                $message .= $remedialCoursePlugin->getRemedialCourseList(
+                                    $this,
+                                    api_get_user_id(),
+                                    api_get_session_id()
+                                );
                             }
                         }
                     }
@@ -10750,6 +10848,51 @@ class Exercise
                     });
                 </script>
                 ";
+    }
+
+    /**
+     * Returns true if the exercise is locked by percentage. an exercise attempt must be passed.
+     *
+     * @param array $attempt
+     *
+     * @return bool
+     */
+    public function isBlockedByPercentage($attempt = [])
+    {
+        if (empty($attempt)) {
+            return false;
+        }
+        $extraFieldValue = new ExtraFieldValue('exercise');
+        $blockExercise = $extraFieldValue->get_values_by_handler_and_field_variable(
+            $this->iId,
+            'blocking_percentage'
+        );
+
+        if (empty($blockExercise['value'])) {
+            return false;
+        }
+
+        $blockPercentage = (int) $blockExercise['value'];
+
+        if (0 === $blockPercentage) {
+            return false;
+        }
+
+        $percentage = 0;
+
+        if (isset($attempt['exe_result']) && isset($attempt['exe_weighting'])) {
+            $weight = (int) $attempt['exe_weighting'];
+            $weight = (0 == $weight) ? 1 : $weight;
+            $percentage = float_format(
+                ($attempt['exe_result'] / $weight) * 100,
+                1
+            );
+        }
+        if ($percentage <= $blockPercentage && 0 != $percentage) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

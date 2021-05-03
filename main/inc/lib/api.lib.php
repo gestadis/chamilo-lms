@@ -2198,8 +2198,8 @@ function api_get_cidreq_params($courseCode, $sessionId = 0, $groupId = 0)
 function api_get_cidreq($addSessionId = true, $addGroupId = true, $origin = '')
 {
     $courseCode = api_get_course_id();
-    $url = empty($courseCode) ? '' : 'cidReq='.htmlspecialchars($courseCode);
-    $origin = empty($origin) ? api_get_origin() : Security::remove_XSS($origin);
+    $url = empty($courseCode) ? '' : 'cidReq='.urlencode(htmlspecialchars($courseCode));
+    $origin = empty($origin) ? api_get_origin() : urlencode(Security::remove_XSS($origin));
 
     if ($addSessionId) {
         if (!empty($url)) {
@@ -5070,7 +5070,8 @@ function api_get_languages()
 function api_get_languages_to_array()
 {
     $tbl_language = Database::get_main_table(TABLE_MAIN_LANGUAGE);
-    $sql = "SELECT * FROM $tbl_language WHERE available='1' ORDER BY original_name ASC";
+    $sql = "SELECT * FROM $tbl_language
+            WHERE available='1' ORDER BY original_name ASC";
     $result = Database::query($sql);
     $languages = [];
     while ($row = Database::fetch_array($result)) {
@@ -6223,11 +6224,13 @@ function api_get_access_urls($from = 0, $to = 1000000, $order = 'url', $directio
     $table = Database::get_main_table(TABLE_MAIN_ACCESS_URL);
     $from = (int) $from;
     $to = (int) $to;
-    $order = Database::escape_string($order, null, false);
-    $direction = Database::escape_string($direction, null, false);
+    $order = Database::escape_string($order);
+    $direction = Database::escape_string($direction);
+    $direction = !in_array(strtolower(trim($direction)), ['asc', 'desc']) ? 'asc' : $direction;
+
     $sql = "SELECT id, url, description, active, created_by, tms
             FROM $table
-            ORDER BY $order $direction
+            ORDER BY `$order` $direction
             LIMIT $to OFFSET $from";
     $res = Database::query($sql);
 
@@ -6667,6 +6670,10 @@ function api_replace_dangerous_char($filename, $treat_spaces_as_hyphens = true)
         $treat_spaces_as_hyphens
     );
 
+    // Replace multiple dots at the end.
+    $regex = "/\.+$/";
+    $url = preg_replace($regex, '', $url);
+
     return $url;
 }
 
@@ -6838,7 +6845,11 @@ function api_is_in_group($groupIdParam = null, $courseCodeParam = null)
  */
 function api_is_valid_secret_key($original_key_secret, $security_key)
 {
-    return $original_key_secret == sha1($security_key);
+    if (empty($original_key_secret) || empty($security_key)) {
+        return false;
+    }
+
+    return (string) $original_key_secret === sha1($security_key);
 }
 
 /**
@@ -8476,8 +8487,19 @@ function api_get_password_checker_js($usernameInputId, $passwordInputId)
     $(function() {
         var lang = ".json_encode($translations).";
         var options = {
-            onLoad : function () {
-                //$('#messages').text('Start typing password');
+            common: {
+                onLoad: function () {
+                    //$('#messages').text('Start typing password');
+
+                    var inputGroup = $('".$passwordInputId."').parents('.input-group');
+
+                    if (inputGroup.length > 0) {
+                        inputGroup.find('.progress').insertAfter(inputGroup);
+                    }
+                }
+            },
+            ui: {
+                showVerdictsInsideProgressBar: true
             },
             onKeyUp: function (evt) {
                 $(evt.target).pwstrength('outputErrorList');
@@ -8833,7 +8855,7 @@ function convert_double_quote_to_single($in_text)
  */
 function api_get_origin()
 {
-    return isset($_REQUEST['origin']) ? Security::remove_XSS($_REQUEST['origin']) : '';
+    return isset($_REQUEST['origin']) ? urlencode(Security::remove_XSS(urlencode($_REQUEST['origin']))) : '';
 }
 
 /**
@@ -9229,6 +9251,7 @@ function api_mail_html(
     $mail->CharSet = isset($platform_email['SMTP_CHARSET']) ? $platform_email['SMTP_CHARSET'] : 'UTF-8';
     // Stay far below SMTP protocol 980 chars limit.
     $mail->WordWrap = 200;
+    $mail->SMTPOptions = $platform_email['SMTPOptions'] ?? [];
 
     if ($platform_email['SMTP_AUTH']) {
         $mail->SMTPAuth = 1;
@@ -9386,19 +9409,25 @@ function api_mail_html(
     }
 
     // Send the mail message.
-    if (!$mail->Send()) {
+    $sent = $mail->Send();
+    if (!$sent) {
         error_log('ERROR: mail not sent to '.$recipient_name.' ('.$recipient_email.') because of '.$mail->ErrorInfo.'<br />');
-        if ($mail->SMTPDebug) {
-            error_log(
-                "Connection details :: ".
-                "Protocol: ".$mail->Mailer.' :: '.
-                "Host/Port: ".$mail->Host.':'.$mail->Port.' :: '.
-                "Authent/Open: ".($mail->SMTPAuth ? 'Authent' : 'Open').' :: '.
-                ($mail->SMTPAuth ? "  User/Pass: ".$mail->Username.':'.$mail->Password : '').' :: '.
-                "Sender: ".$mail->Sender
-            );
-        }
+    }
 
+    if ($mail->SMTPDebug > 1) {
+        error_log(
+            "Mail debug:: ".
+            "Protocol: ".$mail->Mailer.' :: '.
+            "Host/Port: ".$mail->Host.':'.$mail->Port.' :: '.
+            "Authent/Open: ".($mail->SMTPAuth ? 'Authent' : 'Open').' :: '.
+            ($mail->SMTPAuth ? "  User/Pass: ".$mail->Username.':'.$mail->Password : '').' :: '.
+            "Sender: ".$mail->Sender.
+            "Recipient email: ".$recipient_email.
+            "Subject: ".$subject
+        );
+    }
+
+    if (!$sent) {
         return 0;
     }
 

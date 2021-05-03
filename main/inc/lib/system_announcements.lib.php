@@ -398,27 +398,34 @@ class SystemAnnouncementManager
      */
     public static function announcement_for_groups($announcement_id, $group_array)
     {
-        $tbl_announcement_group = Database::get_main_table(
-            TABLE_MAIN_SYSTEM_ANNOUNCEMENTS_GROUPS
-        );
+        $tbl_announcement_group = Database::get_main_table(TABLE_MAIN_SYSTEM_ANNOUNCEMENTS_GROUPS);
+
+        $announcement_id = (int) $announcement_id;
+
+        if (empty($announcement_id)) {
+            return false;
+        }
+
         //first delete all group associations for this announcement
         $res = Database::query(
             "DELETE FROM $tbl_announcement_group
-             WHERE announcement_id=".intval($announcement_id)
+             WHERE announcement_id=".$announcement_id
         );
 
         if ($res === false) {
             return false;
         }
 
-        foreach ($group_array as $group_id) {
-            if (intval($group_id) != 0) {
-                $sql = "INSERT INTO $tbl_announcement_group SET
-                        announcement_id=".intval($announcement_id).",
-                        group_id=".intval($group_id);
-                $res = Database::query($sql);
-                if ($res === false) {
-                    return false;
+        if (!empty($group_array)) {
+            foreach ($group_array as $group_id) {
+                if (intval($group_id) != 0) {
+                    $sql = "INSERT INTO $tbl_announcement_group SET
+                            announcement_id=".$announcement_id.",
+                            group_id=".intval($group_id);
+                    $res = Database::query($sql);
+                    if ($res === false) {
+                        return false;
+                    }
                 }
             }
         }
@@ -689,6 +696,7 @@ class SystemAnnouncementManager
             return false;
         }
 
+        $groupId = (int) $groupId;
         $title = $announcement->title;
         $content = $announcement->content;
         $language = $announcement->lang;
@@ -959,7 +967,7 @@ class SystemAnnouncementManager
 
                 if (empty($id)) {
                     if (api_strlen(strip_tags($announcement->content)) > $cut_size) {
-                        $announcementData['content'] = cut($announcement->content, $cut_size);
+                        //$announcementData['content'] = cut($announcement->content, $cut_size);
                         $announcementData['readMore'] = true;
                     }
                 }
@@ -981,7 +989,7 @@ class SystemAnnouncementManager
             ];
             $content = $announcement['content'];
             if (api_strlen(strip_tags($content)) > $cut_size) {
-                $announcementData['content'] = cut($content, $cut_size);
+                //$announcementData['content'] = cut($content, $cut_size);
                 $announcementData['readMore'] = true;
             }
             $announcements[] = $announcementData;
@@ -990,6 +998,7 @@ class SystemAnnouncementManager
         if (count($announcements) === 0) {
             return null;
         }
+
         $template = new Template(null, false, false);
         $template->assign('announcements', $announcements);
         $layout = $template->get_template('announcement/slider.tpl');

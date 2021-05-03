@@ -106,28 +106,8 @@
                                     {% if item.notifications %}
                                         <div class="notifications">{{ item.notifications }}</div>
                                     {% endif %}
-                                    {% if item.student_info %}
-                                        {% if item.student_info.progress is not null or item.student_info.score is not null or item.student_info.certificate is not null %}
-                                            <div class="course-student-info">
-                                                <div class="student-info">
-                                                    {% if (item.student_info.progress is not null) %}
-                                                        {{ "StudentCourseProgressX" | get_lang | format(item.student_info.progress) }}
-                                                    {% endif %}
 
-                                                    {% if (item.student_info.score is not null) %}
-                                                        {{ "StudentCourseScoreX" | get_lang | format(item.student_info.score) }}
-                                                    {% endif %}
-
-                                                    {% if (item.student_info.certificate is not null) %}
-                                                        <span title="{{ "StudentCourseCertificateX" | get_lang | format(item.student_info.certificate) }}">
-                                                            <i class="fa fa-certificate" aria-hidden="true"></i>
-                                                            {{ item.student_info.certificate }}
-                                                        </span>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        {% endif %}
-                                    {% endif %}
+                                    {% include 'user_portal/grid_course_student_info.tpl'|get_template with { 'student_info':item.student_info } %}
                                 </div>
                             </div>
                         </div>

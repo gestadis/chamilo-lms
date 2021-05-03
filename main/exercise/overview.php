@@ -181,7 +181,8 @@ $visible_return = $objExercise->is_visible(
     $learnpath_id,
     $learnpath_item_id,
     null,
-    true
+    true,
+    $sessionId
 );
 
 // Exercise is not visible remove the button
@@ -195,6 +196,28 @@ if ($visible_return['value'] == false) {
         $message = $visible_return['message'];
         $exercise_url_button = null;
     }
+}
+$advancedMessage = RemedialCoursePlugin::create()->getAdvancedCourseList(
+    $objExercise,
+    api_get_user_id(),
+    api_get_session_id()
+);
+if (!empty($advancedMessage)) {
+    $message .= Display::return_message(
+        $advancedMessage,
+        'info',
+        false
+    );
+}
+
+$remedialMessage = RemedialCoursePlugin::create()->getRemedialCourseList(
+    $objExercise,
+    api_get_user_id(),
+    api_get_session_id()
+);
+
+if (null != $remedialMessage) {
+    $message .= Display::return_message($remedialMessage, 'warning', false);
 }
 
 if (!api_is_allowed_to_session_edit()) {
