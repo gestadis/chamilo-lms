@@ -1211,12 +1211,11 @@ class GroupManager
         $group_user_table = Database::get_course_table(TABLE_GROUP_USER);
         $groupTable = Database::get_course_table(TABLE_GROUP);
         $user_table = Database::get_main_table(TABLE_MAIN_USER);
-        $group_id = intval($group_id);
+        $group_id = (int) $group_id;
+        $courseId = (int) $courseId;
 
         if (empty($courseId)) {
             $courseId = api_get_course_int_id();
-        } else {
-            $courseId = intval($courseId);
         }
 
         $select = " SELECT u.id, firstname, lastname ";
@@ -1235,8 +1234,10 @@ class GroupManager
 
         if (!empty($column) && !empty($direction)) {
             $column = Database::escape_string($column);
+            $columns = ['id', 'firstname', 'lastname'];
+            $column = in_array($column, $columns) ? $column : 'lastname';
             $direction = ('ASC' === $direction ? 'ASC' : 'DESC');
-            $sql .= " ORDER BY `$column` $direction";
+            $sql .= " ORDER BY $column $direction";
         }
 
         if (!empty($start) && !empty($limit)) {
@@ -1262,7 +1263,7 @@ class GroupManager
     }
 
     /**
-     * @param int $group_id id
+     * @param int $group_id
      *
      * @return array
      */

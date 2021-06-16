@@ -399,6 +399,8 @@ INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, d
 (20, 13, 'invisible', 'Invisible', '', 0, 1, 0, 0, 0, NOW());
 */
 //$_configuration['student_follow_page_add_LP_invisible_checkbox'] = false;
+// Show the LP not marked as invisible by teacher in tracking page
+//$_configuration['student_follow_page_include_not_subscribed_lp_students'] = false;
 // Allow change the order to show the tools in "My progress" page.
 /*$_configuration['my_progress_course_tools_order'] = [
     'order' => ['quizzes', 'learning_paths', 'skills'],
@@ -482,6 +484,8 @@ ALTER TABLE c_lp_item CHANGE title title LONGTEXT NOT NULL;
 //
 // Show view accordion lp_item_view
 // $_configuration['lp_view_accordion'] = false;
+// Allow export learning paths to students
+//$_configuration['lp_allow_export_to_students'] = false;
 //
 // ------ HTTP headers security
 // This section relates to options to increase the security of your Chamilo
@@ -1337,6 +1341,10 @@ $_configuration['required_extra_fields_in_profile'] = [
 // ALTER TABLE c_quiz ADD page_result_configuration LONGTEXT DEFAULT NULL COMMENT '(DC2Type:array)';
 //$_configuration['allow_quiz_results_page_config'] = false;
 
+// Allows you to show or hide the number of the question in the exercises
+// ALTER TABLE c_quiz ADD COLUMN hide_question_number int NULL DEFAULT 0 COMMENT 'Show/Hide question number in quiz';
+//$_configuration['quiz_hide_question_number'] = false;
+
 // Allow multiple options for the exercise "save answer" option
 // ALTER TABLE c_quiz MODIFY COLUMN save_correct_answers INT NULL DEFAULT NULL;
 //$_configuration['allow_quiz_save_correct_options'] = false;
@@ -1897,6 +1905,51 @@ ALTER TABLE gradebook_comment ADD CONSTRAINT FK_C3B70763AD3ED51C FOREIGN KEY (gr
 
 // Enable X-Sendfile headers on forced download files going through document/download.php
 //$_configuration['enable_x_sendfile_headers'] = false;
+
+// Extra settings for the agenda (FullCalendar v3)
+/*$_configuration['fullcalendar_settings'] = [
+    'settings' => [
+        'businessHours' => [
+            // days of week. an array of zero-based day of week integers (0=Sunday)
+            'dow' => [0, 1, 2, 3, 4], // Sunday - Thursday
+            'start'  => '10:00',
+            'end' => '18:00',
+        ],
+        'firstDay' => 0, // 0 = Sunday, 1 = Monday
+    ]
+];*/
+
+// Allow session admin access to main/admin/user_update_import.php and main/admin/user_export.php
+//$_configuration['allow_session_admin_extra_access'] = true;
+
+// Replace the Chamilo logo URL.
+//$_configuration['platform_logo_url'] = 'https://chamilo.org';
+
+// Hides the session graph in the main/auth/my_progress.php page.
+//$_configuration['hide_session_graph_in_my_progress'] = true;
+
+// Shows only users from active sessions in tracking.
+//$_configuration['show_users_in_active_sessions_in_tracking'] = true;
+
+// Allows a quick question description edition with a selected image from a popup.
+//$_configuration['allow_quick_question_description_popup'] = true;
+
+// Allows the use of the external id instead of the internal id.
+//$_configuration['use_career_external_id_as_identifier_in_diagrams'] = true;
+
+// Add a career legend below the diagram, a variable will be called
+// get_lang('CareerDiagramLegend') and printed below a diagram
+// $_configuration['career_diagram_legend'] = true;
+
+// If true then a variable will be called get_lang('CareerDiagramDisclaimer') and printed below a diagram;
+//$_configuration['career_diagram_disclaimer'] = true;
+
+// Disable webservices.
+//$_configuration['disable_webservices'] = true;
+
+// Ask user to renew password at first login.
+// Requires a user checkbox extra field called "ask_new_password".
+//$_configuration['force_renew_password_at_first_login'] = true;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes

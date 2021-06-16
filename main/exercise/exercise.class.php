@@ -90,6 +90,7 @@ class Exercise
     public $autolaunch;
     public $exerciseCategoryId;
     public $pageResultConfiguration;
+    public $hideQuestionNumber;
     public $preventBackwards;
     public $currentQuestion;
     public $hideComment;
@@ -137,6 +138,7 @@ class Exercise
         $this->notifications = [];
         $this->exerciseCategoryId = null;
         $this->pageResultConfiguration;
+        $this->hideQuestionNumber = 0;
         $this->preventBackwards = 0;
         $this->hideComment = false;
         $this->hideNoAnswer = false;
@@ -225,8 +227,12 @@ class Exercise
                 $this->pageResultConfiguration = $object->page_result_configuration;
             }
 
+            if (isset($object->hide_question_number)) {
+                $this->hideQuestionNumber = $object->hide_question_number == 1;
+            }
+
             if (isset($object->show_previous_button)) {
-                $this->showPreviousButton = $object->show_previous_button == 1 ? true : false;
+                $this->showPreviousButton = $object->show_previous_button == 1;
             }
 
             $list = self::getLpListFromExercise($id, $this->course_id);
@@ -1603,6 +1609,7 @@ class Exercise
             $results_disabled = 0;
         }
         $expired_time = (int) $this->expired_time;
+        $showHideConfiguration = api_get_configuration_value('quiz_hide_question_number');
 
         // Exercise already exists
         if ($id) {
@@ -1674,6 +1681,10 @@ class Exercise
                 if ($pageConfig && !empty($this->pageResultConfiguration)) {
                     $paramsExtra['page_result_configuration'] = $this->pageResultConfiguration;
                 }
+            }
+
+            if ($showHideConfiguration) {
+                $paramsExtra['hide_question_number'] = $this->hideQuestionNumber;
             }
 
             $params = array_merge($params, $paramsExtra);
@@ -1768,6 +1779,9 @@ class Exercise
             $pageConfig = api_get_configuration_value('allow_quiz_results_page_config');
             if ($pageConfig && !empty($this->pageResultConfiguration)) {
                 $params['page_result_configuration'] = $this->pageResultConfiguration;
+            }
+            if ($showHideConfiguration) {
+                $params['hide_question_number'] = $this->hideQuestionNumber;
             }
 
             $this->id = $this->iId = Database::insert($TBL_EXERCISES, $params);
@@ -2217,6 +2231,14 @@ class Exercise
                 ];
                 $form->addGroup($group, null, get_lang('ResultsConfigurationPage'));
             }
+            $showHideConfiguration = api_get_configuration_value('quiz_hide_question_number');
+            if ($showHideConfiguration) {
+                $group = [
+                    $form->createElement('radio', 'hide_question_number', null, get_lang('Yes'), '1'),
+                    $form->createElement('radio', 'hide_question_number', null, get_lang('No'), '0'),
+                ];
+                $form->addGroup($group, null, get_lang('HideQuestionNumber'));
+            }
 
             $displayMatrix = 'none';
             $displayRandom = 'none';
@@ -2656,6 +2678,7 @@ class Exercise
         }
 
         $this->setPageResultConfigurationDefaults($defaults);
+        $this->setHideQuestionNumberDefaults($defaults);
         $form->setDefaults($defaults);
 
         // Freeze some elements.
@@ -2825,6 +2848,10 @@ class Exercise
         $this->setNotifications($form->getSubmitValue('notifications'));
         $this->setExerciseCategoryId($form->getSubmitValue('exercise_category_id'));
         $this->setPageResultConfiguration($form->getSubmitValues());
+        $showHideConfiguration = api_get_configuration_value('quiz_hide_question_number');
+        if ($showHideConfiguration) {
+            $this->setHideQuestionNumber($form->getSubmitValue('hide_question_number'));
+        }
         $this->preventBackwards = (int) $form->getSubmitValue('prevent_backwards');
 
         $this->start_time = null;
@@ -6827,9 +6854,22 @@ class Exercise
                 $lpItemId,
                 $lpItemViewId
             );
-            $message .= RemedialCoursePlugin::create()->getAdvancedCourseList($this, $userId, api_get_session_id());
+            $message .= $remedialCoursePlugin->getAdvancedCourseList(
+                $this,
+                $userId,
+                api_get_session_id(),
+                $lpId ?: 0,
+                $lpItemId ?: 0
+            );
             if ($attemptCount >= $exerciseAttempts) {
-                $message .= $remedialCoursePlugin->getRemedialCourseList($this, $userId, api_get_session_id());
+                $message .= $remedialCoursePlugin->getRemedialCourseList(
+                    $this,
+                    $userId,
+                    api_get_session_id(),
+                    false,
+                    $lpId ?: 0,
+                    $lpItemId ?: 0
+                );
             }
         }
         // 4. We check if the student have attempts
@@ -6881,7 +6921,10 @@ class Exercise
                                 $message .= $remedialCoursePlugin->getRemedialCourseList(
                                     $this,
                                     api_get_user_id(),
-                                    api_get_session_id()
+                                    api_get_session_id(),
+                                    false,
+                                    $lpId,
+                                    $lpItemId
                                 );
                             }
                         }
@@ -8445,6 +8488,34 @@ class Exercise
     }
 
     /**
+     * Set the value to 1 to hide the question number.
+     *
+     * @param int $value
+     */
+    public function setHideQuestionNumber($value = 0)
+    {
+        $showHideConfiguration = api_get_configuration_value('quiz_hide_question_number');
+        if ($showHideConfiguration) {
+            $this->hideQuestionNumber = (int) $value;
+        }
+    }
+
+    /**
+     * Gets the value to hide or show the question number. If it does not exist, it is set to 0.
+     *
+     * @return int 1 if the question number must be hidden
+     */
+    public function getHideQuestionNumber()
+    {
+        $showHideConfiguration = api_get_configuration_value('quiz_hide_question_number');
+        if ($showHideConfiguration) {
+            return (int) $this->hideQuestionNumber;
+        }
+
+        return 0;
+    }
+
+    /**
      * @param array $values
      */
     public function setPageResultConfiguration($values)
@@ -8476,6 +8547,19 @@ class Exercise
     }
 
     /**
+     * Sets the value to show or hide the question number in the default settings of the forms.
+     *
+     * @param array $defaults
+     */
+    public function setHideQuestionNumberDefaults(&$defaults)
+    {
+        $configuration = $this->getHideQuestionNumberConfiguration();
+        if (!empty($configuration) && !empty($defaults)) {
+            $defaults = array_merge($defaults, $configuration);
+        }
+    }
+
+    /**
      * @return array
      */
     public function getPageResultConfiguration()
@@ -8486,6 +8570,21 @@ class Exercise
             $platform = Database::getManager()->getConnection()->getDatabasePlatform();
 
             return $type->convertToPHPValue($this->pageResultConfiguration, $platform);
+        }
+
+        return [];
+    }
+
+    /**
+     * Get the value to show or hide the question number in the default settings of the forms.
+     *
+     * @return array
+     */
+    public function getHideQuestionNumberConfiguration()
+    {
+        $pageConfig = api_get_configuration_value('quiz_hide_question_number');
+        if ($pageConfig) {
+            return ['hide_question_number' => $this->hideQuestionNumber];
         }
 
         return [];
@@ -9565,6 +9664,24 @@ class Exercise
                         }
 
                         $actions .= $delete;
+                        $usersToRemind = self::getUsersInExercise(
+                            $row['iid'],
+                            $row['c_id'],
+                            $row['session_id'],
+                            true
+                        );
+                        if ($usersToRemind > 0) {
+                            $actions .= Display::url(
+                                Display::return_icon('announce.png', get_lang('EmailNotifySubscription')),
+                                '',
+                                [
+                                    'href' => '#!',
+                                    'onclick' => 'showUserToSendNotificacion(this)',
+                                    'data-link' => 'exercise.php?'.api_get_cidreq()
+                                        .'&choice=send_reminder&sec_token='.$token.'&exerciseId='.$row['id'],
+                                ]
+                            );
+                        }
 
                         // Number of questions
                         $random_label = null;
@@ -10851,13 +10968,306 @@ class Exercise
     }
 
     /**
-     * Returns true if the exercise is locked by percentage. an exercise attempt must be passed.
+     * Returns a list of users based on the id of an exercise, the course and the session.
+     * If the count is true, it returns only the number of users.
      *
-     * @param array $attempt
-     *
-     * @return bool
+     * @param int   $exerciseId
+     * @param int   $courseId
+     * @param int   $sessionId
+     * @param false $count
      */
-    public function isBlockedByPercentage($attempt = [])
+    public static function getUsersInExercise(
+        $exerciseId = 0,
+        $courseId = 0,
+        $sessionId = 0,
+        $count = false,
+        $toUsers = [],
+        $withSelectAll = true
+    ) {
+        $sessionId = empty($sessionId) ? api_get_session_id() : (int) $sessionId;
+        $courseId = empty($courseId) ? api_get_course_id() : (int) $courseId;
+        $exerciseId = (int) $exerciseId;
+        if ((0 == $sessionId && 0 == $courseId) || 0 == $exerciseId) {
+            return [];
+        }
+        $tblCourse = Database::get_main_table(TABLE_MAIN_COURSE);
+        $tblCourseRelUser = Database::get_main_table(TABLE_MAIN_COURSE_USER);
+        $tblSessionRelUser = Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER);
+
+        $data = [];
+
+        $tblQuiz = Database::get_course_table(TABLE_QUIZ_TEST);
+        $countSelect = " COUNT(*) AS total ";
+        $sqlToUsers = '';
+        if (0 == $sessionId) {
+            // Courses
+            if (false === $count) {
+                $countSelect = " cq.title AS quiz_title,
+                    cq.iid AS quiz_id,
+                    cru.c_id AS course_id,
+                    cru.user_id AS user_id,
+                    c.title AS title,
+                    c.code AS 'code',
+                    cq.active AS active,
+                    cq.session_id AS session_id ";
+            }
+
+            $sql = "SELECT $countSelect
+                FROM $tblCourseRelUser AS cru
+                INNER JOIN $tblCourse AS c ON ( cru.c_id = c.id )
+                INNER JOIN $tblQuiz AS cq ON ( cq.c_id = c.id )
+                WHERE cru.is_tutor IS NULL
+                    AND ( cq.session_id = 0 OR cq.session_id IS NULL)
+                    AND cq.active > 0
+                    AND cq.c_id = $courseId
+                    AND cq.iid = $exerciseId ";
+            if (!empty($toUsers)) {
+                $sqlToUsers = ' AND cru.user_id IN ('.implode(',', $toUsers).') ';
+            }
+        } else {
+            //Sessions
+            if (false === $count) {
+                $countSelect = " cq.title AS quiz_title,
+                    cq.iid AS quiz_id,
+                    sru.user_id AS user_id,
+                    cq.c_id AS course_id,
+                    sru.session_id AS session_id,
+                    c.title AS title,
+                    c.code AS 'code',
+                    cq.active AS active ";
+            }
+            if (!empty($toUsers)) {
+                $sqlToUsers = ' AND sru.user_id IN ('.implode(',', $toUsers).') ';
+            }
+            $sql = " SELECT $countSelect
+                FROM $tblSessionRelUser AS sru
+                    INNER JOIN $tblQuiz AS cq ON ( sru.session_id = sru.session_id )
+                    INNER JOIN $tblCourse AS c ON ( c.id = cq.c_id )
+                WHERE cq.active > 0
+                  AND cq.c_id = $courseId
+                  AND sru.session_id = $sessionId
+                  AND cq.iid = $exerciseId ";
+        }
+        $sql .= " $sqlToUsers ORDER BY cq.c_id ";
+
+        $result = Database::query($sql);
+        $data = Database::store_result($result);
+        Database::free_result($result);
+        if (true === $count) {
+            return (isset($data[0]) && isset($data[0]['total'])) ? $data[0]['total'] : 0;
+        }
+        $usersArray = [];
+
+        $return = [];
+        if ($withSelectAll) {
+            $return[] = [
+                'user_id' => 'X',
+                'value' => 'X',
+                'user_name' => get_lang('AllStudents'),
+            ];
+        }
+
+        foreach ($data as $index => $item) {
+            if (isset($item['user_id'])) {
+                $userId = (int) $item['user_id'];
+                if (!isset($usersArray[$userId])) {
+                    $usersArray[$userId] = api_get_user_info($userId);
+                }
+                $usersArray['user_id'] = $userId;
+                $userData = $usersArray[$userId];
+                $data[$index]['user_name'] = $userData['complete_name'];
+                $return[] = $data[$index];
+            }
+        }
+
+        return $return;
+    }
+
+    /**
+     * Search the users who are in an exercise to send them an exercise reminder email and to the human resources
+     * managers, it is necessary the exercise id, the course and the session if it exists.
+     *
+     * @param int $exerciseId
+     * @param int $courseId
+     * @param int $sessionId
+     */
+    public static function notifyUsersOfTheExercise(
+        $exerciseId = 0,
+        $courseId = 0,
+        $sessionId = 0,
+        $toUsers = []
+    ) {
+        $users = self::getUsersInExercise(
+            $exerciseId,
+            $courseId,
+            $sessionId,
+            false,
+            $toUsers
+        );
+        $totalUsers = count($users);
+        $usersArray = [];
+        $courseTitle = '';
+        $quizTitle = '';
+
+        for ($i = 0; $i < $totalUsers; $i++) {
+            $user = $users[$i];
+            $userId = (int) $user['user_id'];
+            if (0 != $userId) {
+                $quizTitle = $user['quiz_title'];
+                $courseTitle = $user['title'];
+                if (!isset($usersArray[$userId])) {
+                    $usersArray[$userId] = api_get_user_info($userId);
+                }
+            }
+        }
+
+        $url = api_get_path(WEB_CODE_PATH).'exercise/overview.php?'
+            .api_get_cidreq()."&exerciseId=$exerciseId";
+        $link = "<a href=\"$url\">$url</a>";
+
+        $objExerciseTmp = new Exercise();
+        $objExerciseTmp->read($exerciseId);
+        $end = $objExerciseTmp->end_time;
+        $start = $objExerciseTmp->start_time;
+        $minutes = $objExerciseTmp->expired_time;
+        $formatDate = DATE_TIME_FORMAT_LONG;
+        $tblCourseUser = Database::get_main_table(TABLE_MAIN_COURSE_USER);
+        $tblSession = Database::get_main_table(TABLE_MAIN_SESSION);
+        $tblSessionUser = Database::get_main_table(TABLE_MAIN_SESSION_USER);
+        $tblSessionUserRelCourse = Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER);
+        $teachersName = [];
+        $teachersPrint = [];
+        if (0 == $sessionId) {
+            $sql = "SELECT course_user.user_id AS user_id
+                FROM $tblCourseUser AS course_user
+                WHERE course_user.status = 1 AND course_user.c_id ='".$courseId."'";
+            $result = Database::query($sql);
+            $data = Database::store_result($result);
+            Database::free_result($result);
+            foreach ($data as $teacher) {
+                $teacherId = (int) $teacher['user_id'];
+                if (!isset($teachersName[$teacherId])) {
+                    $teachersName[$teacherId] = api_get_user_info($teacherId);
+                }
+                $teacherData = $teachersName[$teacherId];
+                $teachersPrint[] = $teacherData['complete_name'];
+            }
+        } else {
+            // general tutor
+            $sql = "SELECT sesion.id_coach AS user_id
+                FROM $tblSession AS sesion
+                WHERE sesion.id = $sessionId";
+            $result = Database::query($sql);
+            $data = Database::store_result($result);
+            Database::free_result($result);
+            foreach ($data as $teacher) {
+                $teacherId = (int) $teacher['user_id'];
+                if (!isset($teachersName[$teacherId])) {
+                    $teachersName[$teacherId] = api_get_user_info($teacherId);
+                }
+                $teacherData = $teachersName[$teacherId];
+                $teachersPrint[] = $teacherData['complete_name'];
+            }
+            // Teacher into sessions course
+            $sql = "SELECT session_rel_course_rel_user.user_id
+                FROM $tblSessionUserRelCourse AS session_rel_course_rel_user
+                WHERE session_rel_course_rel_user.session_id = $sessionId AND
+                      session_rel_course_rel_user.c_id = $courseId AND
+                      session_rel_course_rel_user.status = 2";
+            $result = Database::query($sql);
+            $data = Database::store_result($result);
+            Database::free_result($result);
+            foreach ($data as $teacher) {
+                $teacherId = (int) $teacher['user_id'];
+                if (!isset($teachersName[$teacherId])) {
+                    $teachersName[$teacherId] = api_get_user_info($teacherId);
+                }
+                $teacherData = $teachersName[$teacherId];
+                $teachersPrint[] = $teacherData['complete_name'];
+            }
+        }
+
+        $teacherName = implode('<br>', $teachersPrint);
+
+        foreach ($usersArray as $userId => $userData) {
+            $studentName = $userData['complete_name'];
+            $title = sprintf(get_lang('QuizRemindSubject'), $teacherName);
+            $content = sprintf(
+                get_lang('QuizFirstRemindBody'),
+                $studentName,
+                $quizTitle,
+                $courseTitle,
+                $courseTitle,
+                $quizTitle
+            );
+            if (!empty($minutes)) {
+                $content .= sprintf(get_lang('QuizRemindDuration'), $minutes);
+            }
+            if (!empty($start)) {
+                // api_get_utc_datetime
+                $start = api_format_date(($start), $formatDate);
+
+                $content .= sprintf(get_lang('QuizRemindStartDate'), $start);
+            }
+            if (!empty($end)) {
+                $end = api_format_date(($end), $formatDate);
+                $content .= sprintf(get_lang('QuizRemindEndDate'), $end);
+            }
+            $content .= sprintf(
+                get_lang('QuizLastRemindBody'),
+                $link,
+                $link,
+                $teacherName
+            );
+            $drhList = UserManager::getDrhListFromUser($userId);
+            if (!empty($drhList)) {
+                foreach ($drhList as $drhUser) {
+                    $drhUserData = api_get_user_info($drhUser['id']);
+                    $drhName = $drhUserData['complete_name'];
+                    $contentDHR = sprintf(
+                        get_lang('QuizDhrRemindBody'),
+                        $drhName,
+                        $studentName,
+                        $quizTitle,
+                        $courseTitle,
+                        $studentName,
+                        $courseTitle,
+                        $quizTitle
+                    );
+                    if (!empty($minutes)) {
+                        $contentDHR .= sprintf(get_lang('QuizRemindDuration'), $minutes);
+                    }
+                    if (!empty($start)) {
+                        // api_get_utc_datetime
+                        $start = api_format_date(($start), $formatDate);
+
+                        $contentDHR .= sprintf(get_lang('QuizRemindStartDate'), $start);
+                    }
+                    if (!empty($end)) {
+                        $end = api_format_date(($end), $formatDate);
+                        $contentDHR .= sprintf(get_lang('QuizRemindEndDate'), $end);
+                    }
+                    MessageManager::send_message(
+                        $drhUser['id'],
+                        $title,
+                        $contentDHR
+                    );
+                }
+            }
+            MessageManager::send_message(
+                $userData['id'],
+                $title,
+                $content
+            );
+        }
+
+        return $usersArray;
+    }
+
+    /**
+     * Returns true if the exercise is locked by percentage. an exercise attempt must be passed.
+     */
+    public function isBlockedByPercentage(array $attempt = []): bool
     {
         if (empty($attempt)) {
             return false;
@@ -10878,17 +11288,17 @@ class Exercise
             return false;
         }
 
-        $percentage = 0;
+        $resultPercentage = 0;
 
         if (isset($attempt['exe_result']) && isset($attempt['exe_weighting'])) {
             $weight = (int) $attempt['exe_weighting'];
             $weight = (0 == $weight) ? 1 : $weight;
-            $percentage = float_format(
+            $resultPercentage = float_format(
                 ($attempt['exe_result'] / $weight) * 100,
                 1
             );
         }
-        if ($percentage <= $blockPercentage && 0 != $percentage) {
+        if ($resultPercentage <= $blockPercentage) {
             return true;
         }
 

@@ -14,7 +14,7 @@ require_once __DIR__.'/../inc/global.inc.php';
 require_once '../work/work.lib.php';
 
 api_block_anonymous_users();
-$htmlHeadXtra[] = '<script type="text/javascript" src="'.api_get_path(WEB_PUBLIC_PATH)
+$htmlHeadXtra[] = '<script src="'.api_get_path(WEB_PUBLIC_PATH)
     .'assets/jquery.easy-pie-chart/dist/jquery.easypiechart.js"></script>';
 
 $export = isset($_GET['export']) ? $_GET['export'] : false;
@@ -427,10 +427,16 @@ while ($row = Database::fetch_array($rs)) {
     }
 }
 
+$sessionTable = Database::get_main_table(TABLE_MAIN_SESSION);
+
 // Get the list of sessions where the user is subscribed as student
-$sql = 'SELECT session_id, c_id
-        FROM '.Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER).'
-        WHERE user_id='.$student_id;
+$sql = 'SELECT scu.session_id, scu.c_id
+        FROM '.Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER).' scu
+        INNER JOIN '.$sessionTable.' as s
+        ON (s.id = scu.session_id)
+        WHERE user_id = '.$student_id.'
+        ORDER BY display_end_date DESC
+        ';
 $rs = Database::query($sql);
 $tmp_sessions = [];
 while ($row = Database::fetch_array($rs, 'ASSOC')) {
@@ -448,10 +454,7 @@ while ($row = Database::fetch_array($rs, 'ASSOC')) {
     }
 }
 
-$isDrhOfCourse = CourseManager::isUserSubscribedInCourseAsDrh(
-    api_get_user_id(),
-    $courseInfo
-);
+$isDrhOfCourse = CourseManager::isUserSubscribedInCourseAsDrh(api_get_user_id(), $courseInfo);
 
 if (api_is_drh() && !api_is_platform_admin()) {
     if (!empty($student_id)) {
@@ -859,7 +862,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'all_attendance') {
             <tr>
                 <th>'.get_lang('DateExo').'</th>
                 <th>'.get_lang('Training').'</th>
-
                 <th>'.get_lang('Present').'</th>
             </tr>
         </thead>
@@ -944,61 +946,21 @@ echo $content;
 
 // Careers.
 if (api_get_configuration_value('allow_career_users')) {
-    $careers = UserManager::getUserCareers($student_id);
-    if (!empty($careers)) {
-        echo '<br /><br />';
-        echo Display::page_subheader(get_lang('Careers'), null, 'h3', ['class' => 'section-title']);
-        $table = new HTML_Table(['class' => 'table table-hover table-striped data_table']);
-        $table->setHeaderContents(0, 0, get_lang('Career'));
-        $table->setHeaderContents(0, 1, get_lang('Diagram'));
-        $row = 1;
-        foreach ($careers as $careerData) {
-            $table->setCellContents($row, 0, $careerData['name']);
-            $url = api_get_path(WEB_CODE_PATH).'user/career_diagram.php?career_id='.$careerData['id'];
-            $diagram = Display::url(get_lang('Diagram'), $url);
-            $table->setCellContents($row, 1, $diagram);
-            $row++;
-        }
-        echo $table->toHtml();
+    if (!empty($courses_in_session)) {
+        echo SessionManager::getCareerDiagramPerSessionList(array_keys($courses_in_session), $student_id);
     }
+    echo MyStudents::userCareersTable($student_id);
 }
 
-$allowAll = api_get_configuration_value('allow_teacher_access_student_skills');
-if ($allowAll) {
-    // Show all skills
-    echo Tracking::displayUserSkills(
-        $student_id,
-        0,
-        0,
-        true
-    );
-} else {
-    // Default behaviour - Show all skills depending the course and session id
-    echo Tracking::displayUserSkills(
-        $student_id,
-        $courseInfo ? $courseInfo['real_id'] : 0,
-        $sessionId
-    );
-}
+echo MyStudents::getBlockForSkills(
+    $student_id,
+    $courseInfo ? $courseInfo['real_id'] : 0,
+    $sessionId
+);
 
 echo '<br /><br />';
-echo '<div class="row">
-        <div class="col-sm-5">';
-if (!empty($userGroups)) {
-    echo '<table class="table table-striped table-hover">
-           <thead>
-            <tr>
-            <th>';
-    echo get_lang('Classes');
-    echo '</th>
-                    </tr>
-                    </thead>
-                    <tbody>';
-    foreach ($userGroups as $class) {
-        echo '<tr><td>'.$class.'</td></tr>';
-    }
-    echo '</tbody></table>';
-}
+echo '<div class="row"><div class="col-sm-5">';
+echo MyStudents::getBlockForClasses($student_id);
 echo '</div></div>';
 
 $exportCourseList = [];
@@ -1016,6 +978,9 @@ if (empty($details)) {
     ];
 
     $attendance = new Attendance();
+    $extraFieldValueSession = new ExtraFieldValue('session');
+    $extraFieldValueCareer = new ExtraFieldValue('career');
+
     foreach ($courses_in_session as $sId => $courses) {
         $session_name = '';
         $access_start_date = '';

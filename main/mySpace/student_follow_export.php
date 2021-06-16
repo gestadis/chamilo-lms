@@ -3,7 +3,7 @@
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CourseBundle\Entity\CLpCategory;
-use Chamilo\UserBundle\Entity\User;
+use Symfony\Component\HttpFoundation\Request as HttpRequest;
 
 require_once __DIR__.'/../inc/global.inc.php';
 require_once '../work/work.lib.php';
@@ -22,12 +22,12 @@ if (!$allowedToTrackUser) {
     api_not_allowed();
 }
 
-$studentId = isset($_GET['student']) ? (int) $_GET['student'] : 0;
+$httpRequest = HttpRequest::createFromGlobals();
 
-$student = api_get_user_entity($studentId);
+$studentInfo = api_get_user_info($httpRequest->query->getInt('student'));
 
-if (empty($student)) {
-    api_not_allowed(true);
+if (empty($studentInfo)) {
+    api_not_allowed();
 }
 
 function getCoursesInSession(int $studentId): array
@@ -126,9 +126,11 @@ function generateForm(int $studentId, array $coursesInSessions): FormValidator
     return $form;
 }
 
-function generateHtmlForLearningPaths(User $student, array $courseInfo, int $sessionId): string
+function generateHtmlForLearningPaths(int $studentId, array $courseInfo, int $sessionId): string
 {
-    $html = Display::page_subheader2(get_lang('ToolLearnpath'));
+    $student = api_get_user_entity($studentId);
+
+    $html = '';
 
     $columnHeaders = [];
     $columnHeaders['lp'] = get_lang('LearningPath');
@@ -159,6 +161,7 @@ function generateHtmlForLearningPaths(User $student, array $courseInfo, int $ses
     $columnHeadersKeys = array_keys($columnHeaders);
 
     $hideInvisibleViews = api_get_configuration_value('student_follow_page_add_LP_invisible_checkbox');
+    $includeNotsubscribedLp = api_get_configuration_value('student_follow_page_include_not_subscribed_lp_students');
 
     $timeCourse = Tracking::minimumTimeAvailable($sessionId, $courseInfo['real_id'])
         ? Tracking::getCalculateTime($student->getId(), $courseInfo['real_id'], $sessionId)
@@ -175,7 +178,7 @@ function generateHtmlForLearningPaths(User $student, array $courseInfo, int $ses
         }
 
         $lpList = new LearnpathList(
-            $student->getUserId(),
+            $student->getId(),
             $courseInfo,
             $sessionId,
             null,
@@ -183,16 +186,12 @@ function generateHtmlForLearningPaths(User $student, array $courseInfo, int $ses
             $categoryId,
             false,
             false,
-            false
+            $includeNotsubscribedLp === true
         );
 
         $flatList = $lpList->get_flat_list();
 
-        if (count($lpCategories) > 1) {
-            $html .= Display::page_subheader3($item->getName());
-        }
-
-        $lpTable = [$columnHeaders];
+        $lpTable = [];
 
         foreach ($flatList as $learnpath) {
             $lpId = $learnpath['lp_old_id'];
@@ -305,7 +304,21 @@ function generateHtmlForLearningPaths(User $student, array $courseInfo, int $ses
             $lpTable[] = $contentToExport;
         }
 
+        if (empty($lpTable)) {
+            continue;
+        }
+
+        if (count($lpCategories) > 1) {
+            $html .= Display::page_subheader3($item->getName());
+        }
+
+        array_unshift($lpTable, [$columnHeaders]);
+
         $html .= Export::convert_array_to_html($lpTable);
+    }
+
+    if (!empty($html)) {
+        $html = Display::page_subheader2(get_lang('ToolLearnpath')).PHP_EOL.$html;
     }
 
     return $html;
@@ -351,9 +364,7 @@ function generateHtmlForQuizzes(int $studentId, array $courseInfo, int $sessionI
                 $studentId,
                 $courseInfo['code'],
                 $exerciseId,
-                $sessionId,
-                1,
-                0
+                $sessionId
             );
 
             $lpName = '-';
@@ -370,6 +381,7 @@ function generateHtmlForQuizzes(int $studentId, array $courseInfo, int $sessionI
                 $scorePercentage = $lpScores[0];
                 $lpName = $lpScores[1];
             }
+
             $lpName = !empty($lpName) ? $lpName : get_lang('NoLearnpath');
 
             $contentToExport = [];
@@ -444,60 +456,105 @@ function generateHtmlForTasks(int $studentId, array $courseInfo, int $sessionId)
         .Export::convert_array_to_html($taskTable);
 }
 
-$coursesInSessions = getCoursesInSession($studentId);
+function generateHtmlForCourse(int $studentId, array $coursesInSessions, int $courseId, int $sessionId): ?string
+{
+    if (empty($coursesInSessions[$sessionId]) || !in_array($courseId, $coursesInSessions[$sessionId])) {
+        return null;
+    }
 
-$form = generateForm($studentId, $coursesInSessions);
+    $courseInfo = api_get_course_info_by_id($courseId);
+
+    $courseHtml = [];
+
+    if ($sessionId) {
+        $sessionInfo = api_get_session_info($sessionId);
+
+        $dateSession = empty($sessionInfo['duration'])
+            ? '('.SessionManager::parseSessionDates($sessionInfo, true)['display'].')'
+            : '';
+
+        $courseHtml[] = Display::page_header($sessionInfo['name'].PHP_EOL.Display::tag('small', $dateSession))
+            .Display::page_subheader($courseInfo['title']);
+    } else {
+        $courseHtml[] = Display::page_header($courseInfo['title']);
+    }
+
+    $courseHtml[] = generateHtmlForLearningPaths($studentId, $courseInfo, $sessionId);
+    $courseHtml[] = generateHtmlForQuizzes($studentId, $courseInfo, $sessionId);
+    $courseHtml[] = generateHtmlForTasks($studentId, $courseInfo, $sessionId);
+
+    return implode(PHP_EOL, $courseHtml);
+}
+
+$coursesInSessions = getCoursesInSession($studentInfo['id']);
+
+$form = generateForm($studentInfo['id'], $coursesInSessions);
 
 if ($form->validate()) {
     $values = $form->exportValues();
 
-    $pdfHtml = [];
+    $studentInfo['status'] = api_get_status_langvars()[$studentInfo['status']];
+    $studentInfo['official_code'] = empty($studentInfo['official_code']) ? get_lang('NoOfficialCode')
+        : $studentInfo['code'];
+    $studentInfo['phone'] = empty($studentInfo['phone']) ? get_lang('NoTel') : $studentInfo['phone'];
+    $studentInfo['first_login'] = Tracking::get_first_connection_date($studentInfo['id']) ?? get_lang('NoConnexion');
+    $studentInfo['last_login'] = Tracking::get_last_connection_date($studentInfo['id'], true)
+        ?? get_lang('NoConnexion');
+    $studentInfo['last_course_connection'] = api_format_date(
+        Tracking::getLastConnectionInAnyCourse($studentInfo['id']),
+        DATE_FORMAT_SHORT
+    );
+
+    $coursesInfo = [];
 
     if (!empty($values['sc'])) {
         foreach ($values['sc'] as $courseKey) {
             [$sessionId, $courseId] = explode('_', $courseKey);
 
-            if (empty($coursesInSessions[$sessionId]) || !in_array($courseId, $coursesInSessions[$sessionId])) {
-                continue;
-            }
-
-            $courseInfo = api_get_course_info_by_id($courseId);
-
-            $courseHtml = '';
-
-            if ($sessionId) {
-                $sessionInfo = api_get_session_info($sessionId);
-
-                $dateSession = empty($sessionInfo['duration'])
-                    ? '('.SessionManager::parseSessionDates($sessionInfo, true)['display'].')'
-                    : '';
-
-                $courseHtml .= Display::page_header($sessionInfo['name'].PHP_EOL.Display::tag('small', $dateSession))
-                    .Display::page_subheader($courseInfo['title']);
-            } else {
-                $courseHtml .= Display::page_header($courseInfo['title']);
-            }
-
-            $courseHtml .= generateHtmlForLearningPaths($student, $courseInfo, $sessionId);
-            $courseHtml .= generateHtmlForQuizzes($studentId, $courseInfo, $sessionId);
-            $courseHtml .= generateHtmlForTasks($studentId, $courseInfo, $sessionId);
-
-            $pdfHtml[] = $courseHtml;
+            $coursesInfo[] = generateHtmlForCourse($studentInfo['id'], $coursesInSessions, $courseId, $sessionId);
         }
     }
 
+    $view = new Template('', false, false, false, true, false, false);
+    $view->assign('user_info', $studentInfo);
+    $view->assign('careers', MyStudents::userCareersTable($studentInfo['id']));
+    $view->assign('skills', Tracking::displayUserSkills($studentInfo['id']));
+    $view->assign('classes', MyStudents::getBlockForClasses($studentInfo['id']));
+    $view->assign('courses_info', $coursesInfo);
+
+    $template = $view->get_template('my_space/student_follow_pdf.tpl');
+
     $params = [
-        'filename' => get_lang('StudentFollow'),
-        'pdf_title' => $student->getCompleteNameWithUsername(),
+        'filename' => get_lang('StudentDetails'),
         'format' => 'A4',
         'orientation' => 'P',
     ];
 
+    $css = '
+        .user-info { clear: both; }
+        .user-info__col { float: left; width: 33.33%; }
+    ';
+
     $pdf = new PDF($params['format'], $params['orientation'], $params);
-    $pdf->html_to_pdf_with_template(implode('<pagebreak>', $pdfHtml));
+
+    try {
+        $pdf->content_to_pdf(
+            $view->fetch($template),
+            $css,
+            get_lang('StudentDetails'),
+            null,
+            'D',
+            false,
+            null,
+            false,
+            true
+        );
+    } catch (MpdfException $e) {
+        echo Display::return_message(get_lang('ErrorWhileBuildingReport'), 'error');
+    }
 
     exit;
 }
 
-echo Display::page_subheader($student->getCompleteNameWithUsername());
+echo Display::page_subheader($studentInfo['complete_name_with_username']);
 $form->display();

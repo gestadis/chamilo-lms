@@ -1431,28 +1431,50 @@ class Event
         $courseId,
         $session_id = 0,
         $load_question_list = true,
-        $user_id = null
+        $user_id = null,
+        $groupId = 0
     ) {
         $TABLETRACK_EXERCICES = Database::get_main_table(TABLE_STATISTIC_TRACK_E_EXERCISES);
         $TBL_TRACK_ATTEMPT = Database::get_main_table(TABLE_STATISTIC_TRACK_E_ATTEMPT);
         $courseId = (int) $courseId;
         $exercise_id = (int) $exercise_id;
         $session_id = (int) $session_id;
+        $user_id = (int) $user_id;
+        $groupId = (int) $groupId;
 
         $user_condition = null;
         if (!empty($user_id)) {
-            $user_id = (int) $user_id;
             $user_condition = "AND exe_user_id = $user_id ";
         }
+
+        $courseInfo = api_get_course_info_by_id($courseId);
+        if (empty($courseInfo)) {
+            return [];
+        }
+
+        $groupCondition = '';
+        if (!empty($groupId)) {
+            $users = GroupManager::get_users($groupId, null, null, null, false, $courseId);
+            // Check users added.
+            if (!empty($users)) {
+                $usersToString = implode("', '", $users);
+                $groupCondition = " AND exe_user_id IN ('$usersToString') ";
+            } else {
+                // No users found in the group, then return an empty array.
+                return [];
+            }
+        }
+
         $sql = "SELECT * FROM $TABLETRACK_EXERCICES
                 WHERE
-                    status = ''  AND
+                    status = '' AND
                     c_id = $courseId AND
                     exe_exo_id = $exercise_id AND
                     session_id = $session_id  AND
-                    orig_lp_id =0 AND
+                    orig_lp_id = 0 AND
                     orig_lp_item_id = 0
                     $user_condition
+                    $groupCondition
                 ORDER BY exe_id";
         $res = Database::query($sql);
         $list = [];
@@ -2471,7 +2493,7 @@ class Event
         // format returned by SQL for a subtraction of two datetime values
         // @todo make sure this is portable between DBMSes
         if (preg_match('/:/', $virtualTime)) {
-            list($h, $m, $s) = preg_split('/:/', $virtualTime);
+            [$h, $m, $s] = preg_split('/:/', $virtualTime);
             $virtualTime = $h * 3600 + $m * 60 + $s;
         } else {
             $virtualTime *= 3600;
@@ -2696,5 +2718,63 @@ class Event
         }
 
         return $now - $time;
+    }
+
+    public static function logSubscribedUserInCourse(int $subscribedId, int $courseId)
+    {
+        $dateTime = api_get_utc_datetime();
+        $registrantId = api_get_user_id();
+
+        self::addEvent(
+            LOG_SUBSCRIBE_USER_TO_COURSE,
+            LOG_COURSE_CODE,
+            api_get_course_entity($courseId)->getCode(),
+            $dateTime,
+            $registrantId,
+            $courseId
+        );
+
+        self::addEvent(
+            LOG_SUBSCRIBE_USER_TO_COURSE,
+            LOG_USER_OBJECT,
+            api_get_user_info($subscribedId),
+            $dateTime,
+            $registrantId,
+            $courseId
+        );
+    }
+
+    public static function logUserSubscribedInCourseSession(int $subscribedId, int $courseId, int $sessionId)
+    {
+        $dateTime = api_get_utc_datetime();
+        $registrantId = api_get_user_id();
+
+        self::addEvent(
+            LOG_SESSION_ADD_USER_COURSE,
+            LOG_USER_ID,
+            $subscribedId,
+            $dateTime,
+            $registrantId,
+            $courseId,
+            $sessionId
+        );
+        self::addEvent(
+            LOG_SUBSCRIBE_USER_TO_COURSE,
+            LOG_COURSE_CODE,
+            api_get_course_entity($courseId)->getCode(),
+            $dateTime,
+            $registrantId,
+            $courseId,
+            $sessionId
+        );
+        self::addEvent(
+            LOG_SUBSCRIBE_USER_TO_COURSE,
+            LOG_USER_OBJECT,
+            api_get_user_info($subscribedId),
+            $dateTime,
+            $registrantId,
+            $courseId,
+            $sessionId
+        );
     }
 }
