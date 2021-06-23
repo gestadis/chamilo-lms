@@ -221,6 +221,8 @@ $_configuration['system_stable'] = NEW_VERSION_STABLE;
 //);
 // Course log - Default columns to hide
 //$_configuration['course_log_hide_columns'] = ['columns' => [1, 9]];
+// Course log - User extra fields to show as columns for default
+//$_configuration['course_log_default_extra_fields'] = ['extra_fields' => ['office_address', 'office_phone_extension']];
 // Unoconv binary file
 //$_configuration['unoconv.binaries'] = '/usr/bin/unoconv';
 // Proxy settings for access external services
@@ -941,6 +943,10 @@ ALTER TABLE skill_rel_course ADD CONSTRAINT FK_E7CEC7FA613FECDF FOREIGN KEY (ses
 // Please make sure you include a note in your terms and conditions as this might
 // affect privacy protection.
 //$_configuration['allow_user_message_tracking'] = false;
+
+// Filter messages between a teacher and a student between the session start end dates
+// Need $_configuration['allow_user_message_tracking'] = true;
+//$_configuration['filter_interactivity_messages'] = false;
 
 // Add a portfolio tool (duplicating the Notebook tool). Requires DB changes:
 /*
@@ -1950,6 +1956,9 @@ ALTER TABLE gradebook_comment ADD CONSTRAINT FK_C3B70763AD3ED51C FOREIGN KEY (gr
 // Ask user to renew password at first login.
 // Requires a user checkbox extra field called "ask_new_password".
 //$_configuration['force_renew_password_at_first_login'] = true;
+
+// If the user is blocked with not allowed (red message), then the breadcrumb is hidden.
+//$_configuration['hide_breadcrumb_if_not_allowed'] = true;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes

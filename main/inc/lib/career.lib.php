@@ -502,7 +502,7 @@ class Career extends Model
      */
     public static function renderDiagramByColumn($careerInfo, $tpl, $loadUserIdData = 0, $showFooter = true)
     {
-        $careerId = isset($careerInfo['id']) ? $careerInfo['id'] : 0;
+        $careerId = $careerInfo['id'] ?? 0;
         if (empty($careerId)) {
             return '';
         }
@@ -811,9 +811,8 @@ class Career extends Model
     public static function parseColumnList($groupCourseList, $columnList, &$graph, &$connections, $userResult)
     {
         $graphHtml = '';
-        $oldGroup = null;
         $newOrder = [];
-        foreach ($columnList as $key => $subGroupList) {
+        foreach ($columnList as $subGroupList) {
             $newGroup = $subGroupList['group'];
             $label = $subGroupList['group_label'];
             $newOrder[$newGroup]['items'][] = $subGroupList;
@@ -942,14 +941,25 @@ class Career extends Model
             $content .= '<div class="pull-right">['.$id.']</div>';
 
             if (!empty($userResult) && isset($userResult[$id])) {
-                $lastItem = end($userResult[$id]);
+                // Order by SortDate
+                $sortedByDate = $userResult[$id];
+                foreach ($sortedByDate as $resultId => &$result) {
+                    $result['resultId'] = $resultId;
+                }
+
+                usort($sortedByDate, function ($item1, $item2) {
+                    return $item1['SortDate'] > $item2['SortDate'];
+                });
+
+                $lastItem = end($sortedByDate);
                 if ($lastItem && isset($lastItem['BgColor']) && !empty($lastItem['BgColor'])) {
                     $color = $lastItem['BgColor'].'; color: '.$lastItem['Color'];
                     $borderColor = $lastItem['BorderColor'];
                 }
                 $results = '';
                 $size = 2;
-                foreach ($userResult[$id] as $resultId => $iconData) {
+                foreach ($sortedByDate as $iconData) {
+                    $resultId = $iconData['resultId'];
                     $icon = '';
                     switch ($iconData['Icon']) {
                         case 0:
@@ -1000,7 +1010,7 @@ class Career extends Model
 
             $title = $vertex->getAttribute('graphviz.label');
             if (!empty($vertex->getAttribute('LinkedElement'))) {
-                $title = Display::url($title, $vertex->getAttribute('LinkedElement'));
+                $title = Display::url($title, $vertex->getAttribute('LinkedElement').'&iframe=1');
             }
 
             $originalRow--;
