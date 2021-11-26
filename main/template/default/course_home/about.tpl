@@ -1,14 +1,16 @@
 <div id="about-course">
     <div id="course-info-top">
         <h2 class="session-title">{{ course.title }}</h2>
-        <div class="course-short">
-            <ul>
-                <li class="author">{{ "Professors"|get_lang }}</li>
-                {%  for teacher in course.teachers %}
-                    <li>{{ teacher.complete_name }} | </li>
-                {% endfor %}
-            </ul>
-        </div>
+        {% if not 'course_about_teacher_name_hide'|api_get_configuration_value %}
+            <div class="course-short">
+                <ul>
+                    <li class="author">{{ "Professors"|get_lang }}</li>
+                    {%  for teacher in course.teachers %}
+                        <li>{{ teacher.complete_name }} | </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
     </div>
 
     {% set course_video = '' %}
@@ -63,7 +65,7 @@
                 </div>
                 <div class="col-sm-7">
                     <div class="course-description">
-                        {{ course.description }}
+                        {{ course.description | remove_xss }}
                     </div>
                 </div>
             </div>
@@ -73,7 +75,7 @@
                         <li>{{ 'Tags'|get_lang }} :</li>
                         {% for tag in course.tags %}
                             <li class="tag-value">
-                                <span>{{ tag.getTag }}</span>
+                                <span>{{ tag.getTag | remove_xss }}</span>
                             </li>
                         {% endfor %}
                     </ul>
@@ -92,10 +94,10 @@
                                 {% if topic.content != '' %}
                                     <div class="topics">
                                         <h4 class="title-info">
-                                            <em class="fa fa-book"></em> {{ topic.title }}
+                                            <em class="fa fa-book"></em> {{ topic.title | remove_xss }}
                                         </h4>
                                         <div class="content-info">
-                                            {{ topic.content }}
+                                            {{ topic.content | remove_xss }}
                                         </div>
                                     </div>
                                 {% endif %}
@@ -165,7 +167,7 @@
                                             {{ sequence.name }} :
                                             {% for requirement in sequence.requirements %}
                                                 <a href="{{ _p.web ~ 'course/' ~ requirement.getId ~ '/about/' }}">
-                                                    {{ requirement.title }}
+                                                    {{ requirement.title | remove_xss }}
                                                 </a>
                                             {% endfor %}
                                         </p>
@@ -176,7 +178,7 @@
                     </div>
                 </div>
                 {% endif %}
-                {% if course.teachers %}
+                {% if course.teachers and not 'course_about_teacher_name_hide'|api_get_configuration_value %}
                     <div class="panel panel-default">
                         <div class="panel-body">
                             <div class="panel-teachers">
@@ -186,15 +188,18 @@
                             <div class="coach-information">
                                 <div class="coach-header">
                                     <div class="coach-avatar">
-                                        <img class="img-circle img-responsive" src="{{ teacher.image }}" alt="{{ teacher.complete_name }}">
+                                        <img class="img-circle img-responsive"
+                                             src="{{ teacher.image }}"
+                                             alt="{{ teacher.complete_name }}"
+                                        >
                                     </div>
                                     <div class="coach-title">
                                         <h4>{{ teacher.complete_name }}</h4>
-                                        <p> {{ teacher.diploma }}</p>
+                                        <p> {{ teacher.diploma | remove_xss }}</p>
                                     </div>
                                 </div>
                                 <div class="open-area  {{ course.teachers | length >= 2 ? 'open-more' : ' ' }}">
-                                    {{ teacher.openarea }}
+                                    {{ teacher.openarea | remove_xss }}
                                 </div>
                             </div>
                             {% endfor %}

@@ -288,7 +288,8 @@ $checkBoxActiveLegal = $form->createElement(
     [null, get_lang('ShowALegalNoticeWhenEnteringTheCourse')],
     get_lang('ActivateLegal')
 );
-$textAreaLegal = $form->createElement('textarea', 'legal', get_lang('CourseLegalAgreement'), ['rows' => 8]);
+
+$textAreaLegal = $form->createElement('html_editor', 'legal', get_lang('CourseLegalAgreement'), ['rows' => 8]);
 
 $elements = [
     $groupElement,
@@ -907,10 +908,16 @@ $addUsers = [
     $form->createElement('radio', 'subscribe_users_to_forum_notifications', null, get_lang('No'), 2),
 ];
 
+$forumsInSessions = [
+    $form->createElement('radio', 'share_forums_in_sessions', null, get_lang('Yes'), 1),
+    $form->createElement('radio', 'share_forums_in_sessions', null, get_lang('No'), 2),
+];
+
 $globalGroup = [
     get_lang('EnableForumAutoLaunch') => $group,
     get_lang('HideForumNotifications') => $groupNotification,
     get_lang('SubscribeUsersToAllForumNotifications') => $addUsers,
+    get_lang('ShareForumsInSessions') => $forumsInSessions,
     '' => $myButton,
 ];
 
@@ -942,6 +949,34 @@ $form->addPanelOption(
     Display::return_icon('work.png', get_lang('StudentPublications')).' '.get_lang('StudentPublications'),
     $globalGroup
 );
+
+// Agenda settings -->
+$group = [];
+$group[] = $form->createElement(
+    'radio',
+    'agenda_share_events_in_sessions',
+    null,
+    get_lang('AgendaEventsInBaseCourseWillBeVisibleInCourseSessions'),
+    1
+);
+$group[] = $form->createElement(
+    'radio',
+    'agenda_share_events_in_sessions',
+    null,
+    get_lang('AgendaEventsOnlyVisibleInCurrentCourse'), 0
+);
+
+$globalGroup = [
+    get_lang('ShareEventsInSessions') => $group,
+    '' => $form->addButtonSave(get_lang('SaveSettings'), 'submit_save', true),
+];
+
+$form->addPanelOption(
+    'agenda',
+    Display::return_icon('agenda.png', get_lang('Agenda')).' '.get_lang('Agenda'),
+    $globalGroup
+);
+// <-- end of agenda settings
 
 if ($allowPortfolioTool) {
     $globalGroup = [

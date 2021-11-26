@@ -36,8 +36,8 @@ class FillBlanks extends Question
         $defaults['answer'] = get_lang('DefaultTextInBlanks');
         $defaults['select_separator'] = 0;
         $blankSeparatorNumber = 0;
-        if (!empty($this->id)) {
-            $objectAnswer = new Answer($this->id);
+        if (!empty($this->iid)) {
+            $objectAnswer = new Answer($this->iid);
             $answer = $objectAnswer->selectAnswer(1);
             $listAnswersInfo = self::getAnswerInfo($answer);
             $defaults['multiple_answer'] = 0;
@@ -359,7 +359,7 @@ class FillBlanks extends Question
         $form->addHtml('<div id="defineoneblank" style="color:#D04A66; margin-left:160px">'.get_lang('DefineBlanks').'</div>');
         $form->addButtonSave($text, 'submitQuestion');
 
-        if (!empty($this->id)) {
+        if (!empty($this->iid)) {
             $form->setDefaults($defaults);
         } else {
             if ($this->isContent == 1) {
@@ -480,7 +480,7 @@ class FillBlanks extends Question
         $answer .= '@'.$is_multiple;
 
         $this->save($exercise);
-        $objAnswer = new Answer($this->id);
+        $objAnswer = new Answer($this->iid);
         $objAnswer->createAnswer($answer, 0, '', 0, 1);
         $objAnswer->save();
     }
@@ -543,9 +543,10 @@ class FillBlanks extends Question
 
                 $resultOptions = ['' => '--'];
                 foreach ($listMenu as $item) {
-                    $resultOptions[sha1($item)] = $item;
+                    $resultOptions[sha1($item)] = self::replaceSpecialCharsForMenuValues($item);
                 }
-
+                // It is checked special chars used in menu
+                $correctItem = self::replaceSpecialCharsForMenuValues($correctItem);
                 foreach ($resultOptions as $key => $value) {
                     if ($correctItem == $value) {
                         $selected = $key;
@@ -584,6 +585,40 @@ class FillBlanks extends Question
         }
 
         return $result;
+    }
+
+    /*
+     * It searchs and replaces special chars to show in menu values
+     *
+     * @param string $value The value to parse
+     *
+     * @return string
+     */
+    public static function replaceSpecialCharsForMenuValues($value)
+    {
+        // It replaces supscript numbers
+        $value = preg_replace('/<sup>([0-9]+)<\/sup>/is', "&sub$1;", $value);
+
+        // It replaces subscript numbers
+        $value = preg_replace_callback(
+            "/<sub>([0-9]+)<\/sub>/is",
+            function ($m) {
+                $precode = '&#832';
+                $nb = $m[1];
+                $code = '';
+                if (is_numeric($nb) && strlen($nb) > 1) {
+                    for ($i = 0; $i < strlen($nb); $i++) {
+                        $code .= $precode.$nb[$i].';';
+                    }
+                } else {
+                    $code = $precode.$m[1].';';
+                }
+
+                return $code;
+            },
+            $value);
+
+        return $value;
     }
 
     /**
@@ -649,14 +684,19 @@ class FillBlanks extends Question
      * it is not as simple as equality, because of the type of Fill The Blank question
      * eg : studentAnswer = 'Un' and correctAnswer = 'Un||1||un'.
      *
-     * @param string $studentAnswer [student_answer] of the info array of the answer field
-     * @param string $correctAnswer [words] of the info array of the answer field
-     * @param bool   $fromDatabase
+     * @param string $studentAnswer       [student_answer] of the info array of the answer field
+     * @param string $correctAnswer       [words] of the info array of the answer field
+     * @param bool   $fromDatabase        Optional
+     * @param bool   $studentAnswerIsHash Optional.
      *
      * @return bool
      */
-    public static function isStudentAnswerGood($studentAnswer, $correctAnswer, $fromDatabase = false)
-    {
+    public static function isStudentAnswerGood(
+        string $studentAnswer,
+        string $correctAnswer,
+        bool $fromDatabase = false,
+        bool $studentAnswerIsHash = false
+    ): bool {
         $result = false;
         switch (self::getFillTheBlankAnswerType($correctAnswer)) {
             case self::FILL_THE_BLANK_MENU:
@@ -666,7 +706,10 @@ class FillBlanks extends Question
                     $item = $listMenu[0];
                     if (!$fromDatabase) {
                         $item = sha1($item);
-                        $studentAnswer = sha1($studentAnswer);
+
+                        if (!$studentAnswerIsHash) {
+                            $studentAnswer = sha1($studentAnswer);
+                        }
                     }
                     if ($item === $studentAnswer) {
                         $result = true;
@@ -842,6 +885,12 @@ class FillBlanks extends Question
             $commonWords = api_preg_replace("/::::::/", '::', $commonWords);
         }
         $listAnswerResults['common_words'] = explode('::', $commonWords);
+        $listAnswerResults['words_types'] = array_map(
+            function ($word): int {
+                return FillBlanks::getFillTheBlankAnswerType($word);
+            },
+            $listAnswerResults['words']
+        );
 
         return $listAnswerResults;
     }

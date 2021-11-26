@@ -475,7 +475,7 @@ class Agenda
      *
      * @throws Exception
      *
-     * @return array
+     * @return array with local times
      */
     public function generateDatesByType($type, $startEvent, $endEvent, $repeatUntilDate)
     {
@@ -529,26 +529,32 @@ class Agenda
             }
 
             // @todo remove comment code
-            $startDateInLocal = new DateTime($newStartDate, new DateTimeZone($timeZone));
-            if ($startDateInLocal->format('I') == 0) {
-                // Is saving time? Then fix UTC time to add time
-                $seconds = $startDateInLocal->getOffset();
-                $startDate->add(new DateInterval("PT".$seconds."S"));
-                $startDateFixed = $startDate->format('Y-m-d H:i:s');
-                $startDateInLocalFixed = new DateTime($startDateFixed, new DateTimeZone($timeZone));
-                $newStartDate = $startDateInLocalFixed->format('Y-m-d H:i:s');
-            }
-            $endDateInLocal = new DateTime($newEndDate, new DateTimeZone($timeZone));
+            // The code below was not adpating to saving light time but was doubling the difference with UTC time.
+            // Might be necessary to adapt to update saving light time difference.
+            /*            $startDateInLocal = new DateTime($newStartDate, new DateTimeZone($timeZone));
+                        if ($startDateInLocal->format('I') == 0) {
+                            // Is saving time? Then fix UTC time to add time
+                            $seconds = $startDateInLocal->getOffset();
+                            $startDate->add(new DateInterval("PT".$seconds."S"));
+                            //$startDateFixed = $startDate->format('Y-m-d H:i:s');
+                            //$startDateInLocalFixed = new DateTime($startDateFixed, new DateTimeZone($timeZone));
+                            //$newStartDate = $startDateInLocalFixed->format('Y-m-d H:i:s');
+                            //$newStartDate = $startDate->setTimezone(new DateTimeZone($timeZone))->format('Y-m-d H:i:s');
+                        }
 
-            if ($endDateInLocal->format('I') == 0) {
-                // Is saving time? Then fix UTC time to add time
-                $seconds = $endDateInLocal->getOffset();
-                $endDate->add(new DateInterval("PT".$seconds."S"));
-                $endDateFixed = $endDate->format('Y-m-d H:i:s');
-                $endDateInLocalFixed = new DateTime($endDateFixed, new DateTimeZone($timeZone));
-                $newEndDate = $endDateInLocalFixed->format('Y-m-d H:i:s');
-            }
-            $list[] = ['start' => $newStartDate, 'end' => $newEndDate, 'i' => $startDateInLocal->format('I')];
+                        $endDateInLocal = new DateTime($newEndDate, new DateTimeZone($timeZone));
+                        if ($endDateInLocal->format('I') == 0) {
+                            // Is saving time? Then fix UTC time to add time
+                            $seconds = $endDateInLocal->getOffset();
+                            $endDate->add(new DateInterval("PT".$seconds."S"));
+                            //$endDateFixed = $endDate->format('Y-m-d H:i:s');
+                            //$endDateInLocalFixed = new DateTime($endDateFixed, new DateTimeZone($timeZone));
+                            //$newEndDate = $endDateInLocalFixed->format('Y-m-d H:i:s');
+                    }
+            */
+            $newStartDate = $startDate->setTimezone(new DateTimeZone($timeZone))->format('Y-m-d H:i:s');
+            $newEndDate = $endDate->setTimezone(new DateTimeZone($timeZone))->format('Y-m-d H:i:s');
+            $list[] = ['start' => $newStartDate, 'end' => $newEndDate];
             $counter++;
 
             // just in case stop if more than $loopMax
@@ -605,8 +611,10 @@ class Agenda
         $now = time();
 
         // The event has to repeat *in the future*. We don't allow repeated
-        // events in the past
-        if ($end > $now) {
+        // events in the past.
+        $endTimeStamp = api_strtotime($end, 'UTC');
+
+        if ($endTimeStamp < $now) {
             return false;
         }
 
@@ -618,7 +626,7 @@ class Agenda
 
         $type = Database::escape_string($type);
         $end = Database::escape_string($end);
-        $endTimeStamp = api_strtotime($end, 'UTC');
+
         $sql = "INSERT INTO $t_agenda_r (c_id, cal_id, cal_type, cal_end)
                 VALUES ($courseId, '$eventId', '$type', '$endTimeStamp')";
         Database::query($sql);
@@ -636,6 +644,7 @@ class Agenda
             // just before the part updating the date in local time so keep both synchronised
             $start = $dateInfo['start'];
             $end = $dateInfo['end'];
+
             $this->addEvent(
                 $start,
                 $end,
@@ -1785,18 +1794,16 @@ class Agenda
         $tlb_course_agenda = Database::get_course_table(TABLE_AGENDA);
         $tbl_property = Database::get_course_table(TABLE_ITEM_PROPERTY);
 
-        if (empty($sessionId)) {
-            $sessionCondition = "
-            (
-                agenda.session_id = 0 AND (ip.session_id IS NULL OR ip.session_id = 0)
-            ) ";
-        } else {
-            $sessionCondition = "
-            (
-                agenda.session_id = $sessionId AND
-                ip.session_id = $sessionId
-            ) ";
-        }
+        $shareEventsInSessions = 1 == api_get_course_setting('agenda_share_events_in_sessions', $courseInfo);
+
+        $agendaSessionCondition = str_replace(
+            ' AND ',
+            '',
+            api_get_session_condition($sessionId, true, $shareEventsInSessions, 'agenda.session_id')
+        );
+        $ipSessionCondition = api_get_session_condition($sessionId, true, $shareEventsInSessions, 'ip.session_id');
+
+        $sessionCondition = "($agendaSessionCondition $ipSessionCondition)";
 
         if ($isAllowToEdit) {
             // No group filter was asked
@@ -1984,6 +1991,9 @@ class Agenda
                         if ($isAllowToEditByHrm) {
                             $event['editable'] = true;
                         }
+                        if ($sessionId != $row['session_id']) {
+                            $event['editable'] = false;
+                        }
                     }
                     // if user is author then he can edit the item
                     if (api_get_user_id() == $row['insert_user_id']) {
@@ -2055,13 +2065,13 @@ class Agenda
                     $event['sent_to'] = '<div class="label_tag notice">'.get_lang('Everyone').'</div>';
                 }
 
-                $event['description'] = $row['content'];
+                $event['description'] = Security::remove_XSS($row['content']);
                 $event['visibility'] = $row['visibility'];
                 $event['real_id'] = $row['id'];
                 $event['allDay'] = isset($row['all_day']) && $row['all_day'] == 1 ? $row['all_day'] : 0;
                 $event['parent_event_id'] = $row['parent_event_id'];
                 $event['has_children'] = $this->hasChildren($row['id'], $courseId) ? 1 : 0;
-                $event['comment'] = $row['comment'];
+                $event['comment'] = Security::remove_XSS($row['comment']);
                 $this->events[] = $event;
             }
         }
@@ -3114,7 +3124,16 @@ class Agenda
         $calendar = Sabre\VObject\Reader::read($data);
         $currentTimeZone = api_get_timezone();
         if (!empty($calendar->VEVENT)) {
+            /** @var Sabre\VObject\Component\VEvent $event */
             foreach ($calendar->VEVENT as $event) {
+                $tempDate = $event->DTSTART->getValue();
+                if ('Z' == substr($tempDate, -1) && 'UTC' != date('e', strtotime($tempDate))) {
+                    $event->DTSTART->setValue(gmdate('Ymd\THis\Z', strtotime($tempDate)));
+                }
+                $tempDate = $event->DTEND->getValue();
+                if ('Z' == substr($tempDate, -1) && 'UTC' != date('e', strtotime($tempDate))) {
+                    $event->DTEND->setValue(gmdate('Ymd\THis\Z', strtotime($tempDate)));
+                }
                 $start = $event->DTSTART->getDateTime();
                 $end = $event->DTEND->getDateTime();
                 //Sabre\VObject\DateTimeParser::parseDateTime(string $dt, \Sabre\VObject\DateTimeZone $tz)

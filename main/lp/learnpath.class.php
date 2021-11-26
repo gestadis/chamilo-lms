@@ -564,11 +564,9 @@ class learnpath
                     FROM '.Database::get_course_table(TABLE_QUIZ_QUESTION).' as quiz_question
                     INNER JOIN '.Database::get_course_table(TABLE_QUIZ_TEST_QUESTION).' as quiz_rel_question
                     ON
-                        quiz_question.id = quiz_rel_question.question_id AND
-                        quiz_question.c_id = quiz_rel_question.c_id
+                        quiz_question.iid = quiz_rel_question.question_id
                     WHERE
                         quiz_rel_question.exercice_id = '.$id." AND
-                        quiz_question.c_id = $course_id AND
                         quiz_rel_question.c_id = $course_id ";
             $rsQuiz = Database::query($sql);
             $max_score = Database::result($rsQuiz, 0, 0);
@@ -3541,7 +3539,7 @@ class learnpath
      */
     public function getNameNoTags()
     {
-        return strip_tags($this->get_name());
+        return Security::remove_XSS(strip_tags($this->get_name()));
     }
 
     /**
@@ -3611,7 +3609,7 @@ class learnpath
             // then change the lp type to thread it as a normal Chamilo LP not a SCO.
             if (in_array(
                 $lp_item_type,
-                ['quiz', 'document', 'final_item', 'link', 'forum', 'thread', 'student_publication', 'xapi']
+                ['quiz', 'document', 'final_item', 'link', 'forum', 'thread', 'student_publication', 'xapi', 'survey']
             )
             ) {
                 $lp_type = 1;
@@ -4984,6 +4982,49 @@ class learnpath
     }
 
     /**
+     * Update the last progress only in case.
+     */
+    public function updateLpProgress()
+    {
+        $debug = $this->debug;
+        if ($debug) {
+            error_log('In learnpath::updateLpProgress()', 0);
+        }
+        $sessionCondition = api_get_session_condition(
+            api_get_session_id(),
+            true,
+            false
+        );
+        $courseId = api_get_course_int_id();
+        $userId = $this->get_user_id();
+        $table = Database::get_course_table(TABLE_LP_VIEW);
+
+        [$progress] = $this->get_progress_bar_text('%');
+        if ($progress >= 0 && $progress <= 100) {
+            // Check database.
+            $progress = (int) $progress;
+            $sql = "UPDATE $table SET
+                            progress = $progress
+                        WHERE
+                            c_id = $courseId AND
+                            lp_id = ".$this->get_id()." AND
+                            user_id = ".$userId." ".$sessionCondition;
+            // Ignore errors as some tables might not have the progress field just yet.
+            Database::query($sql);
+            if ($debug) {
+                error_log($sql);
+            }
+            $this->progress_db = $progress;
+
+            if (100 == $progress) {
+                HookLearningPathEnd::create()
+                    ->setEventData(['lp_view_id' => $this->lp_view_id])
+                    ->hookLearningPathEnd();
+            }
+        }
+    }
+
+    /**
      * Saves the last item seen's ID only in case.
      */
     public function save_last($score = null)
@@ -6244,6 +6285,8 @@ class learnpath
                         $icon = Display::return_icon('certificate.png');
                     } elseif (TOOL_XAPI === $arrLP[$i]['item_type']) {
                         $icon = Display::return_icon('import_scorm.png');
+                    } elseif (TOOL_SURVEY === $arrLP[$i]['item_type']) {
+                        $icon = Display::return_icon('survey.gif');
                     } else {
                         $icon = Display::return_icon('folder_document.gif');
                     }
@@ -6644,7 +6687,7 @@ class learnpath
         $list .= '</ul>';
 
         $return = Display::panelCollapse(
-            $this->name,
+            $this->getNameNoTags(),
             $list,
             'scorm-list',
             null,
@@ -7530,6 +7573,10 @@ class learnpath
                 $return .= $this->display_manipulate($item_id, $row['item_type']);
                 $return .= $this->display_thread_form('edit', $item_id, $row);
                 break;
+            case TOOL_SURVEY:
+                $return .= $this->display_manipulate($item_id, $row['item_type']);
+                $return .= $this->displaySurveyForm('edit', $item_id, $row);
+                break;
         }
 
         return $return;
@@ -7586,8 +7633,15 @@ class learnpath
             $dir,
         ];
 
-        $xApiPlugin = XApiPlugin::create();
+        $allowSurveyTool = api_get_configuration_value('allow_survey_tool_in_lp');
+        if ($allowSurveyTool) {
+            // Get all the surveys
+            $surveys = $this->getSurveys();
+            $items[] = $surveys;
+            $headers[] = Display::return_icon('survey.png', get_lang('Surveys'), [], ICON_SIZE_BIG);
+        }
 
+        $xApiPlugin = XApiPlugin::create();
         if ($xApiPlugin->isEnabled()) {
             $headers[] = Display::return_icon(
                 'import_scorm.png',
@@ -7690,7 +7744,7 @@ class learnpath
         } elseif (is_numeric($extra_info)) {
             $sql = "SELECT title, description
                     FROM $tbl_quiz
-                    WHERE c_id = $course_id AND iid = ".$extra_info;
+                    WHERE iid = $extra_info";
 
             $result = Database::query($sql);
             $row = Database::fetch_array($result);
@@ -8019,6 +8073,194 @@ class learnpath
         $return .= '</form>';
 
         return $return;
+    }
+
+    /**
+     *
+     */
+    public function displaySurveyForm(
+      $action = 'add',
+      $id = 0,
+      $extraInfo = '',
+      $excludeExtraFields = []
+    ) {
+        $courseId = api_get_course_int_id();
+        $tblSurvey = Database::get_course_table(TABLE_SURVEY);
+
+        $itemTitle = '';
+        $itemDescription = '';
+
+        if ($id != 0 && is_array($extraInfo)) {
+            $itemTitle = stripslashes($extraInfo['title']);
+        } elseif (is_numeric($extraInfo)) {
+            $sql = "SELECT title, intro as comment
+                    FROM $tblSurvey
+                    WHERE c_id = $courseId AND survey_id = ".(int) $extraInfo;
+
+            $result = Database::query($sql);
+            $row = Database::fetch_array($result);
+
+            $itemTitle = strip_tags($row['title']);
+            $itemDescription = $row['comment'];
+        }
+        $parent = 0;
+        if ($id != 0 && is_array($extraInfo)) {
+            $parent = $extraInfo['parent_item_id'];
+        }
+        $arrLP = $this->getItemsForForm();
+        $this->tree_array($arrLP);
+        $arrLP = isset($this->arrMenu) ? $this->arrMenu : [];
+        unset($this->arrMenu);
+
+        if ($action == 'add') {
+            $legend = get_lang('CreateSurvey');
+        } elseif ($action == 'move') {
+            $legend = get_lang('MoveTheCurrentSurvey');
+        } else {
+            $legend = get_lang('ModifySurveyInformation');
+        }
+
+        $form = new FormValidator(
+            'survey_form',
+            'POST',
+            $this->getCurrentBuildingModeURL()
+        );
+        $defaults = [];
+
+        $form->addHeader($legend);
+
+        if ($action != 'move') {
+            $this->setItemTitle($form);
+            $defaults['title'] = $itemTitle;
+        }
+
+        $selectParent = $form->addSelect(
+            'parent',
+            get_lang('Parent'),
+            [],
+            ['id' => 'idParent', 'onchange' => 'load_cbo(this.value);', 'class' => 'learnpath_item_form']
+        );
+        $selectParent->addOption($this->name, 0);
+        $arrHide = [
+            $id,
+        ];
+        for ($i = 0; $i < count($arrLP); $i++) {
+            if ($action != 'add') {
+                if ($arrLP[$i]['item_type'] == 'dir' &&
+                    !in_array($arrLP[$i]['id'], $arrHide) &&
+                    !in_array($arrLP[$i]['parent_item_id'], $arrHide)
+                ) {
+                    $selectParent->addOption(
+                        $arrLP[$i]['title'],
+                        $arrLP[$i]['id'],
+                        ['style' => 'padding-left: '.(20 + $arrLP[$i]['depth'] * 20).'px']
+                    );
+
+                    if ($parent == $arrLP[$i]['id']) {
+                        $selectParent->setSelected($arrLP[$i]['id']);
+                    }
+                } else {
+                    $arrHide[] = $arrLP[$i]['id'];
+                }
+            } else {
+                if ($arrLP[$i]['item_type'] == 'dir') {
+                    $selectParent->addOption(
+                        $arrLP[$i]['title'],
+                        $arrLP[$i]['id'],
+                        ['style' => 'padding-left: '.(20 + $arrLP[$i]['depth'] * 20).'px']
+                    );
+
+                    if ($parent == $arrLP[$i]['id']) {
+                        $selectParent->setSelected($arrLP[$i]['id']);
+                    }
+                }
+            }
+        }
+
+        if (is_array($arrLP)) {
+            reset($arrLP);
+        }
+
+        $selectPrevious = $form->addSelect(
+            'previous',
+            get_lang('Position'),
+            [],
+            ['id' => 'previous', 'class' => 'learnpath_item_form']
+        );
+        $selectPrevious->addOption(get_lang('FirstPosition'), 0);
+
+        for ($i = 0; $i < count($arrLP); $i++) {
+            if ($arrLP[$i]['parent_item_id'] == $parent &&
+                $arrLP[$i]['id'] != $id
+            ) {
+                $selectPrevious->addOption(
+                    get_lang('After').' "'.$arrLP[$i]['title'].'"',
+                    $arrLP[$i]['id']
+                );
+
+                if (isset($extra_info['previous_item_id']) &&
+                    $extra_info['previous_item_id'] == $arrLP[$i]['id']
+                ) {
+                    $selectPrevious->setSelected($arrLP[$i]['id']);
+                } elseif ($action == 'add') {
+                    $selectPrevious->setSelected($arrLP[$i]['id']);
+                }
+            }
+        }
+
+        if ($action != 'move') {
+            $idPrerequisite = 0;
+            if (is_array($arrLP)) {
+                foreach ($arrLP as $key => $value) {
+                    if ($value['id'] == $id) {
+                        $idPrerequisite = $value['prerequisite'];
+                        break;
+                    }
+                }
+            }
+
+            $arrHide = [];
+            for ($i = 0; $i < count($arrLP); $i++) {
+                if ($arrLP[$i]['id'] != $id && $arrLP[$i]['item_type'] != 'dir') {
+                    if (isset($extra_info['previous_item_id']) &&
+                        $extra_info['previous_item_id'] == $arrLP[$i]['id']
+                    ) {
+                        $sSelectedPosition = $arrLP[$i]['id'];
+                    } elseif ($action == 'add') {
+                        $sSelectedPosition = 0;
+                    }
+                    $arrHide[$arrLP[$i]['id']]['value'] = $arrLP[$i]['title'];
+                }
+            }
+        }
+
+        if ('edit' === $action) {
+            $extraField = new ExtraField('lp_item');
+            $extraField->addElements($form, $id, $excludeExtraFields);
+        }
+
+        if ($action == 'add') {
+            $form->addButtonSave(get_lang('AddSurveyToCourse'), 'submit_button');
+        } else {
+            $form->addButtonSave(get_lang('EditCurrentSurvey'), 'submit_button');
+        }
+
+        if ($action == 'move') {
+            $form->addHidden('title', $itemTitle);
+            $form->addHidden('description', $itemDescription);
+        }
+
+        if (is_numeric($extraInfo)) {
+            $form->addHidden('path', $extraInfo);
+        } elseif (is_array($extraInfo)) {
+            $form->addHidden('path', $extraInfo['path']);
+        }
+        $form->addHidden('type', TOOL_SURVEY);
+        $form->addHidden('post_time', time());
+        $this->setAuthorLpItem($form);
+        $form->setDefaults($defaults);
+
+        return '<div class="sectioncomment">'.$form->returnForm().'</div>';
     }
 
     /**
@@ -10625,10 +10867,10 @@ class learnpath
 
             $link = Display::url(
                 $previewIcon,
-                $exerciseUrl.'&exerciseId='.$row_quiz['id'],
+                $exerciseUrl.'&exerciseId='.$row_quiz['iid'],
                 ['target' => '_blank']
             );
-            $return .= '<li class="lp_resource_element" data_id="'.$row_quiz['id'].'" data_type="quiz" title="'.$title.'" >';
+            $return .= '<li class="lp_resource_element" data_id="'.$row_quiz['iid'].'" data_type="quiz" title="'.$title.'" >';
             $return .= Display::url($moveIcon, '#', ['class' => 'moved']);
             $return .= $quizIcon;
             $sessionStar = api_get_session_image(
@@ -10637,7 +10879,7 @@ class learnpath
             );
             $return .= Display::url(
                 Security::remove_XSS(cut($title, 80)).$link.$sessionStar,
-                api_get_self().'?'.api_get_cidreq().'&action=add_item&type='.TOOL_QUIZ.'&file='.$row_quiz['id'].'&lp_id='.$this->lp_id,
+                api_get_self().'?'.api_get_cidreq().'&action=add_item&type='.TOOL_QUIZ.'&file='.$row_quiz['iid'].'&lp_id='.$this->lp_id,
                 [
                     'class' => $visibility == 0 ? 'moved text-muted' : 'moved',
                 ]
@@ -10764,6 +11006,47 @@ class learnpath
         $linksHtmlCode .= '</ul>';
 
         return $linksHtmlCode;
+    }
+
+    /**
+     * Creates a list with all the surveys in it.
+     *
+     * @return string
+     */
+    public function getSurveys()
+    {
+        $return = '<ul class="lp_resource">';
+        // First add link
+        $return .= '<li class="lp_resource_element">';
+        $return .= Display::return_icon('new_survey.png', get_lang('CreateNewSurvey'), '', ICON_SIZE_MEDIUM);
+        $return .= Display::url(
+            get_lang('CreateANewSurvey'),
+            api_get_path(WEB_CODE_PATH).'survey/create_new_survey.php?'.api_get_cidreq().'&'.http_build_query([
+                'action' => 'add',
+                'lp_id' => $this->lp_id,
+            ]),
+            ['title' => get_lang('CreateNewSurvey')]
+        );
+        $return .= '</li>';
+
+        $surveys = SurveyManager::get_surveys(api_get_course_id(), api_get_session_id());
+
+        foreach ($surveys as $survey) {
+            if (!empty($survey['survey_id'])) {
+                $surveyTitle = strip_tags($survey['title']);
+                $return .= '<li class="lp_resource_element" data_id="'.$survey['survey_id'].'" data_type="'.TOOL_SURVEY.'" title="'.$surveyTitle.'" >';
+                $return .= '<a class="moved" href="#">';
+                $return .= Display::return_icon('move_everywhere.png', get_lang('Move'), [], ICON_SIZE_TINY);
+                $return .= ' </a>';
+                $return .= Display::return_icon('survey.png', '', [], ICON_SIZE_TINY);
+                $return .= '<a class="moved" href="'.api_get_self().'?'.api_get_cidreq().'&action=add_item&type='.TOOL_SURVEY.'&survey_id='.$survey['survey_id'].'&lp_id='.$this->lp_id.'" style="vertical-align:middle">'.$surveyTitle.'</a>';
+                $return .= '</li>';
+            }
+        }
+
+        $return .= '</ul>';
+
+        return $return;
     }
 
     /**
@@ -11206,9 +11489,14 @@ class learnpath
                                                     substr($file_path, $pos, strlen($file_path))
                                                 );
                                             }
-                                            $replace = $onlyDirectory;
+                                            $replace = './'.$onlyDirectory;
                                             $destinationFile = $replace;
                                         }
+
+                                        if (strpos($file_path, '/web') === 0) {
+                                            $replace = str_replace('/web', 'web', $file_path);
+                                        }
+
                                         $zip_files_abs[] = $file_path;
                                         $link_updates[$my_file_path][] = [
                                             'orig' => $doc_info[0],
@@ -11295,16 +11583,14 @@ class learnpath
                                         $abs_path = api_get_path(SYS_PATH).str_replace(api_get_path(WEB_PATH), '', $doc_info[0]);
 
                                         if (file_exists($file_path)) {
-                                            if (strstr($file_path, 'main/default_course_document') !== false) {
+                                            $pos = strpos($file_path, 'main/default_course_document/');
+                                            if ($pos !== false) {
                                                 // We get the relative path.
-                                                $pos = strpos($file_path, 'main/default_course_document/');
-                                                if ($pos !== false) {
-                                                    $onlyDirectory = str_replace(
-                                                        'main/default_course_document/',
-                                                        '',
-                                                        substr($file_path, $pos, strlen($file_path))
-                                                    );
-                                                }
+                                                $onlyDirectory = str_replace(
+                                                    'main/default_course_document/',
+                                                    '',
+                                                    substr($file_path, $pos, strlen($file_path))
+                                                );
 
                                                 $destinationFile = 'default_course_document/'.$onlyDirectory;
                                                 $fileAbs = substr($file_path, strlen(api_get_path(SYS_PATH)));
@@ -11313,7 +11599,7 @@ class learnpath
                                                     'orig' => $doc_info[0],
                                                     'dest' => $destinationFile,
                                                 ];
-                                                $my_dep_file->setAttribute('href', 'document/'.$file_path);
+                                                $my_dep_file->setAttribute('href', 'document/'.$destinationFile);
                                                 $my_dep->setAttribute('xml:base', '');
                                             }
                                         }
@@ -13170,9 +13456,7 @@ EOD;
         $form->addHidden('action', 'add_final_item');
         $form->addHidden('path', Session::read('pathItem'));
         $form->addHidden('previous', $this->get_last());
-        $form->setDefaults(
-            ['title' => $title, 'content_lp_certificate' => $content]
-        );
+        $form->setDefaults(['title' => $title, 'content_lp_certificate' => $content]);
 
         if ($form->validate()) {
             $values = $form->exportValues();
@@ -13518,6 +13802,23 @@ EOD;
                 return api_get_path(WEB_PLUGIN_PATH).'xapi/'
                     .('cmi5' === $toolLaunch->getActivityType() ? 'cmi5/view.php' : 'tincan/view.php')
                     ."?id=$id&$extraParams";
+            case TOOL_SURVEY:
+                $table = Database::get_course_table(TABLE_SURVEY);
+                $sql = "SELECT code FROM $table WHERE c_id = $course_id AND survey_id =".(int) $id;
+                $result = Database::query($sql);
+                $surveyCode = Database::result($result, 0, 0);
+                $autoSurveyLink = SurveyUtil::generateFillSurveyLink(
+                    'auto',
+                    $course_info,
+                    api_get_session_id(),
+                    $surveyCode
+                );
+                $lpParams = [
+                    'lp_id' => $learningPathId,
+                    'lp_item_id' => $id_in_path,
+                    'origin' => 'learnpath',
+                ];
+                return $autoSurveyLink.'&'.http_build_query($lpParams);
         }
 
         return $link;
@@ -13580,7 +13881,7 @@ EOD;
                 break;
             case TOOL_QUIZ:
                 $TBL_EXERCICES = Database::get_course_table(TABLE_QUIZ_TEST);
-                $result = Database::query("SELECT * FROM $TBL_EXERCICES WHERE c_id = $course_id AND id = $id");
+                $result = Database::query("SELECT * FROM $TBL_EXERCICES WHERE iid = $id");
                 $myrow = Database::fetch_array($result);
                 $output = $myrow['title'];
                 break;

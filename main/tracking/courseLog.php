@@ -29,6 +29,7 @@ $sortByFirstName = api_sort_by_first_name();
 $from_myspace = false;
 $from = isset($_GET['from']) ? $_GET['from'] : null;
 $origin = api_get_origin();
+$lpShowMaxProgress = api_get_configuration_value('lp_show_max_progress_instead_of_average');
 
 // Starting the output buffering when we are exporting the information.
 $export_csv = isset($_GET['export']) && 'csv' === $_GET['export'] ? true : false;
@@ -282,7 +283,7 @@ if ($sessionId) {
             get_lang('Session'),
             [],
             ICON_SIZE_SMALL
-        ).' '.api_get_session_name($sessionId);
+        ).' '.Security::remove_XSS(api_get_session_name($sessionId));
     $titleCourse = Display::return_icon(
             'course.png',
             get_lang('Course'),
@@ -356,7 +357,7 @@ if ($showReporting) {
                 }
             }
             $url = $urlWebCode.'mySpace/course.php?session_id='.$session['id'].'&cidReq='.$courseInfo['code'];
-            $html .= Display::tag('li', $icon.' '.Display::url($session['name'], $url));
+            $html .= Display::tag('li', $icon.' '.Display::url(Security::remove_XSS($session['name']), $url));
         }
         $html .= '</ul>';
     }
@@ -682,10 +683,12 @@ if ($nbStudents > 0) {
         false
     );
     $headers['training_time'] = get_lang('TrainingTime');
+
+    $courseProgressHeadTitle = ($lpShowMaxProgress ? get_lang('ScormAndLPMaxProgress') : get_lang('ScormAndLPProgressTotalAverage'));
     $table->set_header(
         $headerCounter++,
         get_lang('CourseProgress').'&nbsp;'.
-        Display::return_icon('info3.gif', get_lang('ScormAndLPProgressTotalAverage'), [], ICON_SIZE_TINY),
+        Display::return_icon('info3.gif', $courseProgressHeadTitle, [], ICON_SIZE_TINY),
         false
     );
     $headers['course_progress'] = get_lang('CourseProgress');
@@ -897,7 +900,7 @@ if (!empty($groupList)) {
                 foreach ($exerciseList as $exerciseData) {
                     foreach ($usersInGroup as $userId) {
                         $results = Event::get_best_exercise_results_by_user(
-                            $exerciseData['id'],
+                            $exerciseData['iid'],
                             $courseInfo['real_id'],
                             0,
                             $userId
@@ -993,7 +996,7 @@ if (!empty($groupList)) {
         foreach ($exerciseList as $exerciseData) {
             foreach ($studentIdList as $userId) {
                 $results = Event::get_best_exercise_results_by_user(
-                    $exerciseData['id'],
+                    $exerciseData['iid'],
                     $courseInfo['real_id'],
                     $sessionId,
                     $userId
@@ -1086,7 +1089,7 @@ if ($export_csv) {
         $sessionDates = SessionManager::parseSessionDates($sessionInfo);
 
         array_unshift($csvContentInSession, [get_lang('Date'), $sessionDates['access']]);
-        array_unshift($csvContentInSession, [get_lang('SessionName'), $sessionInfo['name']]);
+        array_unshift($csvContentInSession, [get_lang('SessionName'), Security::remove_XSS($sessionInfo['name'])]);
     }
 
     Export::arrayToCsv($csvContentInSession, 'reporting_student_list');

@@ -518,6 +518,7 @@ define('MATCHING_DRAGGABLE', 19);
 define('ANNOTATION', 20);
 define('READING_COMPREHENSION', 21);
 define('MULTIPLE_ANSWER_TRUE_FALSE_DEGREE_CERTAINTY', 22);
+define('UPLOAD_ANSWER', 23);
 
 define('EXERCISE_CATEGORY_RANDOM_SHUFFLED', 1);
 define('EXERCISE_CATEGORY_RANDOM_ORDERED', 2);
@@ -547,6 +548,7 @@ define('ITEM_TYPE_ATTENDANCE', 8);
 define('ITEM_TYPE_SURVEY', 9);
 define('ITEM_TYPE_FORUM_THREAD', 10);
 define('ITEM_TYPE_PORTFOLIO', 11);
+define('ITEM_TYPE_GRADEBOOK_EVALUATION', 12);
 
 // one big string with all question types, for the validator in pear/HTML/QuickForm/Rule/QuestionType
 define(
@@ -2784,6 +2786,7 @@ function api_get_session_info($id)
  * @param int  $session_id
  * @param int  $courseId
  * @param bool $ignore_visibility_for_admins
+ * @param int  $userId
  *
  * @return int
  *             0 = session still available,
@@ -5244,15 +5247,21 @@ function api_get_visual_theme()
 {
     static $visual_theme;
 
-    // If call from CLI it should be reload.
+    $course_id = api_get_course_id();
+    $courseThemeAvailable = false;
+    // If called from CLI or from inside a course, it should be reloaded.
     if ('cli' === PHP_SAPI) {
         $visual_theme = null;
+    } elseif (!empty($course_id)) {
+        $courseThemeAvailable = api_get_setting('allow_course_theme') == 'true';
+        if ($courseThemeAvailable) {
+            $visual_theme = null;
+        }
     }
 
     if (!isset($visual_theme)) {
         $cacheAvailable = api_get_configuration_value('apc');
         $userThemeAvailable = api_get_setting('user_selected_theme') == 'true';
-        $courseThemeAvailable = api_get_setting('allow_course_theme') == 'true';
         // only use a shared cache if no user-based or course-based theme is allowed
         $useCache = ($cacheAvailable && !$userThemeAvailable && !$courseThemeAvailable);
         $apcVar = '';
@@ -5297,7 +5306,6 @@ function api_get_visual_theme()
             }
         }
 
-        $course_id = api_get_course_id();
         if (!empty($course_id)) {
             if ($courseThemeAvailable) {
                 $course_theme = api_get_course_setting('course_theme', api_get_course_info());
