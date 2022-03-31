@@ -4055,6 +4055,11 @@ class CourseManager
             }
         }
 
+        $exlearnerCondition = "";
+        if (false !== api_get_configuration_value('user_edition_extra_field_to_check')) {
+            $exlearnerCondition = " AND course_rel_user.relation_type NOT IN(".COURSE_EXLEARNER.")";
+        }
+
         $sql = "SELECT DISTINCT
                     course.id,
                     course_rel_user.status status,
@@ -4071,6 +4076,7 @@ class CourseManager
                     $userCategoryCondition
                     $without_special_courses
                     $languageCondition
+                    $exlearnerCondition
                 ";
         // If multiple URL access mode is enabled, only fetch courses
         // corresponding to the current URL.
@@ -5822,6 +5828,10 @@ class CourseManager
             $courseSettings[] = 'portfolio_max_score';
         }
 
+        if (api_get_configuration_value('lp_show_max_progress_or_average_enable_course_level_redefinition')) {
+            $courseSettings[] = 'lp_show_max_or_average_progress';
+        }
+
         if (!empty($pluginCourseSettings)) {
             $courseSettings = array_merge(
                 $courseSettings,
@@ -7007,7 +7017,7 @@ class CourseManager
         $course = Database::get_main_table(TABLE_MAIN_COURSE);
         $courseRelUser = Database::get_main_table(TABLE_MAIN_COURSE_USER);
         $avoidCoursesCondition = CoursesAndSessionsCatalog::getAvoidCourseCondition();
-        $visibilityCondition = self::getCourseVisibilitySQLCondition('course', true);
+        $visibilityCondition = self::getCourseVisibilitySQLCondition('course', true, false);
 
         // Secondly we select the courses that are in a category (user_course_cat<>0) and
         // sort these according to the sort of the category

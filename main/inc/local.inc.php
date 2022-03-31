@@ -79,7 +79,7 @@ use ChamiloSession as Session;
  * of their scripts. It will make code maintenance much easier.
  *
  *    Many if the functions you need you can already find in the
- *    main_api.lib.php
+ *    api.lib.php
  *
  * We encourage you to use functions to access these global "kernel" variables.
  * You can add them to e.g. the main API library.
@@ -402,6 +402,45 @@ if (!empty($_SESSION['_user']['user_id']) && !($login || $logout)) {
                 $doNotRedirectToCourse = true; // we should already be on the right page, no need to redirect
             }
         }
+        //If plugin oauth2 is activated with force_redirect and user isn't logged in
+    } elseif ('true' === api_get_plugin_setting('oauth2', 'enable')
+        && 'true' === api_get_plugin_setting('oauth2', 'force_redirect')
+        && !isset($_user['user_id'])
+        && !isset($_POST['login'])
+        && !$logout
+    ) {
+        $skipFolderOauth = [];
+        $skipFolderOauth = explode(',', api_get_plugin_setting('oauth2', 'skip_force_redirect_in'));
+        $load = true;
+        foreach ($skipFolderOauth as $folder) {
+            if (false !== strpos($_SERVER['REQUEST_URI'], $folder)) {
+                $load = false;
+                break;
+            }
+        }
+        if ($load) {
+            $plugin = OAuth2::create();
+            $provider = $plugin->getProvider();
+            // If we don't have an authorization code then get one
+            if (!array_key_exists('code', $_GET)) {
+                // Fetch the authorization URL from the provider; this returns the
+                // urlAuthorize option and generates and applies any necessary parameters
+                // (e.g. state).
+                $authorizationUrl = $provider->getAuthorizationUrl();
+
+                // Get the state generated for you and store it to the session.
+                ChamiloSession::write('oauth2state', $provider->getState());
+
+                // Redirect the user to the authorization URL.
+                header('Location: '.$authorizationUrl);
+                exit;
+            }
+            // Check given state against previously stored one to mitigate CSRF attack
+            if (!array_key_exists('state', $_GET) || ($_GET['state'] !== ChamiloSession::read('oauth2state'))) {
+                ChamiloSession::erase('oauth2state');
+                exit('Invalid state');
+            }
+        }
     } elseif (isset($_POST['login']) && isset($_POST['password'])) {
         // $login && $password are given to log in
         if (empty($login) || !empty($_POST['login'])) {
@@ -675,8 +714,23 @@ if (!empty($_SESSION['_user']['user_id']) && !($login || $logout)) {
                     exit;
                 }
 
+                // update user expiration date when the login is the first time
+                if (isset($_user['status']) && STUDENT == $_user['status']) {
+                    $userExpirationXDate = api_get_configuration_value('update_student_expiration_x_date');
+                    $userSpentTime = Tracking::get_time_spent_on_the_platform($_user['user_id']);
+                    if (false !== $userExpirationXDate && empty($userSpentTime)) {
+                        $expDays = (int) $userExpirationXDate['days'];
+                        $expMonths = (int) $userExpirationXDate['months'];
+                        $date = new DateTime();
+                        $duration = "P{$expMonths}M{$expDays}D";
+                        $date->add(new DateInterval($duration));
+                        $newExpirationDate = $date->format('Y-m-d H:i:s');
+                        UserManager::updateExpirationDate($_user['user_id'], $newExpirationDate);
+                    }
+                }
+
                 if (isset($uData['creator_id']) && $_user['user_id'] != $uData['creator_id']) {
-                    //first login for a not self registred
+                    //first login for a not self registered
                     //e.g. registered by a teacher
                     //do nothing (code may be added later)
                 }
@@ -706,7 +760,7 @@ if (!empty($_SESSION['_user']['user_id']) && !($login || $logout)) {
                 // see configuration.php to define these
                 include_once $extAuthSource[$key]['login'];
             /* >>>>>>>> External authentication modules <<<<<<<<< */
-            } else { // no standard Chamilo login - try external authentification
+            } else { // no standard Chamilo login - try external authentication
                 //huh... nothing to do... we shouldn't get here
                 error_log(
                     'Chamilo Authentication file defined in'.
@@ -1235,101 +1289,6 @@ $is_courseTutor = false;
 $is_courseMember = false;
 
 if ((isset($uidReset) && $uidReset) || $cidReset) {
-    if (isset($_cid) && $_cid) {
-        $my_user_id = isset($user_id) ? (int) $user_id : 0;
-        $variable = 'accept_legal_'.$my_user_id.'_'.$_course['real_id'].'_'.$session_id;
-
-        $user_pass_open_course = false;
-        if (api_check_user_access_to_legal($_course) && Session::read($variable)) {
-            $user_pass_open_course = true;
-        }
-
-        // Checking if the user filled the course legal agreement
-        if ($_course['activate_legal'] == 1 && !api_is_platform_admin() && !api_is_anonymous()) {
-            $user_is_subscribed = CourseManager::is_user_accepted_legal(
-                $user_id,
-                $_course['id'],
-                $session_id
-            ) || $user_pass_open_course;
-            if (!$user_is_subscribed) {
-                $url = api_get_path(WEB_CODE_PATH).'course_info/legal.php?course_code='.$_course['code'].'&session_id='.$session_id;
-                header('Location: '.$url);
-                exit;
-            }
-        }
-
-        // Platform legal terms and conditions
-        if (api_get_setting('allow_terms_conditions') === 'true' &&
-            api_get_setting('load_term_conditions_section') === 'course'
-        ) {
-            $termAndConditionStatus = api_check_term_condition($user_id);
-            // @todo not sure why we need the login password and update_term_status
-            if ($termAndConditionStatus === false) {
-                Session::write('term_and_condition', ['user_id' => $user_id]);
-            } else {
-                Session::erase('term_and_condition');
-            }
-
-            $termsAndCondition = Session::read('term_and_condition');
-
-            if (isset($termsAndCondition['user_id'])) {
-                // user id
-                $user_id = $termsAndCondition['user_id'];
-                // Update the terms & conditions
-                $legal_type = null;
-                // Verify type of terms and conditions
-                if (isset($_POST['legal_info'])) {
-                    $info_legal = explode(':', $_POST['legal_info']);
-                    $legal_type = LegalManager::get_type_of_terms_and_conditions(
-                        $info_legal[0],
-                        $info_legal[1]
-                    );
-                }
-
-                // is necessary verify check
-                if ($legal_type === 1) {
-                    if (isset($_POST['legal_accept']) && $_POST['legal_accept'] == '1') {
-                        $legal_option = true;
-                    } else {
-                        $legal_option = false;
-                    }
-                }
-
-                // no is check option
-                if ($legal_type == 0) {
-                    $legal_option = true;
-                }
-
-                if (isset($_POST['legal_accept_type']) && $legal_option === true) {
-                    $cond_array = explode(':', $_POST['legal_accept_type']);
-                    if (!empty($cond_array[0]) && !empty($cond_array[1])) {
-                        $time = time();
-                        $condition_to_save = intval($cond_array[0]).':'.intval($cond_array[1]).':'.$time;
-                        UserManager::update_extra_field_value(
-                            $user_id,
-                            'legal_accept',
-                            $condition_to_save
-                        );
-                    }
-                }
-
-                $redirect = true;
-                $allow = api_get_configuration_value('allow_public_course_with_no_terms_conditions');
-                if ($allow === true &&
-                    isset($_course['visibility']) &&
-                    $_course['visibility'] == COURSE_VISIBILITY_OPEN_WORLD
-                ) {
-                    $redirect = false;
-                }
-                if ($redirect && !api_is_platform_admin()) {
-                    $url = api_get_path(WEB_CODE_PATH).'auth/inscription.php';
-                    header('Location:'.$url);
-                    exit;
-                }
-            }
-        }
-    }
-
     if (isset($user_id) && $user_id && isset($_real_cid) && $_real_cid) {
         // Check if user is subscribed in a course
         $course_user_table = Database::get_main_table(TABLE_MAIN_COURSE_USER);
@@ -1505,7 +1464,7 @@ if ((isset($uidReset) && $uidReset) || $cidReset) {
                 $is_courseAdmin = true;
             }
         } else {
-            // User has not access to the course
+            // User has no access to the course
             // This will check if the course was added in one of his sessions
             // Then it will be redirected to that course-session
             if ($is_courseMember === false && $is_platformAdmin === false) {
@@ -1579,6 +1538,101 @@ if ((isset($uidReset) && $uidReset) || $cidReset) {
         $is_courseTutor = false;
         $is_session_general_coach = false;
         $is_sessionAdmin = false;
+    }
+
+    if (isset($_cid) && $_cid) {
+        $my_user_id = isset($user_id) ? (int) $user_id : 0;
+        $variable = 'accept_legal_'.$my_user_id.'_'.$_course['real_id'].'_'.$session_id;
+
+        $user_pass_open_course = false;
+        if (api_check_user_access_to_legal($_course) && Session::read($variable)) {
+            $user_pass_open_course = true;
+        }
+
+        // Checking if the user filled the course legal agreement
+        if ($_course['activate_legal'] == 1 && !api_is_platform_admin() && !api_is_anonymous()) {
+            $user_is_subscribed = CourseManager::is_user_accepted_legal(
+                $user_id,
+                $_course['id'],
+                $session_id
+            ) || $user_pass_open_course;
+            if (!$user_is_subscribed) {
+                $url = api_get_path(WEB_CODE_PATH).'course_info/legal.php?course_code='.$_course['code'].'&session_id='.$session_id;
+                header('Location: '.$url);
+                exit;
+            }
+        }
+
+        // Platform legal terms and conditions
+        if (api_get_setting('allow_terms_conditions') === 'true' &&
+            api_get_setting('load_term_conditions_section') === 'course'
+        ) {
+            $termAndConditionStatus = api_check_term_condition($user_id);
+            // @todo not sure why we need the login password and update_term_status
+            if ($termAndConditionStatus === false) {
+                Session::write('term_and_condition', ['user_id' => $user_id]);
+            } else {
+                Session::erase('term_and_condition');
+            }
+
+            $termsAndCondition = Session::read('term_and_condition');
+
+            if (isset($termsAndCondition['user_id'])) {
+                // user id
+                $user_id = $termsAndCondition['user_id'];
+                // Update the terms & conditions
+                $legal_type = null;
+                // Verify type of terms and conditions
+                if (isset($_POST['legal_info'])) {
+                    $info_legal = explode(':', $_POST['legal_info']);
+                    $legal_type = LegalManager::get_type_of_terms_and_conditions(
+                        $info_legal[0],
+                        $info_legal[1]
+                    );
+                }
+
+                // is necessary verify check
+                if ($legal_type === 1) {
+                    if (isset($_POST['legal_accept']) && $_POST['legal_accept'] == '1') {
+                        $legal_option = true;
+                    } else {
+                        $legal_option = false;
+                    }
+                }
+
+                // no is check option
+                if ($legal_type == 0) {
+                    $legal_option = true;
+                }
+
+                if (isset($_POST['legal_accept_type']) && $legal_option === true) {
+                    $cond_array = explode(':', $_POST['legal_accept_type']);
+                    if (!empty($cond_array[0]) && !empty($cond_array[1])) {
+                        $time = time();
+                        $condition_to_save = intval($cond_array[0]).':'.intval($cond_array[1]).':'.$time;
+                        UserManager::update_extra_field_value(
+                            $user_id,
+                            'legal_accept',
+                            $condition_to_save
+                        );
+                    }
+                }
+
+                $redirect = true;
+                $allow = api_get_configuration_value('allow_public_course_with_no_terms_conditions');
+                if ($allow === true &&
+                    isset($_course['visibility']) &&
+                    $_course['visibility'] == COURSE_VISIBILITY_OPEN_WORLD
+                ) {
+                    $redirect = false;
+                }
+                if ($redirect && !api_is_platform_admin()) {
+                    $url = api_get_path(WEB_CODE_PATH).'auth/inscription.php';
+                    header('Location:'.$url);
+                    exit;
+                }
+            }
+        }
     }
 
     // Checking the course access

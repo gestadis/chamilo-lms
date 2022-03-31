@@ -20,6 +20,9 @@ class OAuth2 extends Plugin
 
     const SETTING_ENABLE = 'enable';
 
+    const SETTING_FORCE_REDIRECT = 'force_redirect';
+    const SETTING_SKIP_FORCE_REDIRECT_IN = 'skip_force_redirect_in';
+
     const SETTING_CLIENT_ID = 'client_id';
     const SETTING_CLIENT_SECRET = 'client_secret';
 
@@ -64,7 +67,10 @@ class OAuth2 extends Plugin
             [
                 self::SETTING_ENABLE => 'boolean',
 
-                self::SETTING_CLIENT_ID => 'text',
+        self::SETTING_FORCE_REDIRECT => 'boolean',
+                self::SETTING_SKIP_FORCE_REDIRECT_IN => 'text',
+
+        self::SETTING_CLIENT_ID => 'text',
                 self::SETTING_CLIENT_SECRET => 'text',
 
                 self::SETTING_AUTHORIZE_URL => 'text',
@@ -367,7 +373,7 @@ class OAuth2 extends Plugin
             $key = $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_URLS);
             if (!empty($key)) {
                 $availableUrls = [];
-                foreach (URLManager::get_url_data() as $existingUrl) {
+                foreach (UrlManager::get_url_data() as $existingUrl) {
                     $urlId = $existingUrl['id'];
                     $availableUrls[strval($urlId)] = $urlId;
                     $availableUrls[$existingUrl['url']] = $urlId;
@@ -384,14 +390,14 @@ class OAuth2 extends Plugin
                     }
                 }
                 $grantedUrlIds = [];
-                foreach (URLManager::get_access_url_from_user($userId) as $grantedUrl) {
+                foreach (UrlManager::get_access_url_from_user($userId) as $grantedUrl) {
                     $grantedUrlIds[] = $grantedUrl['access_url_id'];
                 }
                 foreach (array_diff($grantedUrlIds, $allowedUrlIds) as $extraUrlId) {
-                    URLManager::delete_url_rel_user($userId, $extraUrlId);
+                    UrlManager::delete_url_rel_user($userId, $extraUrlId);
                 }
                 foreach (array_diff($allowedUrlIds, $grantedUrlIds) as $missingUrlId) {
-                    URLManager::add_user_to_url($userId, $missingUrlId);
+                    UrlManager::add_user_to_url($userId, $missingUrlId);
                 }
             }
         }

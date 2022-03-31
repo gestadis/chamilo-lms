@@ -436,6 +436,30 @@ $_configuration['agenda_colors'] = [
     'student_publication' => '#FF8C00'
 ];
 */
+// Display sessions ocuppations in personal agenda
+//$_configuration['personal_calendar_show_sessions_occupation'] = false;
+// It allows to send invitations to friends for an agenda event. Requires DB changes:
+/*
+CREATE TABLE agenda_event_invitee (id BIGINT AUTO_INCREMENT NOT NULL, invitation_id BIGINT DEFAULT NULL, user_id INT DEFAULT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, INDEX IDX_4F5757FEA35D7AF0 (invitation_id), INDEX IDX_4F5757FEA76ED395 (user_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+CREATE TABLE agenda_event_invitation (id BIGINT AUTO_INCREMENT NOT NULL, creator_id INT DEFAULT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, INDEX IDX_52A2D5E161220EA6 (creator_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+ALTER TABLE agenda_event_invitee ADD CONSTRAINT FK_4F5757FEA35D7AF0 FOREIGN KEY (invitation_id) REFERENCES agenda_event_invitation (id) ON DELETE CASCADE;
+ALTER TABLE agenda_event_invitee ADD CONSTRAINT FK_4F5757FEA76ED395 FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE SET NULL;
+ALTER TABLE agenda_event_invitation ADD CONSTRAINT FK_52A2D5E161220EA6 FOREIGN KEY (creator_id) REFERENCES user (id) ON DELETE CASCADE;
+ALTER TABLE personal_agenda ADD agenda_event_invitation_id BIGINT DEFAULT NULL, ADD collective TINYINT(1) NOT NULL;
+ALTER TABLE personal_agenda ADD CONSTRAINT FK_D8612460AF68C6B FOREIGN KEY (agenda_event_invitation_id) REFERENCES agenda_event_invitation (id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX UNIQ_D8612460AF68C6B ON personal_agenda (agenda_event_invitation_id);
+*/
+// Then add the "@" symbol to AgendaEventInvitation and AgendaEventInvitee classes in the ORM\Entity() line.
+// Then uncomment the "use EventCollectiveTrait;" line in the PersonalAgenda class.
+//$_configuration['agenda_collective_invitations'] = false;
+// Enable reminders for agenda events. Requires database changes:
+/*
+ CREATE TABLE agenda_reminder (id BIGINT AUTO_INCREMENT NOT NULL, type VARCHAR(255) NOT NULL, event_id INT NOT NULL, date_interval VARCHAR(255) NOT NULL COMMENT '(DC2Type:dateinterval)', sent TINYINT(1) NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8 COLLATE `utf8_unicode_ci` ENGINE = InnoDB;
+*/
+// Then add the "@" symbol to AgendaReminder class in the ORM\Entity() line.
+//$_configuration['agenda_reminders'] = false;
+// Sets the sender ID when using the cron main/cron/agenda_reminders.php to send reminders in course events.
+//$_configuration['agenda_reminders_sender_id'] = 0;
 // ------
 //
 // Save some tool titles with HTML editor. Require DB changes:
@@ -492,6 +516,8 @@ ALTER TABLE sys_announcement ADD COLUMN visible_boss INT DEFAULT 0;
 //$_configuration['lp_category_accordion'] = false;
 // Show the best progress instead of averages in reporting of learnpaths
 // $_configuration['lp_show_max_progress_instead_of_average'] = false;
+// Enable redefinition of the setting to show the best progress instead of averages in reporting of learnpaths at a course level.
+// $_configuration['lp_show_max_progress_or_average_enable_course_level_redefinition'] = false;
 // Show view accordion lp_item_view
 // $_configuration['lp_view_accordion'] = false;
 // Allow export learning paths to students
@@ -529,7 +555,9 @@ ALTER TABLE sys_announcement ADD COLUMN visible_boss INT DEFAULT 0;
 // The provided default is an *example*, please customize.
 // This setting is particularly complicated to set with CKeditor, but if you
 // add all domains that you want to authorize for iframes inclusion in the
-// child-src statement, this example should work for you
+// child-src statement, this example should work for you.
+// You can prevent JavaScript from executing from external sources (including
+// inside SVG images) by using a strict list in the "script-src" argument.
 //$_configuration['security_content_policy'] = 'default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; child-src 'self' *.youtube.com yt.be *.vimeo.com *.slideshare.com;';
 //$_configuration['security_content_policy_report_only'] = 'default-src \'self\'; script-src *://*.google.com:*';
 //
@@ -932,6 +960,9 @@ ALTER TABLE skill_rel_course ADD CONSTRAINT FK_E7CEC7FA613FECDF FOREIGN KEY (ses
 // 4. Set "allow_skill_rel_items" to true
 //$_configuration['allow_skill_rel_items'] = false;
 
+// Allows to send a notification when a user has achieved a skill
+//$_configuration['badge_assignation_notification'] = false;
+
 // Generate random login when importing users
 //$_configuration['generate_random_login'] = false;
 
@@ -1021,6 +1052,8 @@ ALTER TABLE portfolio_category ADD parent_id INT(11) NOT NULL DEFAULT 0;
 
 // Enable speed controller in video player
 // $_configuration['video_features'] = ['features' => ['speed']];
+// Hide the context menu on video player
+//$_configuration['video_context_menu_hidden'] = false;
 
 // Disable token verification when sending a message
 // $_configuration['disable_token_in_new_message'] = false;
@@ -1861,6 +1894,9 @@ $_configuration['auth_password_links'] = [
 //ALTER TABLE c_quiz_question_rel_category ADD COLUMN mandatory INT DEFAULT 0;
 //$_configuration['allow_mandatory_question_in_category'] = false;
 
+// Discard orphan questions from course copies/backups
+//$_configuration['quiz_discard_orphan_in_course_export'] = false;
+
 // Resource sequence: Validate course in the same session.
 //$_configuration['course_sequence_valid_only_in_same_session'] = false;
 
@@ -1894,6 +1930,12 @@ $_configuration['auth_password_links'] = [
 
 // For a student: Shows only the list of teachers from my courses in the Chamilo inbox.
 // $_configuration['send_only_messages_to_teachers'] = true;
+
+// Allows add tag to filter messages in inbox. Requires add an tag type extrafield for messages.
+/*
+INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, default_value, field_order, visible_to_self, visible_to_others, changeable, filter, created_at) VALUES (22, 10, 'tags', 'Tags', '', 0, 1,	0, 1, 1, NOW());
+*/
+//$_configuration['enable_message_tags'] = false;
 
 // Survey duplicate: Order survey questions by student name
 // $_configuration['survey_duplicate_order_by_name'] = true;
@@ -2033,6 +2075,91 @@ VALUES (21, 13, 'send_notification_at_a_specific_date', 'Send notification at a 
 
 // Option to hide the teachers info on courses about info page.
 //$_configuration['course_about_teacher_name_hide'] = false;
+
+// Hides the option "Never expire" for expiration date in add/edit user page
+//$_configuration['user_hide_never_expire_option'] = false;
+
+// Allow multiple languages to a course
+// as a selection bar for languages used in the course.
+// Add another field "multilingual" to be used separately as a true/false
+// field to represent the fact that the course can have content in multiple
+// languages (without precision).
+// Requires DB change:
+/*
+INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `display_text`, `default_value`, `field_order`, `visible_to_self`, `visible_to_others`, `changeable`, `filter`, `created_at`) VALUES
+(2,     5,      'multiple_language',    'Multiple Language', '',        0,      1,      0,      1,      0,      NOW());
+*/
+//$_configuration['allow_course_multiple_languages'] = false;
+
+// Update user expiration in x days or months when login the first time
+/*$_configuration['update_student_expiration_x_date'] = [
+    'days' => 0,
+    'months' => 0,
+];*/
+
+// Enables to define which user status to show when option is true from $_configuration['user_status_show_option']
+//$_configuration['user_status_show_options_enabled'] = false;
+// The user status is hidden when is false, it requires $_configuration['user_status_show_options_enabled'] = true
+/*$_configuration['user_status_show_option'] = [
+        'COURSEMANAGER' => true,
+        'STUDENT' => true,
+        'DRH' => false,
+        'SESSIONADMIN' => false,
+        'STUDENT_BOSS' => false,
+        'INVITEE' => false
+];*/
+
+// Allow learnpath prerequisite on quiz to unblock if maximum attempt is reached
+//$_configuration['lp_prerequisit_on_quiz_unblock_if_max_attempt_reached'] = false;
+
+// Enables to hide user status when option is true visible only for admins from $_configuration['user_status_option_show_only_for_admin']
+//$_configuration['user_status_option_only_for_admin_enabled'] = false;
+// The user status is hidden when is false, it requires $_configuration['user_status_option_only_for_admin_enabled'] = true
+/*$_configuration['user_status_option_show_only_for_admin'] = [
+        'COURSEMANAGER' => false,
+        'STUDENT' => false,
+        'DRH' => false,
+        'SESSIONADMIN' => true,
+        'STUDENT_BOSS' => false,
+        'INVITEE' => false
+
+// Set the default expiration date when a user is created by role and days
+/*$_configuration['user_number_of_days_for_default_expiration_date_per_role'] = [
+        'COURSEMANAGER' => 365,
+        'STUDENT' => 31,
+        'DRH' => 31,
+        'SESSIONADMIN' => 60,
+        'STUDENT_BOSS' => 60,
+        'INVITEE' => 31
+];*/
+
+// Course extra fields to be presented on main/create_course/add_course.php
+//$_configuration['course_creation_by_teacher_extra_fields_to_show'] = ['fields' => ['ExtrafieldLabel1', 'ExtrafieldLabel2']];
+
+// Configuration setting to make some extra field required in course creation form.
+//$_configuration['course_creation_form_set_extra_fields_mandatory'] = ['fields' => ['fieldLabel1','fieldLabel2']];
+
+// Course extra fields to be presented on course settings
+//$_configuration['course_configuration_tool_extra_fields_to_show_and_edit'] = ['fields' => ['ExtrafieldLabel1', 'ExtrafieldLabel2']];
+
+// Relation to prefill course extra field with user extra field on course creacion on main/create_course/add_course.php and main/admin/course_add.php
+/*$_configuration['course_creation_user_course_extra_field_relation_to_prefill'] = [
+    'fields' => [
+        'CourseExtrafieldLabel1' => 'UserExtrafieldLabel1',
+        'CourseExtrafieldLabel2' => 'UserExtrafieldLabel2',
+    ]
+];*/
+
+// Hides the icon of percentage in "Average of tests in Learning Paths" indication on a student tracking
+// $_configuration['student_follow_page_hide_lp_tests_average'] = false;
+
+// Add navigation to the next or previous lp without going to the list.
+// Requires DB change:
+// ALTER TABLE c_lp ADD next_lp_id int(11) NOT NULL DEFAULT '0';
+//$_configuration['lp_enable_flow'] = false;
+
+// User extra fields to be check on user edition to generate a specific process if it was modified
+//$_configuration['user_edition_extra_field_to_check'] = 'ExtrafieldLabel';
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes

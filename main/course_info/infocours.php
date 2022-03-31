@@ -129,6 +129,10 @@ $form->applyFilter('department_url', 'html_filter');
 $extra_field = new ExtraField('course');
 $extraFieldAdminPermissions = false;
 $showOnlyTheseFields = ['tags', 'video_url', 'course_hours_duration', 'max_subscribed_students'];
+$extraFieldsToShow = api_get_configuration_value('course_configuration_tool_extra_fields_to_show_and_edit');
+if (false !== $extraFieldsToShow && !empty($extraFieldsToShow['fields'])) {
+    $showOnlyTheseFields = array_merge($showOnlyTheseFields, $extraFieldsToShow['fields']);
+}
 $extra = $extra_field->addElements(
     $form,
     $courseId,
@@ -708,6 +712,26 @@ if ($allowLPReturnLink === 'true') {
         ),
     ];
     $form->addGroup($group, '', [get_lang('LpReturnLink')]);
+}
+
+if (api_get_configuration_value('lp_show_max_progress_or_average_enable_course_level_redefinition')) {
+    $group = [
+        $form->createElement(
+            'radio',
+            'lp_show_max_or_average_progress',
+            null,
+            get_lang('LpMaxProgress'),
+            'max'
+        ),
+        $form->createElement(
+            'radio',
+            'lp_show_max_or_average_progress',
+            null,
+            get_lang('LpAverageProgress'),
+            'average'
+        ),
+    ];
+    $form->addGroup($group, '', [get_lang('lpShowMaxProgressOrAverage')]);
 }
 
 $exerciseInvisible = api_get_setting('exercise_invisible_in_session');

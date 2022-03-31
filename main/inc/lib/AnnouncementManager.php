@@ -4,6 +4,7 @@
 use Chamilo\CoreBundle\Entity\ExtraField as ExtraFieldEntity;
 use Chamilo\CoreBundle\Entity\ExtraFieldValues;
 use Chamilo\CourseBundle\Entity\CAnnouncement;
+use Chamilo\CourseBundle\Entity\CCalendarEvent;
 use Chamilo\CourseBundle\Entity\CItemProperty;
 
 /**
@@ -34,6 +35,7 @@ class AnnouncementManager
             '((user_email))',
             '((user_firstname))',
             '((user_lastname))',
+            '((user_picture))',
             '((user_official_code))',
             '((course_title))',
             '((course_link))',
@@ -107,6 +109,7 @@ class AnnouncementManager
             $data['user_official_code'] = $readerInfo['official_code'];
         }
 
+        $data['user_picture'] = UserManager::getUserPicture($userId, USER_IMAGE_SIZE_ORIGINAL);
         $data['course_title'] = $courseInfo['name'] ?? '';
         $courseLink = api_get_course_url($courseCode, $sessionId);
         $data['course_link'] = Display::url($courseLink, $courseLink);
@@ -2231,5 +2234,41 @@ class AnnouncementManager
         $result = Database::query($sql);
 
         return Database::num_rows($result);
+    }
+
+    public static function createEvent(
+        int $announcementId,
+        string $startDate,
+        string $endDate,
+        array $choosenUsers = [],
+        array $reminders = []
+    ): ?CCalendarEvent {
+        $em = Database::getManager();
+        $announcement = $em->find('ChamiloCourseBundle:CAnnouncement', $announcementId);
+        $agenda = new Agenda('course');
+
+        $eventId = $agenda->addEvent(
+            $startDate,
+            $endDate,
+            '',
+            $announcement->getTitle(),
+            $announcement->getContent(),
+            $choosenUsers,
+            false,
+            null,
+            [],
+            [],
+            null,
+            '',
+            [],
+            false,
+            $reminders
+        );
+
+        if ($eventId) {
+            return $em->find('ChamiloCourseBundle:CCalendarEvent', $eventId);
+        }
+
+        return null;
     }
 }
