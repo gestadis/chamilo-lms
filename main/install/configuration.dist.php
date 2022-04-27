@@ -1527,6 +1527,16 @@ id INT unsigned NOT NULL auto_increment PRIMARY KEY,
         event_type VARCHAR(255)
     );
 ALTER TABLE notification_event ADD COLUMN event_id INT NULL;
+CREATE TABLE IF NOT EXISTS notification_event_rel_user (
+    id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    event_id INT unsigned,
+    user_id INT,
+    INDEX FK_EVENT (event_id),
+    INDEX FK_USER (user_id),
+    PRIMARY KEY (id)
+);
+ALTER TABLE notification_event_rel_user ADD CONSTRAINT FK_EVENT FOREIGN KEY (event_id) REFERENCES notification_event (id) ON DELETE CASCADE;
+ALTER TABLE notification_event_rel_user ADD CONSTRAINT FK_USER FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE;
 */
 // create new user text extra field called 'notification_event' to save the persistent settings.
 // $_configuration['notification_event'] = false;
@@ -1538,6 +1548,11 @@ ALTER TABLE notification_event ADD COLUMN event_id INT NULL;
 // ALTER TABLE sys_announcement ADD COLUMN career_id INT DEFAULT 0;
 // ALTER TABLE sys_announcement ADD COLUMN promotion_id INT DEFAULT 0;
 //$_configuration['allow_careers_in_global_announcements'] = false;
+
+// Allow career/promotions in global calendar. Require DB changes:
+// ALTER TABLE sys_calendar ADD COLUMN career_id INT DEFAULT 0;
+// ALTER TABLE sys_calendar ADD COLUMN promotion_id INT DEFAULT 0;
+//$_configuration['allow_careers_in_global_agenda'] = false;
 
 // Hide start/end dates in "My courses" page (user_portal.php)
 //$_configuration['hide_session_dates_in_user_portal'] = false;
@@ -1648,6 +1663,9 @@ $_configuration['course_catalog_settings'] = [
     ],
 ];
 */
+
+// Display the course catalog in home page
+//$_configuration['course_catalog_display_in_home'] = false;
 
 // Page "My Courses" shows specific course extra fields (CourseManager::getExtraFieldsToBePresented)
 /*$_configuration['my_course_course_extrafields_to_be_presented'] = [
@@ -2036,6 +2054,8 @@ ALTER TABLE gradebook_comment ADD CONSTRAINT FK_C3B70763AD3ED51C FOREIGN KEY (gr
 
 // Disable webservices.
 //$_configuration['disable_webservices'] = true;
+// Enable admin-only APIs: get_users_api_keys, get_user_api_key
+//$_configuration['webservice_enable_adminonly_api'] = false;
 
 // Ask user to renew password at first login.
 // Requires a user checkbox extra field called "ask_new_password".
@@ -2160,6 +2180,13 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 
 // User extra fields to be check on user edition to generate a specific process if it was modified
 //$_configuration['user_edition_extra_field_to_check'] = 'ExtrafieldLabel';
+
+// Enable skills in subcategory to work independant on assignement
+// Require DB changes:
+// ALTER TABLE gradebook_category ADD allow_skills_by_subcategory tinyint(1) NOT NULL DEFAULT '1';
+// Requires edit Entity GradebookCategory: src/Chamilo/CoreBundle/Entity/GradebookCategory.php uncomment "allowSkillsBySubcategory" variable.
+// Requires uncomment the allowSkillsBySubcategory get and set
+//$_configuration['gradebook_enable_subcategory_skills_independant_assignement'] = false;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes
