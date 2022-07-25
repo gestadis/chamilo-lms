@@ -86,7 +86,7 @@ class ExerciseLib
                     if ($exercise->display_category_name) {
                         TestCategory::displayCategoryAndTitle($objQuestionTmp->iid);
                     }
-                    $titleToDisplay = Security::remove_XSS($objQuestionTmp->getTitleToDisplay($current_item));
+                    $titleToDisplay = Security::remove_XSS($objQuestionTmp->getTitleToDisplay($current_item, $exerciseId));
                     if ($answerType == READING_COMPREHENSION) {
                         // In READING_COMPREHENSION, the title of the question
                         // contains the question itself, which can only be
@@ -1617,7 +1617,7 @@ HTML;
                     if ($exercise->display_category_name) {
                         TestCategory::displayCategoryAndTitle($objQuestionTmp->iid);
                     }
-                    echo $objQuestionTmp->getTitleToDisplay($current_item);
+                    echo $objQuestionTmp->getTitleToDisplay($current_item, $exerciseId);
                 }
 
                 if ($questionRequireAuth) {
@@ -1695,7 +1695,7 @@ HOTSPOT;
                     if ($exercise->display_category_name) {
                         TestCategory::displayCategoryAndTitle($objQuestionTmp->iid);
                     }
-                    echo $objQuestionTmp->getTitleToDisplay($current_item);
+                    echo $objQuestionTmp->getTitleToDisplay($current_item, $exerciseId);
                 }
 
                 if ($questionRequireAuth) {
@@ -2666,6 +2666,7 @@ HOTSPOT;
             $thousandSeparator = '';
         }
 
+        $hideIp = api_get_configuration_value('exercise_hide_ip');
         $listInfo = [];
         // Simple exercises
         if (empty($hotpotatoe_where)) {
@@ -3187,11 +3188,17 @@ HOTSPOT;
                             $attempt['total'] = $onlyTotal;
                             $attempt['lp'] = $lp_name;
                             $attempt['actions'] = $actions;
+                            if ($hideIp && isset($attempt['user_ip'])) {
+                                unset($attempt['user_ip']);
+                            }
                             $listInfo[] = $attempt;
                         } else {
                             $attempt['status'] = $revisedLabel;
                             $attempt['score'] = $score;
                             $attempt['actions'] = $actions;
+                            if ($hideIp && isset($attempt['user_ip'])) {
+                                unset($attempt['user_ip']);
+                            }
                             $listInfo[] = $attempt;
                         }
                     }
@@ -6121,7 +6128,7 @@ EOT;
             UNIQUE_ANSWER_IMAGE,
             READING_COMPREHENSION,
             MULTIPLE_ANSWER_TRUE_FALSE_DEGREE_CERTAINTY,
-	    UPLOAD_ANSWER,
+            UPLOAD_ANSWER,
             MATCHING_GLOBAL,
             FILL_IN_BLANKS_GLOBAL,
         ];
@@ -6401,11 +6408,10 @@ EOT;
         return $total;
     }
 
-    public static function getWrongQuestionResults($courseId, $exerciseId, $sessionId = 0, $groups = [], $users = [], $limit = 10)
+    public static function getWrongQuestionResults($courseId, $exerciseId, $sessionId = 0, $groups = [], $users = [])
     {
         $courseId = (int) $courseId;
         $exerciseId = (int) $exerciseId;
-        $limit = (int) $limit;
 
         $questionTable = Database::get_course_table(TABLE_QUIZ_QUESTION);
         $attemptTable = Database::get_main_table(TABLE_STATISTIC_TRACK_E_ATTEMPT);
@@ -6452,7 +6458,6 @@ EOT;
                     $userCondition
                 GROUP BY q.iid
                 ORDER BY count DESC
-                LIMIT $limit
         ";
 
         $result = Database::query($sql);

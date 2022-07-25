@@ -62,6 +62,8 @@ class OAuth2 extends Plugin
 
     public const EXTRA_FIELD_OAUTH2_ID = 'oauth2_id';
 
+    private const DEBUG = false;
+
     protected function __construct()
     {
         parent::__construct(
@@ -189,7 +191,10 @@ class OAuth2 extends Plugin
         $url = $provider->getResourceOwnerDetailsUrl($accessToken);
         $request = $provider->getAuthenticatedRequest($provider::METHOD_GET, $url, $accessToken);
         $response = $provider->getParsedResponse($request);
+        $this->log('response', print_r($response, true));
+
         if (false === is_array($response)) {
+            $this->log('invalid response', print_r($response, true));
             throw new UnexpectedValueException($this->get_lang('InvalidJsonReceivedFromProvider'));
         }
         $resourceOwnerId = $this->getValueByKey(
@@ -197,57 +202,86 @@ class OAuth2 extends Plugin
             $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_ID)
         );
         if (empty($resourceOwnerId)) {
+            $this->log('missing setting', 'response_resource_owner_id');
             throw new RuntimeException($this->get_lang('WrongResponseResourceOwnerId'));
         }
+        $this->log('response resource owner id', $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_ID));
         $extraFieldValue = new ExtraFieldValue('user');
         $result = $extraFieldValue->get_item_id_from_field_variable_and_field_value(
             self::EXTRA_FIELD_OAUTH2_ID,
             $resourceOwnerId
         );
         if (false === $result) {
-            // authenticated user not found in internal database
-            if ('true' !== $this->get(self::SETTING_CREATE_NEW_USERS)) {
-                throw new RuntimeException($this->get_lang('NoUserHasThisOauthCode'));
-            }
-            require_once __DIR__.'/../../../main/auth/external_login/functions.inc.php';
-            $userId = external_add_user(
-                [
-                    'firstname' => $this->getValueByKey(
-                        $response,
-                        $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_FIRSTNAME),
-                        $this->get_lang('DefaultFirstname')
-                    ),
-                    'lastname' => $this->getValueByKey(
-                        $response,
-                        $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_LASTNAME),
-                        $this->get_lang('DefaultLastname')
-                    ),
-                    'status' => $this->getValueByKey(
-                        $response,
-                        $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_STATUS),
-                        STUDENT
-                    ),
-                    'email' => $this->getValueByKey(
-                        $response,
-                        $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_EMAIL),
-                        'oauth2user_'.$resourceOwnerId.'@'.(gethostname() or 'localhost')
-                    ),
-                    'username' => $this->getValueByKey(
-                        $response,
-                        $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_USERNAME),
-                        'oauth2user_'.$resourceOwnerId
-                    ),
-                    'auth_source' => 'oauth2',
-                ]
+            $this->log('user not found', "extrafield 'oauth2_id' with value '$resourceOwnerId'");
+
+            $username = $this->getValueByKey(
+                $response,
+                $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_USERNAME),
+                'oauth2user_'.$resourceOwnerId
             );
-            if (false === $userId) {
-                throw new RuntimeException($this->get_lang('FailedUserCreation'));
+
+            $userInfo = api_get_user_info_from_username($username);
+
+            if (false !== $userInfo && !empty($userInfo['id']) && 'platform' === $userInfo['auth_source']) {
+                $this->log('platform user exists', print_r($userInfo, true));
+
+                $userId = $userInfo['id'];
+            } else {
+                // authenticated user not found in internal database
+                if ('true' !== $this->get(self::SETTING_CREATE_NEW_USERS)) {
+                    $this->log('exception', 'create_new_users setting is disabled');
+                    $message = sprintf(
+                        $this->get_lang('NoUserAccountAndUserCreationNotAllowed'),
+                        Display::encrypted_mailto_link(api_get_setting('emailAdministrator'))
+                    );
+                    throw new RuntimeException($message);
+                }
+
+                require_once __DIR__.'/../../../main/auth/external_login/functions.inc.php';
+
+                $firstName = $this->getValueByKey(
+                    $response,
+                    $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_FIRSTNAME),
+                    $this->get_lang('DefaultFirstname')
+                );
+                $lastName = $this->getValueByKey(
+                    $response,
+                    $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_LASTNAME),
+                    $this->get_lang('DefaultLastname')
+                );
+                $status = $this->getValueByKey(
+                    $response,
+                    $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_STATUS),
+                    STUDENT
+                );
+                $email = $this->getValueByKey(
+                    $response,
+                    $this->get(self::SETTING_RESPONSE_RESOURCE_OWNER_EMAIL),
+                    'oauth2user_'.$resourceOwnerId.'@'.(gethostname() or 'localhost')
+                );
+
+                $userInfo = [
+                    'firstname' => $firstName,
+                    'lastname' => $lastName,
+                    'status' => $status,
+                    'email' => $email,
+                    'username' => $username,
+                    'auth_source' => 'oauth2',
+                ];
+                $userId = external_add_user($userInfo);
+                if (false === $userId) {
+                    $this->log('user not created', print_r($userInfo, true));
+                    throw new RuntimeException($this->get_lang('FailedUserCreation'));
+                }
+                $this->log('user created', (string) $userId);
             }
+
             $this->updateUser($userId, $response);
             // Not checking function update_extra_field_value return value because not reliable
             UserManager::update_extra_field_value($userId, self::EXTRA_FIELD_OAUTH2_ID, $resourceOwnerId);
             $this->updateUserUrls($userId, $response);
         } else {
+            $this->log('user found', "extrafield 'oauth2_id' with value '$resourceOwnerId'");
             // authenticated user found in internal database
             if (is_array($result) and array_key_exists('item_id', $result)) {
                 $userId = $result['item_id'];
@@ -261,8 +295,11 @@ class OAuth2 extends Plugin
         }
         $userInfo = api_get_user_info($userId);
         if (empty($userInfo)) {
+            $this->log('user info not found', (string) $userId);
             throw new LogicException($this->get_lang('InternalErrorCannotGetUserInfo'));
         }
+
+        $this->log('user info', print_r($userInfo, true));
 
         return $userInfo;
     }
@@ -424,6 +461,13 @@ class OAuth2 extends Plugin
                     UrlManager::add_user_to_url($userId, $missingUrlId);
                 }
             }
+        }
+    }
+
+    private function log(string $key, string $content)
+    {
+        if (self::DEBUG) {
+            error_log("OAuth2 plugin: $key: $content");
         }
     }
 }

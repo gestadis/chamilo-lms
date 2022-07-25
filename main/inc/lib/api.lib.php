@@ -192,6 +192,10 @@ define('LOG_GROUP_PORTAL_REL_USER_ARRAY', 'soc_gr_user_array');
 define('LOG_GROUP_PORTAL_USER_SUBSCRIBED', 'soc_gr_u_subs');
 define('LOG_GROUP_PORTAL_USER_UNSUBSCRIBED', 'soc_gr_u_unsubs');
 define('LOG_GROUP_PORTAL_USER_UPDATE_ROLE', 'soc_gr_update_role');
+define('LOG_GROUP_PORTAL_COURSE_SUBSCRIBED', 'soc_gr_c_subs');
+define('LOG_GROUP_PORTAL_COURSE_UNSUBSCRIBED', 'soc_gr_c_unsubs');
+define('LOG_GROUP_PORTAL_SESSION_SUBSCRIBED', 'soc_gr_s_subs');
+define('LOG_GROUP_PORTAL_SESSION_UNSUBSCRIBED', 'soc_gr_s_unsubs');
 
 define('LOG_USER_DELETE', 'user_deleted');
 define('LOG_USER_CREATE', 'user_created');
@@ -2504,8 +2508,9 @@ function api_generate_password($length = 8)
         $length = 2;
     }
 
-    $charactersLowerCase = 'abcdefghijkmnopqrstuvwxyz';
-    $charactersUpperCase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    $charactersLowerCase = Security::CHAR_LOWER;
+    $charactersUpperCase = Security::CHAR_UPPER;
+
     $minNumbers = 2;
     $length = $length - $minNumbers;
     $minLowerCase = round($length / 2);
@@ -2515,19 +2520,25 @@ function api_generate_password($length = 8)
     $passwordRequirements = api_get_configuration_value('password_requirements');
 
     $factory = new RandomLib\Factory();
-    $generator = $factory->getGenerator(new SecurityLib\Strength(SecurityLib\Strength::MEDIUM));
+    $generator = $factory->getMediumStrengthGenerator();
 
     if (!empty($passwordRequirements)) {
         $length = $passwordRequirements['min']['length'];
         $minNumbers = $passwordRequirements['min']['numeric'];
         $minLowerCase = $passwordRequirements['min']['lowercase'];
         $minUpperCase = $passwordRequirements['min']['uppercase'];
+        $minSpecials = $passwordRequirements['min']['specials'];
 
-        $rest = $length - $minNumbers - $minLowerCase - $minUpperCase;
+        $rest = $length - $minNumbers - $minLowerCase - $minUpperCase - $minSpecials;
         // Add the rest to fill the length requirement
         if ($rest > 0) {
-            $password .= $generator->generateString($rest, $charactersLowerCase.$charactersUpperCase);
+            $password .= $generator->generateString(
+                $rest,
+                $charactersLowerCase.$charactersUpperCase
+            );
         }
+
+        $password .= $generator->generateString($minSpecials, Security::CHAR_SYMBOLS);
     }
 
     // Min digits default 2
@@ -2567,6 +2578,7 @@ function api_check_password($password)
     // Optional
     $minLowerCase = $passwordRequirements['min']['lowercase'];
     $minUpperCase = $passwordRequirements['min']['uppercase'];
+    $minSpecials = $passwordRequirements['min']['specials'];
 
     $minLetters = $minLowerCase + $minUpperCase;
     $passwordLength = api_strlen($password);
@@ -2578,6 +2590,7 @@ function api_check_password($password)
     $digits = 0;
     $lowerCase = 0;
     $upperCase = 0;
+    $specials = 0;
 
     for ($i = 0; $i < $passwordLength; $i++) {
         $currentCharacterCode = api_ord(api_substr($password, $i, 1));
@@ -2591,6 +2604,10 @@ function api_check_password($password)
         if ($currentCharacterCode >= 48 && $currentCharacterCode <= 57) {
             $digits++;
         }
+
+        if (false !== strpos(Security::CHAR_SYMBOLS, $currentCharacterCode)) {
+            $specials++;
+        }
     }
 
     // Min number of digits
@@ -2603,7 +2620,11 @@ function api_check_password($password)
 
     if (!empty($minLowerCase)) {
         // Lowercase
-        $conditions['min_lowercase'] = $upperCase >= $minLowerCase;
+        $conditions['min_lowercase'] = $lowerCase >= $minLowerCase;
+    }
+
+    if (!empty($minSpecials)) {
+        $conditions['min_specials'] = $specials >= $minSpecials;
     }
 
     // Min letters
@@ -2833,8 +2854,13 @@ function api_get_session_visibility(
 
     // I don't care the session visibility.
     if (empty($row['access_start_date']) && empty($row['access_end_date'])) {
+
         // Session duration per student.
         if (isset($row['duration']) && !empty($row['duration'])) {
+            if (api_get_configuration_value('session_coach_access_after_duration_end') == true && api_is_teacher()) {
+                return SESSION_AVAILABLE;
+            }
+
             $duration = $row['duration'] * 24 * 60 * 60;
             $courseAccess = CourseManager::getFirstCourseAccessPerSessionAndUser($session_id, $userId);
 

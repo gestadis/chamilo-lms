@@ -2619,16 +2619,20 @@ class Tracking
     /**
      * Calculates the time spent on the course.
      *
-     * @param int $user_id
-     * @param int $courseId
-     * @param int $session_id
+     * @param int    $user_id
+     * @param int    $courseId
+     * @param int    $session_id
+     * @param string $startDate  date string
+     * @param string $endDate    date string
      *
      * @return int Time in seconds
      */
     public static function get_time_spent_on_the_course(
         $user_id,
         $courseId,
-        $session_id = 0
+        $session_id = 0,
+        $startDate = null,
+        $endDate = null
     ) {
         $courseId = (int) $courseId;
 
@@ -2664,6 +2668,15 @@ class Tracking
 
         if (-1 != $session_id) {
             $sql .= "AND session_id = '$session_id' ";
+        }
+
+        if (!empty($startDate)) {
+            $startDate = api_get_utc_datetime($startDate, false, true);
+            $sql .= " AND login_course_date >= '".$startDate->format('Y-m-d 00:00:00')."' ";
+        }
+        if (!empty($endDate)) {
+            $endDate = api_get_utc_datetime($endDate, false, true);
+            $sql .= " AND login_course_date <= '".$endDate->format('Y-m-d 23:59:59')."' ";
         }
 
         $sql .= $conditionUser;
@@ -3403,7 +3416,9 @@ class Tracking
         $sessionId = null,
         $returnArray = false,
         $onlySeriousGame = false,
-        $maxInsteadAvg = false
+        $maxInsteadAvg = false,
+        $startDate = null,
+        $endDate = null
     ) {
         // If there is at least one learning path and one student.
         if (empty($studentId)) {
@@ -3452,11 +3467,11 @@ class Tracking
         }
 
         $conditions = [
-            " c_id = {$courseInfo['real_id']} ",
+            " lp_view.c_id = {$courseInfo['real_id']} ",
             " lp_view.lp_id IN (".implode(', ', $filteredLP).") ",
         ];
 
-        $groupBy = 'GROUP BY lp_id';
+        $groupBy = 'GROUP BY lp_view.lp_id';
 
         if (is_array($studentId)) {
             $studentId = array_map('intval', $studentId);
@@ -3491,14 +3506,30 @@ class Tracking
             $conditions[] = ' (session_id = 0 OR session_id IS NULL) ';
         }
 
+        $innerJoin = "";
+        if (!empty($startDate) || !empty($endDate)) {
+            $lpItemViewTable = Database::get_course_table(TABLE_LP_ITEM_VIEW);
+            $innerJoin = " INNER JOIN $lpItemViewTable liv ON liv.lp_view_id = lp_view.iid";
+            if (!empty($startDate)) {
+                $startDate = api_get_utc_datetime($startDate, false, true);
+                $startTime = strtotime($startDate->format('Y-m-d 00:00:00'));
+                $conditions[] = " liv.start_time >= '".$startTime."' ";
+            }
+            if (!empty($endDate)) {
+                $endDate = api_get_utc_datetime($endDate, false, true);
+                $endTime = strtotime($endDate->format('Y-m-d 23:59:59'));
+                $conditions[] = " liv.start_time <= '".$endTime."' ";
+            }
+        }
+
         $conditionToString = implode('AND', $conditions);
-        $sql = "SELECT lp_id, view_count, progress
+        $sql = "SELECT lp_view.lp_id, lp_view.view_count, lp_view.progress
                 FROM $lpViewTable lp_view
+                $innerJoin
                 WHERE
                     $conditionToString
                     $groupBy
                 ORDER BY view_count DESC";
-
         $result = Database::query($sql);
 
         $progress = [];
@@ -5298,7 +5329,8 @@ class Tracking
     public static function getInactiveStudentsInCourse(
         $courseId,
         $since = 'never',
-        $session_id = 0
+        $session_id = 0,
+        $userActive = null
     ) {
         $tbl_track_login = Database::get_main_table(TABLE_STATISTIC_TRACK_E_COURSE_ACCESS);
         $tbl_session_course_user = Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER);
@@ -5371,7 +5403,13 @@ class Tracking
         $users = [];
         while ($user = Database::fetch_array($rs)) {
             $userId = $user['user_id'];
-
+            if (isset($userActive)) {
+                $userActive = (int) $userActive;
+                $uInfo = api_get_user_info($userId);
+                if ((int) $uInfo['active'] !== $userActive) {
+                    continue;
+                }
+            }
             if ($allow && $allowPauseFormation) {
                 $pause = $extraFieldValue->get_values_by_handler_and_field_variable($userId, 'pause_formation');
                 if (!empty($pause) && isset($pause['value']) && 1 == $pause['value']) {
@@ -9239,7 +9277,7 @@ class TrackingCourseLog
         $access_url_id = api_get_current_access_url_id();
 
         // get all users data from a course for sortable with limit
-        if (is_array($user_ids)) {
+        if (is_array($user_ids) && !empty($user_ids)) {
             $user_ids = array_map('intval', $user_ids);
             $condition_user = " WHERE user.id IN (".implode(',', $user_ids).") ";
         } else {
@@ -9254,13 +9292,6 @@ class TrackingCourseLog
                 user.lastname LIKE '%".$keyword."%'  OR
                 user.username LIKE '%".$keyword."%'  OR
                 user.email LIKE '%".$keyword."%'
-             ) ";
-        }
-
-        if (isset($_GET['user_active'])) {
-            $active = (int) $_GET['user_active'];
-            $condition_user .= " AND (
-                user.active = $active
              ) ";
         }
 
@@ -9322,7 +9353,7 @@ class TrackingCourseLog
             $direction = 'ASC';
         }
 
-        $column = (int) $column;
+        $column = $column <= 2 ? (int) $column : 0;
         $from = (int) $from;
         $number_of_items = (int) $number_of_items;
 
@@ -9331,6 +9362,16 @@ class TrackingCourseLog
             $row = Database::fetch_array($res);
 
             return $row['count'];
+        }
+
+        $sortByFirstName = api_sort_by_first_name();
+
+        if ($sortByFirstName) {
+            if ($column == 1) {
+                $column = 2;
+            } elseif ($column == 2) {
+                $column = 1;
+            }
         }
 
         $sql .= " ORDER BY col$column $direction ";
@@ -9375,7 +9416,6 @@ class TrackingCourseLog
         $urlBase = api_get_path(WEB_CODE_PATH).'mySpace/myStudents.php?details=true&cidReq='.$courseCode.
             '&course='.$course_code.'&origin=tracking_course&id_session='.$session_id;
 
-        $sortByFirstName = api_sort_by_first_name();
         Session::write('user_id_list', []);
         $userIdList = [];
 

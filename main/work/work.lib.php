@@ -2378,6 +2378,11 @@ function get_work_user_list(
                     $work['qualification'] = $qualification_string.$feedback.$hasCorrection;
                 }
 
+                if (empty($work['qualificator_id'])) {
+                    $finalScore = '?? / '.$work_data['qualification'];
+                    $work['qualification'] = Display::label($finalScore, 'warning');
+                }
+
                 $work['qualification_only'] = $qualification_string;
 
                 // Date.
@@ -4398,7 +4403,7 @@ function getWorkCommentForm($work, $workParent)
         );
     }
 
-    $form->addButtonSend(get_lang('Send'), 'button');
+    $form->addButtonSend(get_lang('Send'), 'button', false, ['onclick' => 'this.form.submit();this.disabled=true;']);
 
     return $form->returnForm();
 }

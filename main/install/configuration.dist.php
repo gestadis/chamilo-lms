@@ -335,13 +335,16 @@ $_configuration['system_stable'] = NEW_VERSION_STABLE;
 // Hide rating elements in pages ("Courses catalog" & "Most Popular courses")
 // $_configuration['hide_course_rating'] = false;
 // Customize password generation and verification
+// For this configuration to be taken into account you need to set define('CHECK_PASS_EASY_TO_FIND', true); in app/config/profile.conf.php
 /*$_configuration['password_requirements'] = [
     'min' => [
         'lowercase' => 2,
         'uppercase' => 2,
         'numeric' => 2,
-        'length' => 8
-    ]
+        'length' => 8,
+        'specials' => 1,
+    ],
+    'force_different_password' => false,
 ];*/
 // Customize course session tracking columns
 /*
@@ -1053,7 +1056,7 @@ ALTER TABLE portfolio_comment ADD CONSTRAINT FK_C2C17DA2727ACA70 FOREIGN KEY (pa
 ALTER TABLE portfolio_category ADD parent_id INT(11) NOT NULL DEFAULT 0;
 */
 // In 1.11.8, before enabling this feature, you also need to:
-// - edit src/Chamilo/CoreBundle/Entity/Portfolio.php and PortfolioCategory.php
+// - edit src/Chamilo/CoreBundle/Entity/Portfolio.php, PortfolioCategory.php, PortfolioAttachment.php and PortfolioComment.php
 //   and follow the instructions about the @ORM\Entity() line
 // - launch composer install to rebuild the autoload.php
 //$_configuration['allow_portfolio_tool'] = false;
@@ -2088,6 +2091,24 @@ ALTER TABLE gradebook_comment ADD CONSTRAINT FK_C3B70763AD3ED51C FOREIGN KEY (gr
 // Enable admin-only APIs: get_users_api_keys, get_user_api_key
 //$_configuration['webservice_enable_adminonly_api'] = false;
 
+// Block a user account if there are multiple failed login attempts. It requires DB changes:
+/*
+CREATE TABLE track_e_login_attempt
+(
+    login_id   INT AUTO_INCREMENT NOT NULL,
+    username   VARCHAR(100)       NOT NULL,
+    login_date DATETIME           NOT NULL,
+    user_ip    VARCHAR(39)        NOT NULL,
+    success    TINYINT(1)         NOT NULL,
+    INDEX idx_track_e_login_attempt_username_success (username, success),
+    PRIMARY KEY (login_id)
+) DEFAULT CHARACTER SET utf8
+  COLLATE utf8_unicode_ci
+  ENGINE = InnoDB;
+*/
+// Then add the "@" symbol to TrackELoginAttempt class in the ORM\Entity() line.
+//$_configuration['login_max_attempt_before_blocking_account'] = 0;
+
 // Ask user to renew password at first login.
 // Requires a user checkbox extra field called "ask_new_password".
 //$_configuration['force_renew_password_at_first_login'] = true;
@@ -2220,6 +2241,28 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 
 // Shows the deleted quizzes in my progress page.
 //$_configuration['tracking_my_progress_show_deleted_exercises'] = true;
+
+// Hide IP in exercises reports
+// $_configuration['exercise_hide_ip'] = false;
+
+// Enable sign in attendance sheet for users
+// Require DB changes:
+// ALTER TABLE c_attendance_sheet ADD signature longtext NULL;
+// ALTER TABLE c_attendance_calendar ADD blocked tinyint(1) NULL;
+// Requires edit Entity CAttendanceSheet : src/Chamilo/CourseBundle/Entity/CAttendanceSheet.php uncomment "signature" variable.
+// Requires edit Entity CAttendanceCalendar : src/Chamilo/CourseBundle/Entity/CAttendanceCalendar.php uncomment "blocked" variable.
+//$_configuration['enable_sign_attendance_sheet'] = false;
+
+// Make sessions by duration always accessible to coaches (otherwise
+// they are only accessible during the active duration).
+//$_configuration['session_coach_access_after_duration_end'] = false;
+
+// Restrict the list of students to subscribe in the course session. And disable
+// registration for users in all courses from Resume Session page
+//$_configuration['session_course_users_subscription_limited_to_session_users'] = false;
+
+// Disable tab to add classes in course session for non-admins
+//$_configuration['session_classes_tab_disable'] = false;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes

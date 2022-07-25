@@ -2,6 +2,8 @@
 
 /* For licensing terms, see /license.txt */
 
+use Chamilo\UserBundle\Entity\User;
+
 /**
  * Class FormValidator
  * create/manipulate/validate user input.
@@ -1590,6 +1592,23 @@ EOT;
     }
 
     /**
+     * @throws Exception
+     */
+    public function addNoSamePasswordRule(string $elementName, User $user)
+    {
+        $passwordRequirements = api_get_configuration_value('password_requirements');
+
+        if (!empty($passwordRequirements) && $passwordRequirements['force_different_password']) {
+            $this->addRule(
+                $elementName,
+                get_lang('NewPasswordCannotBeSameAsCurrent'),
+                'no_same_current_password',
+                $user
+            );
+        }
+    }
+
+    /**
      * @param string $elementName
      * @param string $groupName   if element is inside a group
      *
@@ -1627,6 +1646,15 @@ EOT;
                     'callback',
                     'api_check_password'
                 );
+            }
+
+            if (!$this->isSubmitted()) {
+                $element = $this->getElement($elementName);
+                $label = $element->getLabel();
+                $element->setLabel([
+                    $label,
+                    Security::getPasswordRequirementsToString(),
+                ]);
             }
         }
     }

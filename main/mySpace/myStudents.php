@@ -709,8 +709,13 @@ $token = Security::get_token();
 
 // Actions bar
 echo '<div class="actions">';
-echo '<a href="javascript: window.history.go(-1);">'
-    .Display::return_icon('back.png', get_lang('Back'), '', ICON_SIZE_MEDIUM).'</a>';
+if ('session_report' === $origin) {
+    echo '<a href="'.api_get_path(WEB_CODE_PATH).'mySpace/progress_in_session_report.php">'
+        .Display::return_icon('back.png', get_lang('Back'), '', ICON_SIZE_MEDIUM).'</a>';
+} else {
+    echo '<a href="javascript: window.history.go(-1);">'
+        .Display::return_icon('back.png', get_lang('Back'), '', ICON_SIZE_MEDIUM).'</a>';
+}
 
 echo '<a href="javascript: void(0);" onclick="javascript: window.print();">'
     .Display::return_icon('printer.png', get_lang('Print'), '', ICON_SIZE_MEDIUM).'</a>';
@@ -1483,7 +1488,8 @@ if (empty($details)) {
                         'export' => 'csv',
                         'session_to_export' => $sId,
                     ]
-                )
+                ),
+                ['class' => 'user-tracking-csv']
             );
             $sessionAction .= Display::url(
                 Display::return_icon('export_excel.png', get_lang('ExportAsXLS'), [], ICON_SIZE_MEDIUM),
@@ -1494,12 +1500,13 @@ if (empty($details)) {
                             'export' => 'xls',
                             'session_to_export' => $sId,
                         ]
-                    )
+                    ),
+                ['class' => 'user-tracking-xls']
             );
 
             if (!empty($sId)) {
                 $sessionAction .= Display::url(
-                    Display::return_icon('pdf.png', get_lang('ExportToPDF'), [], ICON_SIZE_MEDIUM),
+                    Display::return_icon('attendance_certificate_pdf.png', get_lang('AttestationOfAttendance'), [], ICON_SIZE_MEDIUM),
                     api_get_path(WEB_CODE_PATH).'mySpace/session.php?'
                     .http_build_query(
                         [
@@ -1508,10 +1515,11 @@ if (empty($details)) {
                             'type' => 'attendance',
                             'session_to_export' => $sId,
                         ]
-                    )
+                    ),
+                    ['class' => 'user-tracking-export-pdf']
                 );
                 $sessionAction .= Display::url(
-                    Display::return_icon('pdf.png', get_lang('CertificateOfAchievement'), [], ICON_SIZE_MEDIUM),
+                    Display::return_icon('achievement_certificate_pdf.png', get_lang('CertificateOfAchievement'), [], ICON_SIZE_MEDIUM),
                     api_get_path(WEB_AJAX_PATH).'myspace.ajax.php?'
                     .http_build_query(
                         [
@@ -1522,13 +1530,13 @@ if (empty($details)) {
                         ]
                     ),
                     [
-                        'class' => "ajax",
+                        'class' => "ajax user-tracking-achievement",
                         'data-size' => 'sm',
                         'data-title' => get_lang('CertificateOfAchievement'),
                     ]
                 );
                 $sessionAction .= Display::url(
-                    Display::return_icon('pdf.png', get_lang('TestResult'), [], ICON_SIZE_MEDIUM),
+                    Display::return_icon('test_results_pdf.png', get_lang('TestResult'), [], ICON_SIZE_MEDIUM),
                     api_get_path(WEB_CODE_PATH).'mySpace/myStudents.php?'
                     .http_build_query(
                         [
@@ -1537,12 +1545,13 @@ if (empty($details)) {
                             'id_session' => $sId,
                             'course' => $courseInfoItem['code'],
                         ]
-                    )
+                    ),
+                    ['class' => 'user-tracking-test-results']
                 );
 
                 // New reports from MJTecnoid
                 $sessionAction .= Display::url(
-                    Display::return_icon('pdf.png', get_lang('CertificateOfAchievement2'), [], ICON_SIZE_MEDIUM),
+                    Display::return_icon('achievement_certificate_by_lp_pdf.png', get_lang('CertificateOfAchievement2'), [], ICON_SIZE_MEDIUM),
                     api_get_path(WEB_CODE_PATH).'mySpace/myStudents.php?'
                     .http_build_query(
                         [
@@ -1551,11 +1560,12 @@ if (empty($details)) {
                             'session_to_export' => $sId,
                             'course' => $courseInfoItem['code'],
                         ]
-                    )
+                    ),
+                    ['class' => 'user-tracking-achievement-by-lp']
                 );
 
                 $sessionAction .= Display::url(
-                    Display::return_icon('pdf.png', get_lang('ExportLpQuizResults'), [], ICON_SIZE_MEDIUM),
+                    Display::return_icon('test_result_by_lp_pdf.png', get_lang('ExportLpQuizResults'), [], ICON_SIZE_MEDIUM),
                     api_get_path(WEB_CODE_PATH).'mySpace/myStudents.php?'
                     .http_build_query(
                         [
@@ -1564,7 +1574,8 @@ if (empty($details)) {
                             'session_to_export' => $sId,
                             'course' => $courseInfoItem['code'],
                         ]
-                    )
+                    ),
+                    ['class' => 'user-tracking-test-results-by-lp']
                 );
             }
             echo $sessionAction;
@@ -1841,11 +1852,7 @@ if (empty($details)) {
                 }
 
                 if (in_array('lp', $columnHeadersKeys)) {
-                    $contentToExport[] = api_html_entity_decode(
-                        stripslashes($lp_name),
-                        ENT_QUOTES,
-                        $charset
-                    );
+                    $contentToExport[] = strip_tags($lp_name);
                     echo Display::tag('td', stripslashes($lp_name));
                 }
                 if (in_array('time', $columnHeadersKeys)) {

@@ -7,6 +7,7 @@ use Chamilo\CoreBundle\Entity\Repository\AccessUrlRepository;
 use Chamilo\CoreBundle\Entity\Session as SessionEntity;
 use Chamilo\CoreBundle\Entity\SkillRelUser;
 use Chamilo\CoreBundle\Entity\SkillRelUserComment;
+use Chamilo\CoreBundle\Entity\TrackELoginAttempt;
 use Chamilo\UserBundle\Entity\User;
 use Chamilo\UserBundle\Repository\UserRepository;
 use ChamiloSession as Session;
@@ -133,7 +134,7 @@ class UserManager
      * @param string $encoded The encrypted password
      * @param string $salt    The user salt, if any
      */
-    public static function detectPasswordEncryption(string $encoded, string $salt): bool
+    public static function detectPasswordEncryption(string $encoded, string $salt): string
     {
         $encryption = false;
 
@@ -179,11 +180,14 @@ class UserManager
                 $encoder = new \Chamilo\UserBundle\Security\Encoder($detectedEncryption);
                 $result = $encoder->isPasswordValid($encoded, $raw, $salt);
                 if ($result) {
+                    $raw = $encoder->encodePassword($encoded, $salt);
                     self::updatePassword($userId, $raw);
                 }
+            } else {
+                $result = self::isPasswordValid($encoded, $raw, $salt);
             }
         } else {
-            return self::isPasswordValid($encoded, $raw, $salt);
+            $result = self::isPasswordValid($encoded, $raw, $salt);
         }
 
         return $result;
@@ -2957,8 +2961,10 @@ class UserManager
         ];
         $column = (int) $column;
         $sort_direction = '';
-        if (in_array(strtoupper($direction), ['ASC', 'DESC'])) {
-            $sort_direction = strtoupper($direction);
+        if (!empty($direction)) {
+            if (in_array(strtoupper($direction), ['ASC', 'DESC'])) {
+                $sort_direction = strtoupper($direction);
+            }
         }
         $extraFieldType = EntityExtraField::USER_FIELD_TYPE;
         $sqlf = "SELECT * FROM $t_uf WHERE extra_field_type = $extraFieldType ";
@@ -3232,20 +3238,6 @@ class UserManager
                 if ($row['type'] == self::USER_FIELD_TYPE_TAG) {
                     $tags = self::get_user_tags_to_string($user_id, $row['id'], false);
                     $extra_data['extra_'.$row['fvar']] = $tags;
-                } elseif (ExtraField::FIELD_TYPE_SELECT == $row['type']) {
-                    $efv = new ExtraFieldValue('user');
-                    $efo = new ExtraFieldOption('user');
-
-                    $fval = $efv->get_values_by_handler_and_field_variable($user_id, $row['fvar']);
-                    $fopt = $efo->get_field_option_by_field_and_option($row['id'], $fval['value']);
-                    $fopt = current(is_array($fopt) ? $fopt : []);
-                    $fOptText = $fopt['display_text'] ?? $fval['value'];
-
-                    if ($prefix) {
-                        $extra_data['extra_'.$row['fvar']] = $fOptText;
-                    } else {
-                        $extra_data[$row['fvar']] = $fOptText;
-                    }
                 } else {
                     $sqlu = "SELECT value as fval
                             FROM $t_ufv
@@ -5953,11 +5945,18 @@ class UserManager
      * @param string $course_code The course code
      * @param int    $session_id
      * @param int    $user_id     The user id
+     * @param string $startDate   date string
+     * @param string $endDate     date string
      *
      * @return array if there is not information return false
      */
-    public static function get_info_gradebook_certificate($course_code, $session_id, $user_id)
-    {
+    public static function get_info_gradebook_certificate(
+        $course_code,
+        $session_id,
+        $user_id,
+        $startDate = null,
+        $endDate = null
+    ) {
         $tbl_grade_certificate = Database::get_main_table(TABLE_MAIN_GRADEBOOK_CERTIFICATE);
         $tbl_grade_category = Database::get_main_table(TABLE_MAIN_GRADEBOOK_CATEGORY);
         $session_id = (int) $session_id;
@@ -5969,11 +5968,21 @@ class UserManager
             $session_condition = " AND session_id = $session_id";
         }
 
+        $dateConditions = "";
+        if (!empty($startDate)) {
+            $startDate = api_get_utc_datetime($startDate, false, true);
+            $dateConditions .= " AND created_at >= '".$startDate->format('Y-m-d 00:00:00')."' ";
+        }
+        if (!empty($endDate)) {
+            $endDate = api_get_utc_datetime($endDate, false, true);
+            $dateConditions .= " AND created_at <= '".$endDate->format('Y-m-d 23:59:59')."' ";
+        }
+
         $sql = 'SELECT * FROM '.$tbl_grade_certificate.'
                 WHERE cat_id = (
                     SELECT id FROM '.$tbl_grade_category.'
                     WHERE
-                        course_code = "'.Database::escape_string($course_code).'" '.$session_condition.'
+                        course_code = "'.Database::escape_string($course_code).'" '.$session_condition.' '.$dateConditions.'
                     LIMIT 1
                 ) AND user_id='.$user_id;
 
@@ -6672,11 +6681,18 @@ SQL;
                     'url' => api_get_path(WEB_CODE_PATH).'group/group.php?'.api_get_cidreq(),
                     'content' => get_lang('Groups'),
                 ],
-                [
+                'classes' => [
                     'url' => $userPath.'class.php?'.api_get_cidreq(),
                     'content' => get_lang('Classes'),
                 ],
             ];
+
+            if (api_get_configuration_value('session_classes_tab_disable')
+                && !api_is_platform_admin()
+                && api_get_session_id()
+            ) {
+                unset($headers['classes']);
+            }
 
             return Display::tabsOnlyLink($headers, $optionSelected);
         }
@@ -6795,6 +6811,58 @@ SQL;
         }
 
         return [];
+    }
+
+    public static function blockIfMaxLoginAttempts(array $userInfo)
+    {
+        if (false === (bool) $userInfo['active'] || null === $userInfo['last_login']) {
+            return;
+        }
+
+        $maxAllowed = (int) api_get_configuration_value('login_max_attempt_before_blocking_account');
+
+        if ($maxAllowed <= 0) {
+            return;
+        }
+
+        $em = Database::getManager();
+
+        $countFailedAttempts = $em
+            ->getRepository(TrackELoginAttempt::class)
+            ->createQueryBuilder('la')
+            ->select('COUNT(la)')
+            ->where('la.username = :username')
+            ->andWhere('la.loginDate >= :last_login')
+            ->andWhere('la.success <> TRUE')
+            ->setParameters(
+                [
+                    'username' => $userInfo['username'],
+                    'last_login' => $userInfo['last_login'],
+                ]
+            )
+            ->getQuery()
+            ->getSingleScalarResult()
+        ;
+
+        if ($countFailedAttempts >= $maxAllowed) {
+            Database::update(
+                Database::get_main_table(TABLE_MAIN_USER),
+                ['active' => false],
+                ['username = ?' => $userInfo['username']]
+            );
+
+            Display::addFlash(
+                Display::return_message(
+                    sprintf(
+                        get_lang('XAccountDisabledByYAttempts'),
+                        $userInfo['username'],
+                        $countFailedAttempts
+                    ),
+                    'error',
+                    false
+                )
+            );
+        }
     }
 
     /**
