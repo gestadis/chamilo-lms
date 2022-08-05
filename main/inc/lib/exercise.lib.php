@@ -1455,7 +1455,19 @@ HTML;
             }
 
             if ($show_comment) {
-                $s .= '</table>';
+                if (in_array(
+                    $answerType,
+                    [
+                        MULTIPLE_ANSWER,
+                        MULTIPLE_ANSWER_COMBINATION,
+                        UNIQUE_ANSWER,
+                        UNIQUE_ANSWER_IMAGE,
+                        UNIQUE_ANSWER_NO_OPTION,
+                        GLOBAL_MULTIPLE_ANSWER,
+                    ]
+                )) {
+                    $s .= '</table>';
+                }
             } elseif (in_array(
                 $answerType,
                 [
@@ -5176,8 +5188,8 @@ EOT;
                     continue;
                 }
 
-                $total_score += $result['score'];
-                $total_weight += $result['weight'];
+                $total_score += (float) $result['score'];
+                $total_weight += (float) $result['weight'];
 
                 $question_list_answers[] = [
                     'question' => $result['open_question'],
