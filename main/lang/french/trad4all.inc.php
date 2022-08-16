@@ -8811,9 +8811,14 @@ $SignView = "Voir la signature";
 $DownloadQr = "Télécharger le code QR pour la signature de présences";
 $PasswordRequirementPassed = "Les prérequis de mot passe sont validés";
 $PasswordRequirementPending = "Prérequis de mot de passe manquants";
-$NewPasswordRequirementMinXSpecials = "Minimum de %s caractère(s) spécial(s)";
+$NewPasswordRequirementMinXSpecials = "Minimum de %s caractère(s) spécial(aux)";
 $NewPasswordCannotBeSameAsCurrent = "Le nouveau mot de passe doit être différent du précédent";
 $FilterByClass = "Filtrer par classe";
 $NotInAnyClass = "Dans aucune classe";
 $XAccountDisabledByYAttempts = "Le compte avec le nom d'utilisateur %s a été désactivé après %d tentatives de login en échec.";
+$AnswerList = "Liste de réponses";
+$EnterListOfAnswersOneAnswerByLine = "Saisir une liste de réponses (une réponse par ligne)";
+$OrSelectCsvFileWithListOfAnswers = "Ou sélectionnez un fichier CSV avec une liste de réponses";
+$ConvertToMultipleAnswerDropdown = "Convertir en liste déroulante de réponses multiples";
+$MultipleAnswerDropdown = "Liste déroulante de réponses multiples";
 ?>

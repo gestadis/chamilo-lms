@@ -6183,7 +6183,7 @@ class UserManager
                     }
                 }
 
-		$tblUserGroupRelUser = Database::get_main_table(TABLE_USERGROUP_REL_USER);
+                $tblUserGroupRelUser = Database::get_main_table(TABLE_USERGROUP_REL_USER);
                 $tblUserGroupRelCourse = Database::get_main_table(TABLE_USERGROUP_REL_COURSE);
                 $tblUserGroupRelSession = Database::get_main_table(TABLE_USERGROUP_REL_SESSION);
                 $tblSessionUser = Database::get_main_table(TABLE_MAIN_SESSION_USER);
@@ -7638,6 +7638,14 @@ SQL;
         }
 
         return $dates;
+    }
+
+    public static function getAllowedRolesAsTeacher(): array
+    {
+        return [
+            COURSEMANAGER,
+            SESSIONADMIN,
+        ];
     }
 
     /**
