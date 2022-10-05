@@ -2396,12 +2396,6 @@ class SessionManager
         $course_code = Database::escape_string($course_code);
         $courseInfo = api_get_course_info($course_code);
         $courseId = $courseInfo['real_id'];
-        $subscribe = (int) api_get_course_setting('subscribe_users_to_forum_notifications', $courseInfo);
-        $forums = [];
-        if ($subscribe === 1) {
-            require_once api_get_path(SYS_CODE_PATH).'forum/forumfunction.inc.php';
-            $forums = get_forums(0, $course_code, true, $session_id);
-        }
 
         if ($removeUsersNotInList) {
             $currentUsers = self::getUsersByCourseSession($session_id, $courseInfo, 0);
@@ -2429,16 +2423,6 @@ class SessionManager
             $session_id,
             ['visibility' => $session_visibility]
         );
-
-        if (!empty($forums)) {
-            foreach ($user_list as $enreg_user) {
-                $userInfo = api_get_user_info($enreg_user);
-                foreach ($forums as $forum) {
-                    $forumId = $forum['iid'];
-                    set_notification('forum', $forumId, false, $userInfo, $courseInfo);
-                }
-            }
-        }
     }
 
     /**
@@ -6516,7 +6500,6 @@ class SessionManager
     ) {
         $userId = api_get_user_id();
         $drhLoaded = false;
-
         if (api_is_drh()) {
             if (api_drh_can_access_all_session_content()) {
                 $count = self::getAllUsersFromCoursesFromAllSessionFromStatus(
@@ -6534,6 +6517,24 @@ class SessionManager
                     $studentIdList,
                     $filterUserStatus
                 );
+                $drhLoaded = true;
+            }
+            $allowDhrAccessToAllStudents = api_get_configuration_value('drh_allow_access_to_all_students');
+            if ($allowDhrAccessToAllStudents) {
+                $conditions = ['status' => STUDENT];
+                if (isset($active)) {
+                    $conditions['active'] = (int) $active;
+                }
+                $students = UserManager::get_user_list(
+                    $conditions,
+                    [],
+                    false,
+                    false,
+                    null,
+                    $keyword,
+                    $lastConnectionDate
+                );
+                $count = count($students);
                 $drhLoaded = true;
             }
         }
@@ -9694,6 +9695,18 @@ class SessionManager
         $tblSession = Database::get_main_table(TABLE_MAIN_SESSION);
 
         $relationInfo = array_merge(['visibility' => 0, 'status' => Session::STUDENT], $relationInfo);
+        $courseInfo = api_get_course_info_by_id($courseId);
+        $courseCode = $courseInfo['code'];
+        $subscribeToForums = (int) api_get_course_setting('subscribe_users_to_forum_notifications', $courseInfo);
+        if ($subscribeToForums) {
+            $forums = [];
+            $forumsBaseCourse = [];
+            require_once api_get_path(SYS_CODE_PATH).'forum/forumfunction.inc.php';
+            $forums = get_forums(0, $courseCode, true, $sessionId);
+            if (api_get_configuration_value('subscribe_users_to_forum_notifications_also_in_base_course')) {
+                $forumsBaseCourse = get_forums(0, $courseCode, true, 0);
+            }
+        }
 
         $sessionCourseUser = [
             'session_id' => $sessionId,
@@ -9720,6 +9733,21 @@ class SessionManager
                 Database::insert($tblSessionCourseUser, $sessionCourseUser);
 
                 Event::logUserSubscribedInCourseSession($studentId, $courseId, $sessionId);
+                if ($subscribeToForums) {
+                    $userInfo = api_get_user_info($studentID);
+                    if (!empty($forums)) {
+                        foreach ($forums as $forum) {
+                            $forumId = $forum['iid'];
+                            set_notification('forum', $forumId, false, $userInfo, $courseInfo);
+                        }
+                    }
+                    if (!empty($forumsBaseCourse)) {
+                        foreach ($forumsBaseCourse as $forum) {
+                            $forumId = $forum['iid'];
+                            set_notification('forum', $forumId, false, $userInfo, $courseInfo);
+                        }
+                    }
+                }
             }
 
             if ($updateSession) {

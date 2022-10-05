@@ -171,6 +171,7 @@ define('SECTION_CUSTOMPAGE', 'custompage');
 define('PLATFORM_AUTH_SOURCE', 'platform');
 define('CAS_AUTH_SOURCE', 'cas');
 define('LDAP_AUTH_SOURCE', 'extldap');
+define('IMS_LTI_SOURCE', 'ims_lti');
 
 // CONSTANT defining the default HotPotatoes files directory
 define('DIR_HOTPOTATOES', '/HotPotatoes_files');
@@ -528,7 +529,8 @@ define('MATCHING_GLOBAL', 24);
 define('MATCHING_DRAGGABLE_GLOBAL', 25);
 define('HOT_SPOT_GLOBAL', 26);
 define('FILL_IN_BLANKS_GLOBAL', 27);
-define('MULTIPLE_ANSWER_DROPDOWN', 28);
+define('MULTIPLE_ANSWER_DROPDOWN_GLOBAL', 28);
+define('MULTIPLE_ANSWER_DROPDOWN', 29);
 
 define('EXERCISE_CATEGORY_RANDOM_SHUFFLED', 1);
 define('EXERCISE_CATEGORY_RANDOM_ORDERED', 2);
@@ -3050,6 +3052,12 @@ function api_get_setting($variable, $key = null)
  */
 function api_get_plugin_setting($plugin, $variable)
 {
+    $settings = api_get_configuration_value('plugin_settings');
+
+    if (!empty($settings) && isset($settings[$plugin]) && isset($settings[$plugin][$variable])) {
+        return $settings[$plugin][$variable];
+    }
+
     $variableName = $plugin.'_'.$variable;
     $result = api_get_setting($variableName);
 
@@ -8527,64 +8535,71 @@ function api_get_password_checker_js($usernameInputId, $passwordInputId)
         return null;
     }
 
-    $translations = [
-        'wordLength' => get_lang('PasswordIsTooShort'),
-        'wordNotEmail' => get_lang('YourPasswordCannotBeTheSameAsYourEmail'),
-        'wordSimilarToUsername' => get_lang('YourPasswordCannotContainYourUsername'),
-        'wordTwoCharacterClasses' => get_lang('WordTwoCharacterClasses'),
-        'wordRepetitions' => get_lang('TooManyRepetitions'),
-        'wordSequences' => get_lang('YourPasswordContainsSequences'),
-        'errorList' => get_lang('ErrorsFound'),
-        'veryWeak' => get_lang('PasswordVeryWeak'),
-        'weak' => get_lang('PasswordWeak'),
-        'normal' => get_lang('PasswordNormal'),
-        'medium' => get_lang('PasswordMedium'),
-        'strong' => get_lang('PasswordStrong'),
-        'veryStrong' => get_lang('PasswordVeryStrong'),
+    $minRequirements = Security::getPasswordRequirements()['min'];
+
+    $options = [
+        'rules' => [],
     ];
 
-    $js = api_get_asset('pwstrength-bootstrap/dist/pwstrength-bootstrap.min.js');
+    if ($minRequirements['length'] > 0) {
+        $options['rules'][] = [
+            'minChar' => $minRequirements['length'],
+            'pattern' => '.',
+            'helpText' => sprintf(
+                get_lang('NewPasswordRequirementMinXLength'),
+                $minRequirements['length']
+            ),
+        ];
+    }
+
+    if ($minRequirements['lowercase'] > 0) {
+        $options['rules'][] = [
+            'minChar' => $minRequirements['lowercase'],
+            'pattern' => '[a-z]',
+            'helpText' => sprintf(
+                get_lang('NewPasswordRequirementMinXLowercase'),
+                $minRequirements['lowercase']
+            ),
+        ];
+    }
+
+    if ($minRequirements['uppercase'] > 0) {
+        $options['rules'][] = [
+            'minChar' => $minRequirements['uppercase'],
+            'pattern' => '[A-Z]',
+            'helpText' => sprintf(
+                get_lang('NewPasswordRequirementMinXUppercase'),
+                $minRequirements['uppercase']
+            ),
+        ];
+    }
+
+    if ($minRequirements['numeric'] > 0) {
+        $options['rules'][] = [
+            'minChar' => $minRequirements['numeric'],
+            'pattern' => '[0-9]',
+            'helpText' => sprintf(
+                get_lang('NewPasswordRequirementMinXNumeric'),
+                $minRequirements['numeric']
+            ),
+        ];
+    }
+
+    if ($minRequirements['specials'] > 0) {
+        $options['rules'][] = [
+            'minChar' => $minRequirements['specials'],
+            'pattern' => '[!"#$%&\'()*+,\-./\\\:;<=>?@[\\]^_`{|}~]',
+            'helpText' => sprintf(
+                get_lang('NewPasswordRequirementMinXSpecials'),
+                $minRequirements['specials']
+            ),
+        ];
+    }
+
+    $js = api_get_js('password-checker/password-checker.js');
     $js .= "<script>
-    var errorMessages = {
-        password_to_short : \"".get_lang('PasswordIsTooShort')."\",
-        same_as_username : \"".get_lang('YourPasswordCannotBeTheSameAsYourUsername')."\"
-    };
-
     $(function() {
-        var lang = ".json_encode($translations).";
-        var options = {
-            common: {
-                onLoad: function () {
-                    //$('#messages').text('Start typing password');
-
-                    var inputGroup = $('".$passwordInputId."').parents('.input-group');
-
-                    if (inputGroup.length > 0) {
-                        inputGroup.find('.progress').insertAfter(inputGroup);
-                    }
-                }
-            },
-            ui: {
-                showVerdictsInsideProgressBar: true
-            },
-            onKeyUp: function (evt) {
-                $(evt.target).pwstrength('outputErrorList');
-            },
-            errorMessages : errorMessages,
-            viewports: {
-                progress: '#password_progress',
-                verdict: '#password-verdict',
-                errors: '#password-errors'
-            },
-            usernameField: '$usernameInputId'
-        };
-        options.i18n = {
-            t: function (key) {
-                var result = lang[key];
-                return result === key ? '' : result; // This assumes you return the
-            }
-        };
-        $('".$passwordInputId."').pwstrength(options);
+        $('".$passwordInputId."').passwordChecker(".json_encode($options).");
     });
     </script>";
 

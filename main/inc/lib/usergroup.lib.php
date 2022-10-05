@@ -939,9 +939,11 @@ class UserGroup extends Model
             if (!empty($delete_items)) {
                 $sessions = '';
                 foreach ($delete_items as $session_id) {
-                    if (!empty($user_list)) {
-                        foreach ($user_list as $user_id) {
-                            SessionManager::unsubscribe_user_from_session($session_id, $user_id);
+                    if (!api_get_configuration_value('usergroup_do_not_unsubscribe_users_from_session_on_session_unsubscribe')) {
+                        if (!empty($user_list)) {
+                            foreach ($user_list as $user_id) {
+                                SessionManager::unsubscribe_user_from_session($session_id, $user_id);
+                            }
                         }
                     }
                     Database::delete(
@@ -1029,10 +1031,51 @@ class UserGroup extends Model
                 $course_info = api_get_course_info_by_id($course_id);
                 if ($course_info) {
                     if (!empty($user_list)) {
+                        $messageError = [];
+                        $messageOk = [];
                         foreach ($user_list as $user_id) {
-                            CourseManager::subscribeUser(
+                            $subscribed = CourseManager::subscribeUser(
                                 $user_id,
-                                $course_info['code']
+                                $course_info['code'],
+                                STUDENT,
+                                0,
+                                0,
+                                true,
+                                false
+                            );
+                            $userInfo = api_get_user_info($user_id);
+                            if (!$subscribed) {
+                                $messageError[] = sprintf(
+                                    get_lang('UserXNotSubscribedToCourseX'),
+                                    $userInfo['complete_name_with_username'],
+                                    $course_info['title']
+                                );
+                            } else {
+                                $messageOk[] = sprintf(
+                                    get_lang('UserXAddedToCourseX'),
+                                    $userInfo['complete_name_with_username'],
+                                    $course_info['title']
+                                );
+                            }
+                        }
+                        if (!empty($messageError)) {
+                            $strMessagesError = implode('<br>', $messageError);
+                            Display::addFlash(
+                                Display::return_message(
+                                    $strMessagesError,
+                                    'error',
+                                    false
+                                )
+                            );
+                        }
+                        if (!empty($messageOk)) {
+                            $strMessagesOk = implode('<br>', $messageOk);
+                            Display::addFlash(
+                                Display::return_message(
+                                    $strMessagesOk,
+                                    'normal',
+                                    false
+                                )
                             );
                         }
                     }
@@ -1071,15 +1114,16 @@ class UserGroup extends Model
             foreach ($delete_items as $course_id) {
                 $course_info = api_get_course_info_by_id($course_id);
                 if ($course_info) {
-                    if (!empty($user_list)) {
-                        foreach ($user_list as $user_id) {
-                            CourseManager::unsubscribe_user(
-                                $user_id,
-                                $course_info['code']
-                            );
+                    if (!api_get_configuration_value('usergroup_do_not_unsubscribe_users_from_course_on_course_unsubscribe')) {
+                        if (!empty($user_list)) {
+                            foreach ($user_list as $user_id) {
+                                CourseManager::unsubscribe_user(
+                                    $user_id,
+                                    $course_info['code']
+                                );
+                            }
                         }
                     }
-
                     Database::delete(
                         $this->usergroup_rel_course_table,
                         [
@@ -1144,17 +1188,19 @@ class UserGroup extends Model
         // Deleting items
         if (!empty($delete_items) && $delete_users_not_present_in_list) {
             foreach ($delete_items as $user_id) {
-                // Removing courses
-                if (!empty($course_list)) {
-                    foreach ($course_list as $course_id) {
-                        $course_info = api_get_course_info_by_id($course_id);
-                        CourseManager::unsubscribe_user($user_id, $course_info['code']);
+                if (!api_get_configuration_value('usergroup_do_not_unsubscribe_users_from_course_nor_session_on_user_unsubscribe')) {
+                    // Removing courses
+                    if (!empty($course_list)) {
+                        foreach ($course_list as $course_id) {
+                            $course_info = api_get_course_info_by_id($course_id);
+                            CourseManager::unsubscribe_user($user_id, $course_info['code']);
+                        }
                     }
-                }
-                // Removing sessions
-                if (!empty($session_list)) {
-                    foreach ($session_list as $session_id) {
-                        SessionManager::unsubscribe_user_from_session($session_id, $user_id);
+                    // Removing sessions
+                    if (!empty($session_list)) {
+                        foreach ($session_list as $session_id) {
+                            SessionManager::unsubscribe_user_from_session($session_id, $user_id);
+                        }
                     }
                 }
 
@@ -1203,9 +1249,53 @@ class UserGroup extends Model
             foreach ($new_items as $user_id) {
                 // Adding courses
                 if (!empty($course_list)) {
+                    $messageError = [];
+                    $messageOk = [];
                     foreach ($course_list as $course_id) {
                         $course_info = api_get_course_info_by_id($course_id);
-                        CourseManager::subscribeUser($user_id, $course_info['code']);
+                        $subscribed = CourseManager::subscribeUser(
+                            $user_id,
+                            $course_info['code'],
+                            STUDENT,
+                            0,
+                            0,
+                            true,
+                            false
+                        );
+                        $userInfo = api_get_user_info($user_id);
+                        if (!$subscribed) {
+                            $messageError[] = sprintf(
+                                get_lang('UserXNotSubscribedToCourseX'),
+                                $userInfo['complete_name_with_username'],
+                                $course_info['title']
+                            );
+                        } else {
+                            $messageOk[] = sprintf(
+                                get_lang('UserXAddedToCourseX'),
+                                $userInfo['complete_name_with_username'],
+                                $course_info['title']
+                            );
+                        }
+                    }
+                    if (!empty($messageError)) {
+                        $strMessagesError = implode('<br>', $messageError);
+                        Display::addFlash(
+                            Display::return_message(
+                                $strMessagesError,
+                                'error',
+                                false
+                            )
+                        );
+                    }
+                    if (!empty($messageOk)) {
+                        $strMessagesOk = implode('<br>', $messageOk);
+                        Display::addFlash(
+                            Display::return_message(
+                                $strMessagesOk,
+                                'normal',
+                                false
+                            )
+                        );
                     }
                 }
                 $params = [
