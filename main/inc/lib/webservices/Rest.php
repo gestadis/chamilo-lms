@@ -1131,7 +1131,7 @@ class Rest extends WebService
     }
 
     /**
-     * Get one's own profile
+     * Get one's own profile.
      */
     public function getUserProfile(): array
     {
@@ -1164,7 +1164,7 @@ class Rest extends WebService
     }
 
     /**
-     * Get one's own (avg) progress in learning paths
+     * Get one's own (avg) progress in learning paths.
      */
     public function getCourseLpProgress(): array
     {
@@ -1295,7 +1295,7 @@ class Rest extends WebService
     }
 
     /**
-     * Start login for a user. Then make a redirect to show the learnpath
+     * Start login for a user. Then make a redirect to show the learnpath.
      */
     public function showLearningPath(int $lpId)
     {
@@ -1530,7 +1530,7 @@ class Rest extends WebService
         $conditions = [
             'status' => $params['status'],
         ];
-        $idCampus = $params['id_campus'];
+        $idCampus = !empty($params['id_campus']) ?? 1;
         $users = UserManager::get_user_list($conditions, ['firstname'], false, false, $idCampus);
         $list = [];
         foreach ($users as $item) {
@@ -2174,6 +2174,22 @@ class Rest extends WebService
             && !empty($courseList)
             && !SessionManager::add_courses_to_session($newSessionId, $courseList)) {
             throw new Exception(get_lang('CoursesNotAddedToSession'));
+        }
+
+        $table = Database::get_main_table(TABLE_MAIN_SESSION_COURSE);
+        $courseListOrdered = SessionManager::get_course_list_by_session_id($modelSessionId, null, 'position');
+        $position = [];
+        $count = 0;
+        foreach ($courseListOrdered as $course) {
+            if ($course['position'] == '') {
+                $course['position'] = $count;
+            }
+            $position[$course['code']] = $course['position'];
+            // Saving order.
+            $sql = "UPDATE $table SET position = " . $course['position'] . "
+                    WHERE session_id = $newSessionId AND c_id = '".$course['real_id']."'";
+            Database::query($sql);
+            $count++;
         }
 
         if ($duplicateAgendaContent) {
