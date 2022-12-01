@@ -1127,7 +1127,7 @@ class DocumentManager
      *
      * @param array  $_course
      * @param string $path          Path stored in the database
-     * @param string $base_work_dir Path to the documents folder (if not defined, $documentId must be used)
+     * @param string $base_work_dir Path to the "/document" folder of this course. Will be built if not provided.
      * @param int    $sessionId     The ID of the session, if any
      * @param int    $documentId    The document id, if available
      * @param int    $groupId       iid
@@ -1165,7 +1165,12 @@ class DocumentManager
         }
 
         if (empty($base_work_dir)) {
-            return false;
+            if (empty($_course['directory'])) {
+                return false;
+            }
+            $courseDir = $_course['directory'].'/document';
+            $sysCoursePath = api_get_path(SYS_COURSE_PATH);
+            $base_work_dir = $sysCoursePath.$courseDir;
         }
 
         if (empty($documentId)) {
@@ -2057,20 +2062,24 @@ class DocumentManager
         $info_grade_certificate = UserManager::get_info_gradebook_certificate($courseCode, $sessionId, $user_id);
         $date_long_certificate = '';
         $date_certificate = '';
+        $date_short_no_time = '';
         $url = '';
         if ($info_grade_certificate) {
             $date_certificate = $info_grade_certificate['created_at'];
             $url = api_get_path(WEB_PATH).'certificates/index.php?id='.$info_grade_certificate['id'];
         }
         $date_no_time = api_convert_and_format_date(api_get_utc_datetime(), DATE_FORMAT_LONG_NO_DAY);
+        $date_short_no_time = api_convert_and_format_date(api_get_utc_datetime(), DATE_FORMAT_NUMBER);
         if (!empty($date_certificate)) {
             $date_long_certificate = api_convert_and_format_date($date_certificate);
             $date_no_time = api_convert_and_format_date($date_certificate, DATE_FORMAT_LONG_NO_DAY);
+            $date_short_no_time = api_convert_and_format_date($date_certificate, DATE_FORMAT_NUMBER);
         }
 
         if ($is_preview) {
             $date_long_certificate = api_convert_and_format_date(api_get_utc_datetime());
             $date_no_time = api_convert_and_format_date(api_get_utc_datetime(), DATE_FORMAT_LONG_NO_DAY);
+            $date_short_no_time = api_convert_and_format_date(api_get_utc_datetime(), DATE_FORMAT_NUMBER);
         }
 
         $externalStyleFile = api_get_path(SYS_CSS_PATH).'themes/'.api_get_visual_theme().'/certificate.css';
@@ -2126,6 +2135,7 @@ class DocumentManager
             $official_code,
             $date_long_certificate,
             $date_no_time,
+            $date_short_no_time,
             $courseCode,
             $course_info['name'],
             isset($info_grade_certificate['grade']) ? $info_grade_certificate['grade'] : '',
@@ -2151,6 +2161,7 @@ class DocumentManager
             '((official_code))',
             '((date_certificate))',
             '((date_certificate_no_time))',
+            '((date_simple_certificate))',
             '((course_code))',
             '((course_title))',
             '((gradebook_grade))',

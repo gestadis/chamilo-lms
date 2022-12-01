@@ -1922,14 +1922,15 @@ class Exercise
      * Note: leaves the questions in the database as "orphan" questions
      * (unless used by other tests).
      *
-     * @param bool $delete Whether to really delete the test (true) or only mark it (false = default)
+     * @param bool $delete          Whether to really delete the test (true) or only mark it (false = default)
+     * @param bool $deleteQuestions Whether to delete the test questions (true)
      *
      * @return bool Whether the operation was successful or not
      *
      * @author Olivier Brouckaert
      * @author Yannick Warnier
      */
-    public function delete(bool $delete = false): bool
+    public function delete(bool $delete = false, bool $deleteQuestions = false): bool
     {
         $limitTeacherAccess = api_get_configuration_value('limit_exercise_teacher_access');
 
@@ -1985,9 +1986,26 @@ class Exercise
             GradebookUtils::remove_resource_from_course_gradebook($linkInfo['id']);
         }
 
+        $questions = [];
+
+        if ($delete || $deleteQuestions) {
+            $questions = $this->getQuestionOrderedList(true);
+        }
+
+        if ($deleteQuestions) {
+            // Delete the questions of the test (this could delete questions reused on other tests)
+            foreach ($questions as $order => $questionId) {
+                $masterExerciseId = Question::getMasterQuizForQuestion($questionId);
+                if ($masterExerciseId == $this->iid) {
+                    $objQuestionTmp = Question::read($questionId);
+                    $objQuestionTmp->delete();
+                    $this->removeFromList($questionId);
+                }
+            }
+        }
+
         if ($delete) {
-            // Really delete the test (and orphan its questions)
-            $questions = $this->getQuestionOrderedList();
+            // Really delete the test (if questions were not previously deleted these will be orphaned)
             foreach ($questions as $order => $questionId) {
                 $question = Question::read($questionId, $this->course);
                 $question->delete($this->course_id);
@@ -4471,7 +4489,10 @@ class Exercise
 
                                 $found = false;
                                 for ($j = 0; $j < count($listTeacherAnswerTemp); $j++) {
-                                    $correctAnswer = $listTeacherAnswerTemp[$j];
+                                    $correctAnswer = isset($listTeacherAnswerTemp[$j]) ? $listTeacherAnswerTemp[$j] : '';
+                                    if (is_array($listTeacherAnswerTemp)) {
+                                        $correctAnswer = implode('||', $listTeacherAnswerTemp);
+                                    }
 
                                     if (empty($correctAnswer)) {
                                         break;
@@ -4485,7 +4506,15 @@ class Exercise
                                     )) {
                                         $questionScore += $answerWeighting[$i];
                                         $totalScore += $answerWeighting[$i];
-                                        $listTeacherAnswerTemp[$j] = null;
+                                        if (is_array($listTeacherAnswerTemp)) {
+                                            $searchAnswer = array_search(api_htmlentities($studentAnswer), $listTeacherAnswerTemp);
+                                            if (false !== $searchAnswer) {
+                                                // Remove from array
+                                                unset($listTeacherAnswerTemp[$searchAnswer]);
+                                            }
+                                        } else {
+                                            $listTeacherAnswerTemp[$j] = null;
+                                        }
                                         $found = true;
                                     }
 
@@ -6875,7 +6904,7 @@ class Exercise
 
         // 1.1 Admins, teachers and tutors can access to the exercise
         if ($filterByAdmin) {
-            if (api_is_platform_admin() || api_is_course_admin() || api_is_course_tutor()) {
+            if (api_is_platform_admin() || api_is_course_admin() || api_is_course_tutor() || api_is_session_general_coach()) {
                 return ['value' => true, 'message' => ''];
             }
         }
@@ -11086,8 +11115,12 @@ class Exercise
                     $tempResult = [];
                     foreach ($labelsWithId as $category_id => $title) {
                         if (isset($categoryList[$category_id])) {
-                            $category_item = $categoryList[$category_id];
-                            $tempResult[] = round($category_item['score'] / $category_item['total'] * 10);
+                            $categoryItem = $categoryList[$category_id];
+                            if ($categoryItem['total'] > 0) {
+                                $tempResult[] = round($categoryItem['score'] / $categoryItem['total'] * 10);
+                            } else {
+                                $tempResult[] = 0;
+                            }
                         } else {
                             $tempResult[] = 0;
                         }
@@ -11146,11 +11179,12 @@ class Exercise
                     $categoryList = $stats['category_list'];
                     foreach ($labelsWithId as $category_id => $title) {
                         if (isset($categoryList[$category_id])) {
-                            $category_item = $categoryList[$category_id];
+                            $categoryItem = $categoryList[$category_id];
                             if (!isset($tempResult[$exerciseId][$category_id])) {
                                 $tempResult[$exerciseId][$category_id] = 0;
                             }
-                            $tempResult[$exerciseId][$category_id] += $category_item['score'] / $category_item['total'] * 10;
+                            $tempResult[$exerciseId][$category_id] +=
+                                $categoryItem['score'] / $categoryItem['total'] * 10;
                         }
                     }
                 }
@@ -11670,6 +11704,30 @@ class Exercise
         }
 
         return $questionList;
+    }
+
+    /**
+     * Returns a literal for the given numerical feedback type (usually
+     * coming from the DB or a constant). The literal is also the string
+     * used to get the translation, not the translation itself as it is
+     * more vulnerable to changes.
+     */
+    public static function getFeedbackTypeLiteral(int $feedbackType): string
+    {
+        $feedbackType = (int) $feedbackType;
+        $result = '';
+        static $arrayFeedbackTypes = [
+            EXERCISE_FEEDBACK_TYPE_END => 'ExerciseAtTheEndOfTheTest',
+            EXERCISE_FEEDBACK_TYPE_DIRECT => 'DirectFeedback',
+            EXERCISE_FEEDBACK_TYPE_EXAM => 'NoFeedback',
+            EXERCISE_FEEDBACK_TYPE_POPUP => 'ExerciseDirectPopUp',
+        ];
+
+        if (array_key_exists($feedbackType, $arrayFeedbackTypes)) {
+            $result = $arrayFeedbackTypes[$feedbackType];
+        }
+
+        return $result;
     }
 
     /**

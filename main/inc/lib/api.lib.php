@@ -297,6 +297,8 @@ define('LOG_SURVEY_CREATED', 'survey_created');
 define('LOG_SURVEY_DELETED', 'survey_deleted');
 define('LOG_SURVEY_CLEAN_RESULTS', 'survey_clean_results');
 
+define('LOG_WS', 'access_ws_');
+
 define('USERNAME_PURIFIER', '/[^0-9A-Za-z_\.\$-]/');
 
 //used when login_is_email setting is true
@@ -1326,20 +1328,22 @@ function api_protect_course_script($print_headers = false, $allow_session_admins
  * @param bool Whether to allow session admins as well
  * @param bool Whether to allow HR directors as well
  * @param string An optional message (already passed through get_lang)
+ * @param bool Whether to allow session coach as well
  *
  * @return bool True if user is allowed, false otherwise.
  *              The function also outputs an error message in case not allowed
  *
  * @author Roan Embrechts (original author)
  */
-function api_protect_admin_script($allow_sessions_admins = false, $allow_drh = false, $message = null)
+function api_protect_admin_script($allow_sessions_admins = false, $allow_drh = false, $message = null, $allow_session_coach = false)
 {
     if (!api_is_platform_admin($allow_sessions_admins, $allow_drh)) {
-        api_not_allowed(true, $message);
+        if (!($allow_session_coach && api_is_coach())) {
+            api_not_allowed(true, $message);
 
-        return false;
+            return false;
+        }
     }
-
     api_block_inactive_user();
 
     return true;
@@ -1944,15 +1948,20 @@ function api_get_user_entity($userId)
  *
  * @author Yannick Warnier <yannick.warnier@beeznest.com>
  */
-function api_get_user_info_from_username($username)
+function api_get_user_info_from_username($username, $authSource = null)
 {
     if (empty($username)) {
         return false;
     }
     $username = trim($username);
 
+    $andAuthSource = "";
+    if (isset($authSource)) {
+        $authSource = Database::escape_string($authSource);
+        $andAuthSource = " AND auth_source = '$authSource'";
+    }
     $sql = "SELECT * FROM ".Database::get_main_table(TABLE_MAIN_USER)."
-            WHERE username='".Database::escape_string($username)."'";
+            WHERE username='".Database::escape_string($username)."' $andAuthSource";
     $result = Database::query($sql);
     if (Database::num_rows($result) > 0) {
         $resultArray = Database::fetch_array($result);
@@ -2149,6 +2158,11 @@ function api_get_anonymous_id()
         $result = Database::query($sql);
         if (empty(Database::num_rows($result))) {
             $login = uniqid('anon_');
+            $email = ' anonymous@localhost.local';
+            if (api_get_setting('login_is_email') == 'true') {
+                $login = $login."@localhost.local";
+                $email = $login;
+            }
             $anonList = UserManager::get_user_list(['status' => ANONYMOUS], ['registration_date ASC']);
             if (count($anonList) >= $max) {
                 foreach ($anonList as $userToDelete) {
@@ -2161,7 +2175,7 @@ function api_get_anonymous_id()
                 $login,
                 'anon',
                 ANONYMOUS,
-                ' anonymous@localhost',
+                $email,
                 $login,
                 $login
             );
@@ -3918,6 +3932,9 @@ function api_is_anonymous($user_id = null, $db_check = false)
         //if ($_user['user_id'] == 0) {
         // In some cases, api_set_anonymous doesn't seem to be triggered in local.inc.php. Make sure it is.
         // Occurs in agenda for admin links - YW
+        // it occurs when pages are opened directly without entering first the course home page. To fix it add
+        // $use_anonymous = true;
+        // before including global.inc.php in the page
         global $use_anonymous;
         if (isset($use_anonymous) && $use_anonymous) {
             api_set_anonymous();
@@ -6823,21 +6840,44 @@ function api_get_current_access_url_id()
  * Gets the registered urls from a given user id.
  *
  * @param int $user_id
+ * @param int $checkCourseId the course id to check url access
  *
  * @return array
  *
  * @author Julio Montoya <gugli100@gmail.com>
  */
-function api_get_access_url_from_user($user_id)
+function api_get_access_url_from_user($user_id, $checkCourseId = null)
 {
     $user_id = (int) $user_id;
     $table_url_rel_user = Database::get_main_table(TABLE_MAIN_ACCESS_URL_REL_USER);
     $table_url = Database::get_main_table(TABLE_MAIN_ACCESS_URL);
+    $includeIds = "";
+    if (isset($checkCourseId)) {
+        $cid = (int) $checkCourseId;
+        $tblUrlCourse = Database::get_main_table(TABLE_MAIN_ACCESS_URL_REL_COURSE);
+        $sql = "SELECT access_url_id
+            FROM $tblUrlCourse url_rel_course
+            INNER JOIN $table_url u
+            ON (url_rel_course.access_url_id = u.id)
+            WHERE c_id = $cid";
+        $rs = Database::query($sql);
+        $courseUrlIds = [];
+        if (Database::num_rows($rs) > 0) {
+            while ($rowC = Database::fetch_array($rs, 'ASSOC')) {
+                $courseUrlIds[] = $rowC['access_url_id'];
+            }
+        }
+        if (!empty($courseUrlIds)) {
+            $includeIds = " AND access_url_id IN (".implode(',', $courseUrlIds).")";
+        }
+    }
+
     $sql = "SELECT access_url_id
             FROM $table_url_rel_user url_rel_user
             INNER JOIN $table_url u
             ON (url_rel_user.access_url_id = u.id)
-            WHERE user_id = ".intval($user_id);
+            WHERE user_id = $user_id $includeIds
+            ORDER BY access_url_id";
     $result = Database::query($sql);
     $list = [];
     while ($row = Database::fetch_array($result, 'ASSOC')) {
@@ -9425,6 +9465,27 @@ function api_mail_html(
     $layout = $mailView->get_template('mail/mail.tpl');
     $mail->Body = $mailView->fetch($layout);
 
+    if ($additionalParameters['checkUrls']) {
+        $useMultipleUrl = api_get_configuration_value('multiple_access_urls');
+        if ($useMultipleUrl) {
+            $accessConfig = [];
+            $accessUrls = api_get_access_url_from_user($additionalParameters['userId'], $additionalParameters['courseId']);
+            if (!empty($accessUrls)) {
+                $accessConfig['multiple_access_urls'] = true;
+                $accessConfig['access_url'] = (int) $accessUrls[0];
+                $params = ['variable = ? AND access_url = ?' => ['stylesheets', $accessConfig['access_url']]];
+                $settings = api_get_settings_params_simple($params);
+                if (!empty($settings['selected_value'])) {
+                    $accessConfig['theme_dir'] = \Template::getThemeDir($settings['selected_value']);
+                }
+            }
+            // To replace the current urls by access url user
+            $mail->Body = str_replace(api_get_path(WEB_PATH), api_get_path(WEB_PATH, $accessConfig), $mail->Body);
+            if (!empty($accessConfig['theme_dir'])) {
+                $mail->Body = str_replace('themes/chamilo/', $accessConfig['theme_dir'], $mail->Body);
+            }
+        }
+    }
     // Attachment.
     if (!empty($data_file)) {
         foreach ($data_file as $file_attach) {
@@ -10267,4 +10328,20 @@ function api_filename_has_blacklisted_stream_wrapper(string $filename)
     }
 
     return false;
+}
+
+/**
+ * Calculate the percent between two numbers.
+ *
+ * @return string
+ */
+function api_calculate_increment_percent(int $newValue, int $oldValue)
+{
+    if ($oldValue <= 0) {
+        $result = " - ";
+    } else {
+        $result = ' '.round(100 * (($newValue / $oldValue) - 1), 2).' %';
+    }
+
+    return $result;
 }

@@ -127,6 +127,8 @@ class Rest extends WebService
     public const CHECK_CONDITIONAL_LOGIN = 'check_conditional_login';
     public const GET_LEGAL_CONDITIONS = 'get_legal_conditions';
     public const UPDATE_CONDITION_ACCEPTED = 'update_condition_accepted';
+    public const GET_TEST_UPDATES_LIST = 'get_test_updates_list';
+    public const GET_TEST_AVERAGE_RESULTS_LIST = 'get_test_average_results_list';
 
     /**
      * @var Session
@@ -1661,6 +1663,7 @@ class Rest extends WebService
         $results = [];
         if (!empty($courseInfo)) {
             $results['status'] = true;
+            $results['id'] = $courseInfo['real_id'];
             $results['code_course'] = $courseInfo['code'];
             $results['title_course'] = $courseInfo['title'];
             $extraFieldValues = new ExtraFieldValue('course');
@@ -1925,9 +1928,15 @@ class Rest extends WebService
         }
     }
 
-    public function setMessageRead($messageId)
+    /**
+     * Set a given message as already read.
+     *
+     * @param $messageId
+     */
+    public function setMessageRead(int $messageId)
     {
-        MessageManager::update_message($this->user->getId(), $messageId);
+        // MESSAGE_STATUS_NEW is also used for messages that have been "read"
+        MessageManager::update_message_status($this->user->getId(), $messageId, MESSAGE_STATUS_NEW);
     }
 
     /**
@@ -2178,15 +2187,13 @@ class Rest extends WebService
 
         $table = Database::get_main_table(TABLE_MAIN_SESSION_COURSE);
         $courseListOrdered = SessionManager::get_course_list_by_session_id($modelSessionId, null, 'position');
-        $position = [];
         $count = 0;
         foreach ($courseListOrdered as $course) {
             if ($course['position'] == '') {
                 $course['position'] = $count;
             }
-            $position[$course['code']] = $course['position'];
             // Saving order.
-            $sql = "UPDATE $table SET position = " . $course['position'] . "
+            $sql = "UPDATE $table SET position = ".$course['position']."
                     WHERE session_id = $newSessionId AND c_id = '".$course['real_id']."'";
             Database::query($sql);
             $count++;
@@ -2773,6 +2780,161 @@ class Rest extends WebService
             $this->user->getId(),
             $conditionToSave
         );
+    }
+
+    /**
+     * Get the list of test with last user attempt and his datetime.
+     *
+     * @throws Exception
+     */
+    public function getTestUpdatesList(): array
+    {
+        self::protectAdminEndpoint();
+
+        $tableCQuiz = Database::get_course_table(TABLE_QUIZ_TEST);
+        $tableTrackExercises = Database::get_main_table(TABLE_STATISTIC_TRACK_E_EXERCISES);
+        $tableUser = Database::get_main_table(TABLE_MAIN_USER);
+        $resultArray = [];
+
+        $sql = "
+            SELECT q.iid AS id,
+                q.title,
+                MAX(a.start_date) AS last_attempt_time,
+                u.username AS last_attempt_username
+            FROM $tableCQuiz q
+            JOIN $tableTrackExercises a ON q.iid = a.exe_exo_id
+            JOIN $tableUser u ON a.exe_user_id = u.id
+            GROUP BY q.iid
+        ";
+
+        $result = Database::query($sql);
+        if (Database::num_rows($result) > 0) {
+            while ($row = Database::fetch_assoc($result)) {
+                $resultArray[] = $row;
+            }
+        }
+
+        return $resultArray;
+    }
+
+    /**
+     * Get tests results data
+     * Not support sessions
+     * By default, is successful if score greater than 50%.
+     *
+     * @throws Exception
+     *
+     * @return array e.g: [ { "id": 4, "title": "aiken", "updated_by": "-", "type": "1", "completion": 0 } ]
+     */
+    public function getTestAverageResultsList(array $ids = [], ?array $fields = []): array
+    {
+        self::protectAdminEndpoint();
+        $tableTrackExercises = Database::get_main_table(TABLE_STATISTIC_TRACK_E_EXERCISES);
+        $tableCQuiz = Database::get_course_table(TABLE_QUIZ_TEST);
+        $tableCourseRelUser = Database::get_main_table(TABLE_MAIN_COURSE_USER);
+
+        $resultArray = [];
+        $countUsersInCourses = [];
+        $extraArray = [];
+
+        if (!empty($ids)) {
+            if (!is_array($ids)) {
+                $ids = [$ids];
+            }
+            if (!is_array($fields)) {
+                $fields = [$fields];
+            }
+            if (!empty($fields)) {
+                foreach ($fields as $field) {
+                    $extraArray[$field] = '-';
+                }
+            }
+
+            $queryUsersInCourses = "
+                SELECT c_id, count(*)
+                FROM $tableCourseRelUser
+                GROUP BY c_id
+                ORDER BY c_id;
+            ";
+
+            $resultUsersInCourses = Database::query($queryUsersInCourses);
+            while ($row = Database::fetch_array($resultUsersInCourses)) {
+                $countUsersInCourses[$row[0]] = $row[1];
+            }
+
+            foreach ($ids as $item) {
+                $item = (int) $item;
+
+                $queryCQuiz = "
+                    SELECT c_id,
+                        title,
+                        feedback_type,
+                        pass_percentage
+                    FROM $tableCQuiz
+                    WHERE iid = $item";
+
+                $resultCQuiz = Database::query($queryCQuiz);
+                if (Database::num_rows($resultCQuiz) <= 0) {
+                    continue;
+                }
+                $row = Database::fetch_assoc($resultCQuiz);
+
+                $cId = $row['c_id'];
+                $title = $row['title'];
+                $type = Exercise::getFeedbackTypeLiteral($row['feedback_type']);
+                $passPercentage = empty($row['pass_percentage']) ? 0.5 : $row['pass_percentage'];
+
+                $sql = "
+                    SELECT a.exe_exo_id AS id,
+                           a.exe_user_id,
+                           MAX(a.start_date),
+                           a.exe_result,
+                           a.exe_weighting
+                    FROM $tableTrackExercises a
+                    WHERE a.exe_exo_id = $item
+                    GROUP BY a.exe_exo_id, a.exe_user_id
+                ";
+
+                $result = Database::query($sql);
+                if (Database::num_rows($result) > 0) {
+                    $countAttempts = 0;
+                    $countSuccess = 0;
+                    $scoreSum = 0;
+
+                    while ($row = Database::fetch_assoc($result)) {
+
+                        // If test is badly configured, with all questions at score 0
+                        if ($row['exe_weighting'] == 0) {
+                            continue;
+                        }
+                        $score = $row['exe_result'] / $row['exe_weighting'];
+                        if ($score >= $passPercentage) {
+                            $countSuccess++;
+                        }
+                        $scoreSum += $score;
+                        $countAttempts++;
+                    }
+                    if ($countAttempts === 0) {
+                        continue;
+                    }
+                    $averageScore = round(($scoreSum / $countAttempts) * 100, 2);
+                    $completion = $countSuccess / $countUsersInCourses[$cId];
+
+                    $resultArray[] = [
+                        'id' => $item,
+                        'title' => $title,
+                        'updated_by' => '',
+                        'type' => $type,
+                        'completion' => $completion,
+                        'number_of_last_attempts' => $countAttempts,
+                        'average_score_in_percent' => $averageScore,
+                        'extra' => $extraArray,
+                    ];
+                }
+            }
+        }
+
+        return $resultArray;
     }
 
     public function logout()

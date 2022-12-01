@@ -719,6 +719,10 @@ $_configuration['send_all_emails_to'] = [
 //$_configuration['quiz_confirm_saved_answers'] = false;
 // Allow reuse of questions between courses
 // $_configuration['quiz_question_allow_inter_course_linking'] = false;
+// Delete automatically the questions when a quiz is deleted
+// If questions are reused between courses only deletes the non-reused questions
+// or reused questions where the quiz has the lowest iid value from c_quiz_rel_question
+// $_configuration['quiz_question_delete_automatically_when_deleting_exercise'] = false;
 // Define how many seconds an AJAX request should be started to avoid loss of connection.
 //$_configuration['quiz_keep_alive_ping_interval'] = 0;
 // Hide search form in session list
@@ -1024,6 +1028,7 @@ ALTER TABLE skill_rel_course ADD CONSTRAINT FK_E7CEC7FA613FECDF FOREIGN KEY (ses
         'hide_lp_arrow_navigation' => false,
         'show_toolbar_by_default' => false,
         'navigation_in_the_middle' => false,
+        'add_extra_quit_to_home_icon' => false,
     ],
 ];*/
 
@@ -1367,8 +1372,13 @@ ALTER TABLE gradebook_evaluation ADD score_weight DOUBLE PRECISION DEFAULT NULL,
 // Disable Chamilo.org announcements at the top of the admin page
 //$_configuration['admin_chamilo_announcements_disable'] = false;
 
-// Disable course report graphs
-//$_configuration['hide_course_report_graph'] = false;
+/*
+ Disable course report graphs
+ 0 = Shown
+ 1 = Hidden
+ 2 = Click to show
+*/
+//$_configuration['hide_course_report_graph'] = 0;
 
 // Visually "fold" forum categories by default
 // $_configuration['forum_fold_categories'] = false;
@@ -1983,6 +1993,9 @@ $_configuration['auth_password_links'] = [
 // Resource sequence: Validate course in the same session.
 //$_configuration['course_sequence_valid_only_in_same_session'] = false;
 
+// Allows to show the sequence graphic in the course intro
+//$_configuration['resource_sequence_show_dependency_in_course_intro'] = false;
+
 // Allow time per question. BT#17791
 // Requires a question text extra field called "time", value in seconds.
 // ALTER TABLE track_e_attempt ADD COLUMN seconds_spent INT;
@@ -2300,6 +2313,9 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 
 // Allow DRH user to access all students from reporting.
 // $_configuration['drh_allow_access_to_all_students'] = false;
+
+// Disable links in gradebook view for students
+// $_configuration['gradebook_hide_link_to_item_for_student'] = false;
 
 // KEEP THIS AT THE END
 // -------- Custom DB changes
