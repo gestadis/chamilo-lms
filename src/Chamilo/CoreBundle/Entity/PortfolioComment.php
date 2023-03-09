@@ -18,10 +18,21 @@ use Gedmo\Mapping\Annotation as Gedmo;
  * @Gedmo\Tree(type="nested")
  * @ORM\Table(name="portfolio_comment")
  * Add @ to the next line if api_get_configuration_value('allow_portfolio_tool') is true
- * ORM\Entity(repositoryClass="Chamilo\CoreBundle\Entity\Repository\PortfolioCommentRepository")
+ * @ORM\Entity(repositoryClass="Chamilo\CoreBundle\Entity\Repository\PortfolioCommentRepository")
  */
 class PortfolioComment
 {
+    public const VISIBILITY_VISIBLE = 1;
+    public const VISIBILITY_PER_USER = 2;
+
+    /**
+     * @var int
+     *
+     * Add @ to the next line if portfolio_advanced_sharing config setting is true
+     * @ORM\Column(name="visibility", type="smallint", options={"default": 1})
+     */
+    protected $visibility = 1;
+
     /**
      * @var int
      *
@@ -128,6 +139,7 @@ class PortfolioComment
     {
         $this->isImportant = false;
         $this->children = new ArrayCollection();
+        $this->visibility = 1;
     }
 
     public function getId(): int
@@ -265,6 +277,18 @@ class PortfolioComment
     public function setIsTemplate(bool $isTemplate): PortfolioComment
     {
         $this->isTemplate = $isTemplate;
+
+        return $this;
+    }
+
+    public function getVisibility(): int
+    {
+        return $this->visibility;
+    }
+
+    public function setVisibility(int $visibility): PortfolioComment
+    {
+        $this->visibility = $visibility;
 
         return $this;
     }

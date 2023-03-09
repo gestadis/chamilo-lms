@@ -60,6 +60,7 @@ class Rest extends WebService
     public const GET_COURSE_LP_PROGRESS = 'course_lp_progress';
     public const GET_COURSE_LINKS = 'course_links';
     public const GET_COURSE_WORKS = 'course_works';
+    public const GET_COURSE_EXERCISES = 'course_exercises';
     public const GET_COURSES_DETAILS_BY_EXTRA_FIELD = 'courses_details_by_extra_field';
 
     public const SAVE_COURSE_NOTEBOOK = 'save_course_notebook';
@@ -149,6 +150,30 @@ class Rest extends WebService
     public function __construct($username, $apiKey)
     {
         parent::__construct($username, $apiKey);
+    }
+
+    /**
+     * Get user's username or another field if so configured through $_configuration['webservice_return_user_field'].
+     *
+     * @param int $userId
+     */
+    private function __getConfiguredUsernameById(int $userId = null): string
+    {
+        if (empty($userId)) {
+            return '';
+        }
+        $userField = api_get_configuration_value('webservice_return_user_field');
+        if (empty($userField)) {
+            return api_get_user_info($userId)['username'];
+        }
+
+        $fieldValue = new ExtraFieldValue('user');
+        $extraInfo = $fieldValue->get_values_by_handler_and_field_variable($userId, $userField);
+        if (!empty($extraInfo)) {
+            return $extraInfo['value'];
+        } else {
+            return api_get_user_info($userId)['username'];
+        }
     }
 
     /**
@@ -484,26 +509,57 @@ class Rest extends WebService
     /**
      * Get the course descriptions.
      *
-     * @throws Exception
+     * @param array $fields A list of extra fields to include in the answer. Searches for the field in the including course
      *
-     * @return array
+     * @throws Exception
      */
-    public function getCourseDescriptions()
+    public function getCourseDescriptions($fields = []): array
     {
         Event::event_access_tool(TOOL_COURSE_DESCRIPTION);
 
-        $descriptions = CourseDescription::get_descriptions($this->course->getId());
+        // Check the extra fields criteria (whether to add extra field information or not)
+        $fieldSource = [];
+        if (count($fields) > 0) {
+            // For each field, check where to get it from (quiz or course)
+            $courseExtraField = new ExtraField('course');
+            foreach ($fields as $fieldName) {
+                // The field does not exist on the exercise, so use it from the course
+                $courseFieldExists = $courseExtraField->get_handler_field_info_by_field_variable($fieldName);
+                if ($courseFieldExists === false) {
+                    continue;
+                }
+                $fieldSource[$fieldName] = ['item_type' => 'course', 'id' => $courseFieldExists['id']];
+            }
+        }
+
+        $courseId = $this->course->getId();
+        $descriptions = CourseDescription::get_descriptions($courseId);
         $results = [];
 
         $webPath = api_get_path(WEB_PATH);
 
         /** @var CourseDescription $description */
         foreach ($descriptions as $description) {
-            $results[] = [
+            $descriptionDetails = [
                 'id' => $description->get_description_type(),
                 'title' => $description->get_title(),
                 'content' => str_replace('src="/', 'src="'.$webPath, $description->get_content()),
             ];
+            if (count($fieldSource) > 0) {
+                $extraFieldValuesTable = Database::get_main_table(TABLE_EXTRA_FIELD_VALUES);
+                $fieldsSearchString = "SELECT field_id, value FROM $extraFieldValuesTable WHERE item_id = %d AND field_id = %d";
+                foreach ($fieldSource as $fieldName => $fieldDetails) {
+                    $itemId = $courseId;
+                    $result = Database::query(sprintf($fieldsSearchString, $itemId, $fieldDetails['id']));
+                    if (Database::num_rows($result) > 0) {
+                        $row = Database::fetch_assoc($result);
+                        $descriptionDetails['extra_'.$fieldName] = $row['value'];
+                    } else {
+                        $descriptionDetails['extra_'.$fieldName] = '';
+                    }
+                }
+            }
+            $results[] = $descriptionDetails;
         }
 
         return $results;
@@ -1549,12 +1605,13 @@ class Rest extends WebService
     }
 
     /**
-     * @return array
+     * Returns a list of courses in the given URL. If no URL is provided, we assume we are not in a multi-URL setup and
+     * return all the courses.
+     *
+     * @param int $campusId
      */
-    public function getCoursesCampus(array $params)
+    public function getCoursesCampus($campusId = null): array
     {
-        $idCampus = $params['id_campus'];
-
         return CourseManager::get_courses_list(
             0, //offset
             0, //howMany
@@ -1562,7 +1619,7 @@ class Rest extends WebService
             'ASC',
             -1, //visibility
             null,
-            $idCampus, //$urlId
+            empty($campusId) ? null : $campusId, //$urlId
             true //AlsoSearchCode
         );
     }
@@ -2785,9 +2842,11 @@ class Rest extends WebService
     /**
      * Get the list of test with last user attempt and his datetime.
      *
+     * @param array $fields A list of extra fields to include in the answer. Searches for the field in exercise, then in course
+     *
      * @throws Exception
      */
-    public function getTestUpdatesList(): array
+    public function getTestUpdatesList($fields = []): array
     {
         self::protectAdminEndpoint();
 
@@ -2796,11 +2855,35 @@ class Rest extends WebService
         $tableUser = Database::get_main_table(TABLE_MAIN_USER);
         $resultArray = [];
 
+        // Check the extra fields criteria (whether to add extra field information or not)
+        $fieldSource = [];
+        $extraFieldValuesTable = Database::get_main_table(TABLE_EXTRA_FIELD_VALUES);
+        $fieldsSearchString = "SELECT field_id, value FROM $extraFieldValuesTable WHERE item_id = %d AND field_id = %d";
+        if (count($fields) > 0) {
+            // For each field, check where to get it from (quiz or course)
+            $quizExtraField = new ExtraField('exercise');
+            $courseExtraField = new ExtraField('course');
+            foreach ($fields as $fieldName) {
+                $fieldExists = $quizExtraField->get_handler_field_info_by_field_variable($fieldName);
+                if ($fieldExists === false) {
+                    // The field does not exist on the exercise, so use it from the course
+                    $courseFieldExists = $courseExtraField->get_handler_field_info_by_field_variable($fieldName);
+                    if ($courseFieldExists === false) {
+                        continue;
+                    }
+                    $fieldSource[$fieldName] = ['item_type' => 'course', 'id' => $courseFieldExists['id']];
+                } else {
+                    $fieldSource[$fieldName] = ['item_type' => 'exercise', 'id' => $fieldExists['id']];
+                }
+            }
+        }
+
         $sql = "
             SELECT q.iid AS id,
                 q.title,
                 MAX(a.start_date) AS last_attempt_time,
-                u.username AS last_attempt_username
+                u.username AS last_attempt_username,
+                q.c_id
             FROM $tableCQuiz q
             JOIN $tableTrackExercises a ON q.iid = a.exe_exo_id
             JOIN $tableUser u ON a.exe_user_id = u.id
@@ -2810,6 +2893,31 @@ class Rest extends WebService
         $result = Database::query($sql);
         if (Database::num_rows($result) > 0) {
             while ($row = Database::fetch_assoc($result)) {
+                // Check the whole extra fields thing
+                if (count($fieldSource) > 0) {
+                    foreach ($fieldSource as $fieldName => $fieldDetails) {
+                        if ($fieldDetails['item_type'] == 'course') {
+                            $itemId = $row['c_id'];
+                        } else {
+                            $itemId = $row['id'];
+                        }
+                        $fieldResult = Database::query(sprintf($fieldsSearchString, $itemId, $fieldDetails['id']));
+                        if (Database::num_rows($fieldResult) > 0) {
+                            $fieldRow = Database::fetch_assoc($fieldResult);
+                            $row['extra_'.$fieldName] = $fieldRow['value'];
+                        } else {
+                            $row['extra_'.$fieldName] = '';
+                        }
+                    }
+                }
+                // Get item authoring data
+                $itemProps = api_get_last_item_property_info($row['c_id'], 'quiz', $row['id']);
+                $row['created_by'] = $this->__getConfiguredUsernameById($itemProps['insert_user_id']);
+                if ($itemProps['insert_user_id'] == $itemProps['lastedit_user_id']) {
+                    $row['updated_by'] = $row['created_by'];
+                } else {
+                    $row['updated_by'] = $this->__getConfiguredUsernameById($itemProps['lastedit_user_id']);
+                }
                 $resultArray[] = $row;
             }
         }
@@ -2846,7 +2954,7 @@ class Rest extends WebService
             }
             if (!empty($fields)) {
                 foreach ($fields as $field) {
-                    $extraArray[$field] = '-';
+                    $extraArray['extra_'.$field] = '';
                 }
             }
 
@@ -2884,6 +2992,15 @@ class Rest extends WebService
                 $type = Exercise::getFeedbackTypeLiteral($row['feedback_type']);
                 $passPercentage = empty($row['pass_percentage']) ? 0.5 : $row['pass_percentage'];
 
+                // Get item authoring data
+                $itemProps = api_get_last_item_property_info($row['c_id'], 'quiz', $item);
+                $createdBy = $this->__getConfiguredUsernameById($itemProps['insert_user_id']);
+                if ($itemProps['insert_user_id'] == $itemProps['lastedit_user_id']) {
+                    $updatedBy = $createdBy;
+                } else {
+                    $updatedBy = $this->__getConfiguredUsernameById($itemProps['lastedit_user_id']);
+                }
+
                 $sql = "
                     SELECT a.exe_exo_id AS id,
                            a.exe_user_id,
@@ -2914,22 +3031,36 @@ class Rest extends WebService
                         $scoreSum += $score;
                         $countAttempts++;
                     }
+                    $completionMethod = 'Success on users count';
                     if ($countAttempts === 0) {
-                        continue;
+                        // In some cases, there are no attempts at all. Return 0 completion & score.
+                        $averageScore = 0;
+                        $completion = 0;
+                    } else {
+                        $averageScore = round(($scoreSum / $countAttempts) * 100, 2);
+                        if (empty($countUsersInCourses[$cId])) {
+                            // Users might have all been unsubscribed from the course since taking the test
+                            $completion = $countSuccess / $countAttempts;
+                            $completionMethod = 'Success on attempts count';
+                        } else {
+                            $completion = $countSuccess / $countUsersInCourses[$cId];
+                        }
                     }
-                    $averageScore = round(($scoreSum / $countAttempts) * 100, 2);
-                    $completion = $countSuccess / $countUsersInCourses[$cId];
-
-                    $resultArray[] = [
+                    $params = [
                         'id' => $item,
                         'title' => $title,
-                        'updated_by' => '',
+                        'created_by' => $createdBy,
+                        'updated_by' => $updatedBy,
                         'type' => $type,
                         'completion' => $completion,
+                        'completion_method' => $completionMethod,
                         'number_of_last_attempts' => $countAttempts,
                         'average_score_in_percent' => $averageScore,
-                        'extra' => $extraArray,
                     ];
+                    foreach ($extraArray as $name => $value) {
+                        $params[$name] = $value;
+                    }
+                    $resultArray[] = $params;
                 }
             }
         }
@@ -3041,6 +3172,77 @@ class Rest extends WebService
             },
             $works
         );
+    }
+
+    /**
+     * Returns a list of exercises in the given course. The given course is received through generic param at instanciation.
+     *
+     * @param array $fields A list of extra fields to include in the answer. Searches for the field in exercise, then in course
+     */
+    public function getCourseExercises($fields = []): array
+    {
+        Event::event_access_tool(TOOL_QUIZ);
+
+        $sessionId = $this->session ? $this->session->getId() : 0;
+        $courseInfo = api_get_course_info_by_id($this->course->getId());
+
+        // Check the extra fields criteria (whether to add extra field information or not)
+        $fieldSource = [];
+        if (count($fields) > 0) {
+            // For each field, check where to get it from (quiz or course)
+            $quizExtraField = new ExtraField('exercise');
+            $courseExtraField = new ExtraField('course');
+            foreach ($fields as $fieldName) {
+                $fieldExists = $quizExtraField->get_handler_field_info_by_field_variable($fieldName);
+                if ($fieldExists === false) {
+                    // The field does not exist on the exercise, so use it from the course
+                    $courseFieldExists = $courseExtraField->get_handler_field_info_by_field_variable($fieldName);
+                    if ($courseFieldExists === false) {
+                        continue;
+                    }
+                    $fieldSource[$fieldName] = ['item_type' => 'course', 'id' => $courseFieldExists['id']];
+                } else {
+                    $fieldSource[$fieldName] = ['item_type' => 'exercise', 'id' => $fieldExists['id']];
+                }
+            }
+        }
+        $list = ExerciseLib::get_all_exercises($courseInfo, $sessionId);
+
+        // Now check the whole extra fields thing
+        if (count($fieldSource) > 0) {
+            $extraFieldValuesTable = Database::get_main_table(TABLE_EXTRA_FIELD_VALUES);
+            $fieldsSearchString = "SELECT field_id, value FROM $extraFieldValuesTable WHERE item_id = %d AND field_id = %d";
+            foreach ($list as $id => $exercise) {
+                foreach ($fieldSource as $fieldName => $fieldDetails) {
+                    if ($fieldDetails['item_type'] == 'course') {
+                        $itemId = $exercise['c_id'];
+                    } else {
+                        $itemId = $exercise['iid'];
+                    }
+                    $result = Database::query(sprintf($fieldsSearchString, $itemId, $fieldDetails['id']));
+                    if (Database::num_rows($result) > 0) {
+                        $row = Database::fetch_assoc($result);
+                        $list[$id]['extra_'.$fieldName] = $row['value'];
+                    } else {
+                        $list[$id]['extra_'.$fieldName] = '';
+                    }
+                }
+            }
+        }
+        foreach ($list as $id => $row) {
+            // Get item authoring data
+            $itemProps = api_get_last_item_property_info($row['c_id'], 'quiz', $row['iid']);
+            $createdBy = $this->__getConfiguredUsernameById($itemProps['insert_user_id']);
+            if ($itemProps['insert_user_id'] == $itemProps['lastedit_user_id']) {
+                $updatedBy = $createdBy;
+            } else {
+                $updatedBy = $this->__getConfiguredUsernameById($itemProps['lastedit_user_id']);
+            }
+            $list[$id]['created_by'] = $createdBy;
+            $list[$id]['updated_by'] = $updatedBy;
+        }
+
+        return $list;
     }
 
     /**

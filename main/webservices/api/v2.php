@@ -223,7 +223,8 @@ try {
             break;
         case Rest::GET_COURSE_DESCRIPTIONS:
             Event::addEvent(LOG_WS.$action, 'course_id', (int) $_POST['course']);
-            $descriptions = $restApi->getCourseDescriptions();
+            $fields = $_POST['fields'] ?? [];
+            $descriptions = $restApi->getCourseDescriptions($fields);
             $restResponse->setData($descriptions);
             break;
         case Rest::GET_COURSE_DOCUMENTS:
@@ -300,6 +301,13 @@ try {
             Event::addEvent(LOG_WS.$action, 'username', $username);
             $restResponse->setData(
                 $restApi->getCourseWorks()
+            );
+            break;
+        case Rest::GET_COURSE_EXERCISES:
+            Event::addEvent(LOG_WS.$action, 'course_id', (int) $_POST['course']);
+            $fields = $_POST['fields'] ?? [];
+            $restResponse->setData(
+                $restApi->getCourseExercises($fields)
             );
             break;
         case Rest::SAVE_COURSE_NOTEBOOK:
@@ -618,8 +626,12 @@ try {
             );
             break;
         case Rest::GET_COURSES:
-            Event::addEvent(LOG_WS.$action, 'id_campus', (int) $_POST['id_campus']);
-            $data = $restApi->getCoursesCampus($_POST);
+            $campusId = api_get_current_access_url_id();
+            if (!empty($_POST['id_campus'])) {
+                $campusId = (int) $_POST['id_campus'];
+            }
+            Event::addEvent(LOG_WS.$action, 'id_campus', $campusId);
+            $data = $restApi->getCoursesCampus($campusId);
             $restResponse->setData($data);
             break;
         case Rest::GET_COURSES_FROM_EXTRA_FIELD:
@@ -812,8 +824,9 @@ try {
             break;
         case Rest::GET_TEST_UPDATES_LIST:
             Event::addEvent(LOG_WS.$action, 'success', 'true');
+            $fields = $_POST['fields'] ?? [];
             $restResponse->setData(
-                $restApi->getTestUpdatesList()
+                $restApi->getTestUpdatesList($fields)
             );
             break;
         case Rest::GET_TEST_AVERAGE_RESULTS_LIST:

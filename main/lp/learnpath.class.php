@@ -759,6 +759,7 @@ class learnpath
             $courseInfo = api_get_course_info();
         }
 
+        $em = Database::getManager();
         $tbl_lp = Database::get_course_table(TABLE_LP_MAIN);
         // Check course code exists.
         // Check lp_name doesn't exist, otherwise append something.
@@ -771,13 +772,13 @@ class learnpath
         if (empty($publicated_on)) {
             $publicated_on = null;
         } else {
-            $publicated_on = Database::escape_string(api_get_utc_datetime($publicated_on));
+            $publicated_on = api_get_utc_datetime($publicated_on, false, true);
         }
 
         if (empty($expired_on)) {
             $expired_on = null;
         } else {
-            $expired_on = Database::escape_string(api_get_utc_datetime($expired_on));
+            $expired_on = api_get_utc_datetime($expired_on, false, true);
         }
 
         $check_name = "SELECT * FROM $tbl_lp
@@ -824,64 +825,69 @@ class learnpath
                     $dsp = $row[0] + 1;
                 }
 
-                $params = [
-                    'c_id' => $course_id,
-                    'lp_type' => $type,
-                    'name' => $name,
-                    'description' => $description,
-                    'path' => '',
-                    'default_view_mod' => 'embedded',
-                    'default_encoding' => 'UTF-8',
-                    'display_order' => $dsp,
-                    'content_maker' => 'Chamilo',
-                    'content_local' => 'local',
-                    'js_lib' => '',
-                    'session_id' => $session_id,
-                    'created_on' => api_get_utc_datetime(),
-                    'modified_on' => api_get_utc_datetime(),
-                    'publicated_on' => $publicated_on,
-                    'expired_on' => $expired_on,
-                    'category_id' => $categoryId,
-                    'force_commit' => 0,
-                    'content_license' => '',
-                    'debug' => 0,
-                    'theme' => '',
-                    'preview_image' => '',
-                    'author' => '',
-                    'prerequisite' => 0,
-                    'hide_toc_frame' => 0,
-                    'seriousgame_mode' => 0,
-                    'autolaunch' => 0,
-                    'max_attempts' => 0,
-                    'subscribe_users' => 0,
-                    'accumulate_scorm_time' => 1,
-                ];
-                $id = Database::insert($tbl_lp, $params);
+                $newLp = (new CLp())
+                    ->setCId($course_id)
+                    ->setLpType($type)
+                    ->setName($name)
+                    ->setDescription($description)
+                    ->setPath('')
+                    ->setDefaultViewMod('embedded')
+                    ->setDefaultEncoding('UTF-8')
+                    ->setDisplayOrder($dsp)
+                    ->setContentMaker('Chamilo')
+                    ->setContentLocal('local')
+                    ->setJsLib('')
+                    ->setSessionId($session_id)
+                    ->setCreatedOn(api_get_utc_datetime(null, false, true))
+                    ->setModifiedOn(api_get_utc_datetime(null, false, true))
+                    ->setPublicatedOn($publicated_on)
+                    ->setExpiredOn($expired_on)
+                    ->setCategoryId($categoryId)
+                    ->setForceCommit(false)
+                    ->setContentLicense('')
+                    ->setDebug(false)
+                    ->setTheme('')
+                    ->setPreviewImage('')
+                    ->setAuthor('')
+                    ->setPrerequisite(0)
+                    ->setHideTocFrame(false)
+                    ->setSeriousgameMode(false)
+                    ->setAutolaunch(0)
+                    ->setMaxAttempts(0)
+                    ->setSubscribeUsers(0)
+                    ->setAccumulateScormTime(1)
+                ;
 
-                if ($id > 0) {
-                    $sql = "UPDATE $tbl_lp SET id = iid WHERE iid = $id";
-                    Database::query($sql);
+                $em->persist($newLp);
+                $em->flush();
 
-                    // Insert into item_property.
-                    api_item_property_update(
-                        $courseInfo,
-                        TOOL_LEARNPATH,
-                        $id,
-                        'LearnpathAdded',
-                        $userId
-                    );
-                    api_set_default_visibility(
-                        $id,
-                        TOOL_LEARNPATH,
-                        0,
-                        $courseInfo,
-                        $session_id,
-                        $userId
-                    );
+                HookLearningPathCreated::create()
+                    ->setEventData(['lp' => $newLp])
+                    ->notifyCreated()
+                ;
 
-                    return $id;
-                }
-                break;
+                $newLp->setId($newLp->getIid());
+
+                $em->flush();
+
+                // Insert into item_property.
+                api_item_property_update(
+                    $courseInfo,
+                    TOOL_LEARNPATH,
+                    $newLp->getIid(),
+                    'LearnpathAdded',
+                    $userId
+                );
+                api_set_default_visibility(
+                    $newLp->getIid(),
+                    TOOL_LEARNPATH,
+                    0,
+                    $courseInfo,
+                    $session_id,
+                    $userId
+                );
+
+                return $newLp->getIid();
         }
     }
 
@@ -1603,7 +1609,7 @@ class learnpath
      *
      * @return int The number of items currently completed
      */
-    public function get_complete_items_count($failedStatusException = false)
+    public function get_complete_items_count($failedStatusException = false, $typeListNotToCount = [])
     {
         $i = 0;
         $completedStatusList = [
@@ -1622,10 +1628,17 @@ class learnpath
             error_log('Counting steps with status in: '.print_r($completedStatusList, 1));
         }
 
+        $chapters = self::getChapterTypes();
+        if (!empty($typeListNotToCount)) {
+            $typeListNotToCount = array_merge($typeListNotToCount, $chapters);
+        } else {
+            $typeListNotToCount = $chapters;
+        }
+
         foreach ($this->items as $id => $dummy) {
             // Trying failed and browsed considered "progressed" as well.
             if ($this->items[$id]->status_is($completedStatusList) &&
-                $this->items[$id]->get_type() !== 'dir'
+                !in_array($this->items[$id]->get_type(), $typeListNotToCount)
             ) {
                 $i++;
             }
@@ -1683,10 +1696,15 @@ class learnpath
      *
      * @return int The total no-chapters number of items
      */
-    public function getTotalItemsCountWithoutDirs()
+    public function getTotalItemsCountWithoutDirs($typeListNotToCount = [])
     {
         $total = 0;
-        $typeListNotToCount = self::getChapterTypes();
+        $chapters = self::getChapterTypes();
+        if (!empty($typeListNotToCount)) {
+            $typeListNotToCount = array_merge($typeListNotToCount, $chapters);
+        } else {
+            $typeListNotToCount = $chapters;
+        }
         foreach ($this->items as $temp2) {
             if (!in_array($temp2->get_type(), $typeListNotToCount)) {
                 $total++;
@@ -5046,6 +5064,7 @@ class learnpath
                         WHERE
                             c_id = $courseId AND
                             lp_id = ".$this->get_id()." AND
+                            progress < $progress AND
                             user_id = ".$userId." ".$sessionCondition;
             // Ignore errors as some tables might not have the progress field just yet.
             Database::query($sql);
@@ -6320,7 +6339,7 @@ class learnpath
                     $icon = Display::return_icon('lp_'.$icon_name.'.gif');
                 } else {
                     if ($arrLP[$i]['item_type'] === TOOL_LP_FINAL_ITEM) {
-                        $icon = Display::return_icon('certificate.png');
+                        $icon = Display::return_icon('flag_checkered.png');
                     } elseif (TOOL_XAPI === $arrLP[$i]['item_type']) {
                         $icon = Display::return_icon('import_scorm.png');
                     } elseif (TOOL_SURVEY === $arrLP[$i]['item_type']) {
@@ -6751,6 +6770,9 @@ class learnpath
     {
         $return = '';
         foreach ($elements as $key => $item) {
+            if (TOOL_LP_FINAL_ITEM === $item['type']) {
+                $key = 'final_item';
+            }
             if (isset($item['load_data']) || empty($item['data'])) {
                 $item['data'] = $default_data[$item['load_data']];
                 $item['type'] = $default_content[$item['load_data']]['item_type'];
@@ -7690,7 +7712,7 @@ class learnpath
             $items[] = $xApiPlugin->getLpResourceBlock($this->lp_id);
         }
 
-        $headers[] = Display::return_icon('certificate.png', get_lang('Certificate'), [], ICON_SIZE_BIG);
+        $headers[] = Display::return_icon('flag_checkered.png', get_lang('Certificate'), [], ICON_SIZE_BIG);
         $items[] = $finish;
 
         echo Display::return_message(get_lang('ClickOnTheLearnerViewToSeeYourLearningPath'), 'normal');
@@ -13469,13 +13491,6 @@ EOD;
         $form = new FormValidator('final_item', 'POST', $url);
         $form->addText('title', get_lang('Title'));
         $form->addButtonSave($buttonText);
-        $form->addHtml(
-            Display::return_message(
-                'Variables :</br></br> <b>((certificate))</b> </br> <b>((skill))</b>',
-                'normal',
-                false
-            )
-        );
 
         $renderer = $form->defaultRenderer();
         $renderer->setElementTemplate('&nbsp;{label}{element}', 'content_lp_certificate');
@@ -13487,6 +13502,13 @@ EOD;
             false,
             $editorConfig,
             true
+        );
+        $form->addHtml(
+            Display::return_message(
+                get_lang('LPEndStepAddTagsToShowCertificateOrSkillAutomatically').'</br></br> <b>((certificate))</b> </br> <b>((skill))</b>',
+                'normal',
+                false
+            )
         );
         $form->addHidden('action', 'add_final_item');
         $form->addHidden('path', Session::read('pathItem'));
@@ -14673,6 +14695,26 @@ EOD;
     }
 
     /**
+     * Check and obtain the lp final item if exist.
+     *
+     * @return learnpathItem
+     */
+    public function getFinalItem()
+    {
+        if (empty($this->items)) {
+            return null;
+        }
+
+        foreach ($this->items as $item) {
+            if ($item->type !== 'final_item') {
+                continue;
+            }
+
+            return $item;
+        }
+    }
+
+    /**
      * Get the depth level of LP item.
      *
      * @param array $items
@@ -14726,26 +14768,6 @@ EOD;
     private static function format_scorm_type_item($in_type)
     {
         return str_replace(' ', '_', $in_type);
-    }
-
-    /**
-     * Check and obtain the lp final item if exist.
-     *
-     * @return learnpathItem
-     */
-    private function getFinalItem()
-    {
-        if (empty($this->items)) {
-            return null;
-        }
-
-        foreach ($this->items as $item) {
-            if ($item->type !== 'final_item') {
-                continue;
-            }
-
-            return $item;
-        }
     }
 
     /**

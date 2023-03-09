@@ -24,7 +24,7 @@ use Doctrine\ORM\Mapping as ORM;
  *  }
  * )
  * Add @ to the next line if api_get_configuration_value('allow_portfolio_tool') is true
- * ORM\Entity(repositoryClass="Chamilo\CoreBundle\Entity\Repository\PortfolioRepository")
+ * @ORM\Entity(repositoryClass="Chamilo\CoreBundle\Entity\Repository\PortfolioRepository")
  */
 class Portfolio
 {
@@ -34,6 +34,7 @@ class Portfolio
     public const VISIBILITY_HIDDEN = 0;
     public const VISIBILITY_VISIBLE = 1;
     public const VISIBILITY_HIDDEN_EXCEPT_TEACHER = 2;
+    public const VISIBILITY_PER_USER = 3;
 
     /**
      * @var int
@@ -96,7 +97,7 @@ class Portfolio
     protected $updateDate;
 
     /**
-     * @var bool
+     * @var int
      *
      * @ORM\Column(name="visibility", type="smallint", options={"default": 1})
      */
@@ -375,12 +376,18 @@ class Portfolio
         return $this->comments;
     }
 
-    public function getLastComments(int $number = 3): Collection
+    public function getLastComments(int $number = 3, bool $avoidPerUserVisibility = false): Collection
     {
         $criteria = Criteria::create();
         $criteria
             ->orderBy(['date' => 'DESC'])
             ->setMaxResults($number);
+
+        if ($avoidPerUserVisibility) {
+            $criteria->where(
+                Criteria::expr()->neq('visibility', PortfolioComment::VISIBILITY_PER_USER)
+            );
+        }
 
         return $this->comments->matching($criteria);
     }

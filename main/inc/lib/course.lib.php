@@ -3384,6 +3384,25 @@ class CourseManager
         return null;
     }
 
+    public static function getExtraData(int $courseId, array $avoid = [])
+    {
+        $fields = (new ExtraField('course'))->getDataAndFormattedValues($courseId);
+
+        if ($avoid) {
+            $fields = array_filter(
+                $fields,
+                function (array $field) use ($avoid): bool {
+                    return !in_array($field['variable'], $avoid);
+                }
+            );
+        }
+
+        $keys = array_column($fields, 'text');
+        $values = array_column($fields, 'value');
+
+        return array_combine($keys, $values);
+    }
+
     /**
      * Gets extra field value data and formatted values of a course
      * for extra fields listed in configuration.php in my_course_course_extrafields_to_be_presented
@@ -7279,6 +7298,28 @@ class CourseManager
         Database::free_result($res);
 
         return $data;
+    }
+
+    /**
+     * returns an array with all the courses codes of the plateform.
+     *
+     * @return array
+     */
+    public static function getAllCoursesCode()
+    {
+        $sql = "select id, code from course";
+        $result = Database::query($sql);
+        $num_rows = Database::num_rows($result);
+        $coursesCode = [];
+        $coursesList = [];
+        if ($num_rows > 0) {
+            while ($row = Database::fetch_array($result, 'ASSOC')) {
+                $coursesList[$row['id']] = $row;
+            }
+            $coursesCode = array_column($coursesList, 'code');
+        }
+
+        return $coursesCode;
     }
 
     /**

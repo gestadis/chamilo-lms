@@ -6,6 +6,8 @@ use Chamilo\CoreBundle\Entity\SettingsCurrent;
 use Chamilo\CourseBundle\Entity\CItemProperty;
 use Chamilo\UserBundle\Entity\User;
 use ChamiloSession as Session;
+use League\OAuth2\Client\Provider\GenericProvider;
+use PHPMailer\PHPMailer\OAuth;
 use PHPMailer\PHPMailer\PHPMailer;
 use Symfony\Component\Finder\Finder;
 
@@ -147,6 +149,7 @@ define('TOOL_NOTEBOOK', 'notebook');
 define('TOOL_ATTENDANCE', 'attendance');
 define('TOOL_COURSE_PROGRESS', 'course_progress');
 define('TOOL_PORTFOLIO', 'portfolio');
+define('TOOL_PORTFOLIO_COMMENT', 'portfolio_comment');
 define('TOOL_PLAGIARISM', 'compilatio');
 define('TOOL_XAPI', 'xapi');
 
@@ -527,11 +530,11 @@ define('ANNOTATION', 20);
 define('READING_COMPREHENSION', 21);
 define('MULTIPLE_ANSWER_TRUE_FALSE_DEGREE_CERTAINTY', 22);
 define('UPLOAD_ANSWER', 23);
-define('MATCHING_GLOBAL', 24);
-define('MATCHING_DRAGGABLE_GLOBAL', 25);
-define('HOT_SPOT_GLOBAL', 26);
-define('FILL_IN_BLANKS_GLOBAL', 27);
-define('MULTIPLE_ANSWER_DROPDOWN_GLOBAL', 28);
+define('MATCHING_COMBINATION', 24);
+define('MATCHING_DRAGGABLE_COMBINATION', 25);
+define('HOT_SPOT_COMBINATION', 26);
+define('FILL_IN_BLANKS_COMBINATION', 27);
+define('MULTIPLE_ANSWER_DROPDOWN_COMBINATION', 28);
 define('MULTIPLE_ANSWER_DROPDOWN', 29);
 
 define('EXERCISE_CATEGORY_RANDOM_SHUFFLED', 1);
@@ -746,7 +749,7 @@ require_once __DIR__.'/internationalization.lib.php';
  * a slash too, so an additional check about presence of leading system server base is implemented. For example, the function is
  * able to distinguish type difference between /var/www/chamilo/courses/ (SYS) and /chamilo/courses/ (REL).
  * 3. The function api_get_path() returns only these three types of paths, which in some sense are absolute. The function has
- * no a mechanism for processing relative web/system paths, such as: lesson01.html, ./lesson01.html, ../css/my_styles.css.
+ * no mechanism for processing relative web/system paths, such as: lesson01.html, ./lesson01.html, ../css/my_styles.css.
  * It has not been identified as needed yet.
  * 4. Also, resolving the meta-symbols "." and ".." within paths has not been implemented, it is to be identified as needed.
  *
@@ -1513,6 +1516,29 @@ function api_get_navigator()
     }
 
     return ['name' => $navigator, 'version' => $version];
+}
+/**
+ * Check if it is a desktop or mobile browser.
+ */
+function api_is_browser_mobile(): bool
+{
+    if (empty($_SERVER['HTTP_USER_AGENT'])) {
+        static $isMobile = false;
+    } elseif (
+        strpos($_SERVER['HTTP_USER_AGENT'], 'Mobile') !== false
+        || strpos($_SERVER['HTTP_USER_AGENT'], 'Android') !== false
+        || strpos($_SERVER['HTTP_USER_AGENT'], 'Silk/') !== false
+        || strpos($_SERVER['HTTP_USER_AGENT'], 'Kindle') !== false
+        || strpos($_SERVER['HTTP_USER_AGENT'], 'BlackBerry') !== false
+        || strpos($_SERVER['HTTP_USER_AGENT'], 'Opera Mini') !== false
+        || strpos($_SERVER['HTTP_USER_AGENT'], 'Opera Mobi') !== false
+    ) {
+        $isMobile = true;
+    } else {
+        $isMobile = false;
+    }
+
+    return $isMobile;
 }
 
 /**
@@ -2610,7 +2636,8 @@ function api_check_password($password)
     $specials = 0;
 
     for ($i = 0; $i < $passwordLength; $i++) {
-        $currentCharacterCode = api_ord(api_substr($password, $i, 1));
+        $currentCharacter = api_substr($password, $i, 1);
+        $currentCharacterCode = api_ord($currentCharacter);
         if ($currentCharacterCode >= 65 && $currentCharacterCode <= 90) {
             $upperCase++;
         }
@@ -2622,7 +2649,7 @@ function api_check_password($password)
             $digits++;
         }
 
-        if (false !== strpos(Security::CHAR_SYMBOLS, $currentCharacterCode)) {
+        if (false !== strpos(Security::CHAR_SYMBOLS, $currentCharacter)) {
             $specials++;
         }
     }
@@ -2946,7 +2973,7 @@ function api_get_session_visibility(
  * the user is not a student.
  *
  * @param int $sessionId
- * @param int $statusId  User status id - if 5 (student), will return empty
+ * @param int $statusId  User status id - if 5 (student) or in student view, will return empty
  *
  * @return string Session icon
  */
@@ -2954,7 +2981,8 @@ function api_get_session_image($sessionId, $statusId)
 {
     $sessionId = (int) $sessionId;
     $image = '';
-    if ($statusId != STUDENT) {
+    $studentView = !empty($_SESSION['studentview']) && $_SESSION['studentview'] == 'studentview';
+    if ($statusId != STUDENT && !$studentView) {
         // Check whether is not a student
         if ($sessionId > 0) {
             $image = '&nbsp;&nbsp;'.Display::return_icon(
@@ -4922,6 +4950,47 @@ function api_get_item_property_info($course_id, $tool, $ref, $session_id = 0, $g
 }
 
 /**
+ * Gets the last item property data from tool of a course id, in chronological order.
+ *
+ * @param string $tool      tool name, linked to 'rubrique' of the course tool_list (Warning: language sensitive !!)
+ * @param int    $ref       id of the item itself, linked to key of every tool ('id', ...), "*" = all items of the tool
+ * @param int    $sessionId
+ * @param int    $groupId
+ *
+ * @return array with all fields from c_item_property, empty array if not found or false if course could not be found
+ */
+function api_get_last_item_property_info(int $courseId, string $tool, int $ref, int $sessionId = null, int $groupId = null): array
+{
+    $tool = Database::escape_string($tool);
+    // Definition of tables.
+    $table = Database::get_course_table(TABLE_ITEM_PROPERTY);
+    $sessionCondition = " session_id = $sessionId";
+    if (empty($sessionId)) {
+        $sessionCondition = ' (session_id = 0 OR session_id IS NULL) ';
+    }
+
+    $sql = "SELECT * FROM $table
+            WHERE
+                c_id = $courseId AND
+                tool = '$tool' AND
+                ref = $ref AND
+                $sessionCondition ";
+
+    if (!empty($groupId)) {
+        $sql .= " AND to_group_id = $groupId ";
+    }
+    // Add criteria to only get the last one
+    $sql .= "ORDER BY lastedit_date DESC LIMIT 1";
+    $rs = Database::query($sql);
+    $row = [];
+    if (Database::num_rows($rs) > 0) {
+        $row = Database::fetch_array($rs, 'ASSOC');
+    }
+
+    return $row;
+}
+
+/**
  * Displays a combo box so the user can select his/her preferred language.
  *
  * @param string The desired name= value for the select
@@ -6388,8 +6457,27 @@ function api_get_access_url($id, $returnDefault = true)
  *
  * @return array Array of database results for the current settings of the current access URL
  */
-function &api_get_settings($cat = null, $ordering = 'list', $access_url = 1, $url_changeable = 0)
+function api_get_settings($cat = null, $ordering = 'list', $access_url = 1, $url_changeable = 0)
 {
+    // Try getting settings from cache first (avoids query w/ ~375 rows result)
+    $apcVarName = '';
+    $apcVar = [];
+    $cacheAvailable = api_get_configuration_value('apc');
+    if ($cacheAvailable) {
+        $apcVarName = api_get_configuration_value('apc_prefix').
+            'settings_'.
+            $access_url
+        ;
+        $catName = (empty($cat) ? 'global' : $cat);
+
+        if (apcu_exists($apcVarName)) {
+            $apcVar = apcu_fetch($apcVarName);
+            if (!empty($apcVar[$catName]) && !empty($apcVar[$catName][$ordering]) && isset($apcVar[$catName][$ordering][$url_changeable])) {
+                return $apcVar[$catName][$ordering][$url_changeable];
+            }
+        }
+    }
+    // Could not find settings in cache (or already expired), so query DB
     $table = Database::get_main_table(TABLE_MAIN_SETTINGS_CURRENT);
     $access_url = (int) $access_url;
     $where_condition = '';
@@ -6416,6 +6504,19 @@ function &api_get_settings($cat = null, $ordering = 'list', $access_url = 1, $ur
         return [];
     }
     $result = Database::store_result($result, 'ASSOC');
+
+    if ($cacheAvailable) {
+        // If we got here, it means cache is available but the settings
+        // were not recently stored, so now we have them, let's store them
+        if (empty($apcVar[$catName])) {
+            $apcVar[$catName] = [];
+        }
+        if (empty($apcVar[$catName][$ordering])) {
+            $apcVar[$catName][$ordering] = [];
+        }
+        $apcVar[$catName][$ordering][$url_changeable] = $result;
+        apcu_store($apcVarName, $apcVar, 600);
+    }
 
     return $result;
 }
@@ -8384,7 +8485,7 @@ function api_set_settings_and_plugins()
     if ($access_url_id != 1) {
         $url_info = api_get_access_url($_configuration['access_url']);
         if ($url_info['active'] == 1) {
-            $settings_by_access = &api_get_settings(null, 'list', $_configuration['access_url'], 1);
+            $settings_by_access = api_get_settings(null, 'list', $_configuration['access_url'], 1);
             foreach ($settings_by_access as &$row) {
                 if (empty($row['variable'])) {
                     $row['variable'] = 0;
@@ -9027,7 +9128,22 @@ function api_get_configuration_value($variable)
 
     // Check if variable exists
     if (isset($_configuration[$variable])) {
-        if (is_array($_configuration[$variable])) {
+        if (is_array($_configuration[$variable]) && api_is_multiple_url_enabled() && is_int(array_keys($_configuration[$variable])[0])) {
+            // It has been configured for at least one sub URL so we will not return the complete variable
+            /*
+         * The idea is that if the first level key of the configuration variable is an int
+         * then it is a multiURL configuration and if it's a string then it's a configuration that is not multiURL.
+         * For example if in app/config/configuration.php you have set :
+         * $_configuration['ticket_project_user_roles'] = [
+         *     'permissions' => [
+         *         1 => [17] // project_id = 1, STUDENT_BOSS = 17
+         *     ]
+         * ];
+         * You do not want to enter in this bloc even if multiURL is activated because the option is configured globaly
+         * and you want to return the full array.
+         * The is_int is to consider only the option that are array and configured for multiURL
+         * which means there is an int as the first level key of the array.
+         */
             // Check if it exists for the sub portal
             if (array_key_exists($urlId, $_configuration[$variable])) {
                 return $_configuration[$variable][$urlId];
@@ -9035,6 +9151,9 @@ function api_get_configuration_value($variable)
                 // Try to found element with id = 1 (master portal)
                 if (array_key_exists(1, $_configuration[$variable])) {
                     return $_configuration[$variable][1];
+                } else {
+                    // The value was there for other URLs but not the main URL nor the current URL
+                    return null;
                 }
             }
         }
@@ -9366,6 +9485,28 @@ function api_mail_html(
     }
 
     $mail = new PHPMailer();
+
+    if (!empty($platform_email['XOAUTH2_METHOD'])) {
+        $provider = new GenericProvider([
+            'clientId' => $platform_email['XOAUTH2_CLIENT_ID'],
+            'clientSecret' => $platform_email['XOAUTH2_CLIENT_SECRET'],
+            'urlAuthorize' => $platform_email['XOAUTH2_URL_AUTHORIZE'],
+            'urlAccessToken' => $platform_email['XOAUTH2_URL_ACCES_TOKEN'],
+            'urlResourceOwnerDetails' => $platform_email['XOAUTH2_URL_RESOURCE_OWNER_DETAILS'],
+            'scopes' => $platform_email['XOAUTH2_SCOPES'],
+        ]);
+        $mail->AuthType = 'XOAUTH2';
+        $mail->setOAuth(
+            new OAuth([
+                'provider' => $provider,
+                'clientId' => $platform_email['XOAUTH2_CLIENT_ID'],
+                'clientSecret' => $platform_email['XOAUTH2_CLIENT_SECRET'],
+                'refreshToken' => $platform_email['XOAUTH2_REFRESH_TOKEN'],
+                'userName' => $platform_email['SMTP_USER'],
+            ])
+        );
+    }
+
     $mail->Mailer = $platform_email['SMTP_MAILER'];
     $mail->Host = $platform_email['SMTP_HOST'];
     $mail->Port = $platform_email['SMTP_PORT'];
@@ -9448,6 +9589,16 @@ function api_mail_html(
         }
     }
 
+    $extendedFooterMessageConfig = api_get_configuration_value('notifications_extended_footer_message');
+    if ($extendedFooterMessageConfig) {
+        $platformLanguage = api_get_interface_language();
+        $extendedFooterMessage = api_get_configuration_value('notifications_extended_footer_message')[$platformLanguage];
+
+        if ($extendedFooterMessage) {
+            $message .= '<br /><hr><i>'.'<p>'.implode('<br/><br/>', $extendedFooterMessage['paragraphs']).'</p>';
+        }
+    }
+
     $mailView = new Template(null, false, false, false, false, false, false);
 
     $noReply = api_get_setting('noreply_email_address');
@@ -9465,7 +9616,7 @@ function api_mail_html(
     $layout = $mailView->get_template('mail/mail.tpl');
     $mail->Body = $mailView->fetch($layout);
 
-    if ($additionalParameters['checkUrls']) {
+    if (isset($additionalParameters['checkUrls'])) {
         $useMultipleUrl = api_get_configuration_value('multiple_access_urls');
         if ($useMultipleUrl) {
             $accessConfig = [];
@@ -9557,7 +9708,7 @@ function api_mail_html(
         error_log('ERROR: mail not sent to '.$recipient_name.' ('.$recipient_email.') because of '.$mail->ErrorInfo.'<br />');
     }
 
-    if ($mail->SMTPDebug > 1) {
+    if ($mail->SMTPDebug >= 1) {
         error_log(
             "Mail debug:: ".
             "Protocol: ".$mail->Mailer.' :: '.
@@ -10344,4 +10495,36 @@ function api_calculate_increment_percent(int $newValue, int $oldValue)
     }
 
     return $result;
+}
+
+/**
+ * Erase settings from cache (because of some update) if applicable.
+ *
+ * @param int $url_id The ID of the present URL
+ */
+function api_flush_settings_cache(int $url_id): bool
+{
+    $cacheAvailable = api_get_configuration_value('apc');
+    if (!$cacheAvailable) {
+        return false;
+    }
+    $apcRootVarName = api_get_configuration_value('apc_prefix').'settings_';
+    // Delete the APCu-stored settings array, if present
+    $apcVarName = $apcRootVarName.$url_id;
+    apcu_delete($apcVarName);
+    if (api_is_multiple_url_enabled() && $url_id === 1) {
+        // if we are on the main URL of a multi-url portal, we must
+        // invalidate the cache for all other URLs as well as some
+        // main settings span multiple URLs
+        $urls = api_get_access_urls();
+        foreach ($urls as $i => $row) {
+            if ($row['id'] == 1) {
+                continue;
+            }
+            $apcVarName = $apcRootVarName.$row['id'];
+            apcu_delete($apcVarName);
+        }
+    }
+
+    return true;
 }

@@ -102,7 +102,7 @@ $htmlHeadXtra[] = '
         $(".li_container .order_items").click(function(e) {
             var dir = $(this).data("dir");
             var itemId = $(this).data("id");
-            var jItems = $("#lp_item_list li.li_container");
+            var jItems = $("#lp_item_list li.li_container:not(#final_item)");
             var jItem = $("#"+ itemId);
             var index = jItems.index(jItem);
             var total = jItems.length;
@@ -738,6 +738,12 @@ switch ($action) {
         }
         require 'lp_add_category.php';
         break;
+    case 'ai_helper':
+        if (!$is_allowed_to_edit) {
+            api_not_allowed(true);
+        }
+        require 'lp_add_ai_helper.php';
+        break;
     case 'move_up_category':
         if (!$is_allowed_to_edit) {
             api_not_allowed(true);
@@ -827,7 +833,7 @@ switch ($action) {
                     $subscribeUsers = isset($_REQUEST['subscribe_users']) ? 1 : 0;
                     $_SESSION['oLP']->setSubscribeUsers($subscribeUsers);
 
-                    $accumulateScormTime = isset($_REQUEST['accumulate_scorm_time']) ? $_REQUEST['accumulate_scorm_time'] : 'true';
+                    $accumulateScormTime = $_REQUEST['accumulate_scorm_time'] ?? 'true';
                     $_SESSION['oLP']->setAccumulateScormTime($accumulateScormTime);
 
                     $url = api_get_self().'?action=add_item&type=step&lp_id='.intval($new_lp_id).'&'.api_get_cidreq();

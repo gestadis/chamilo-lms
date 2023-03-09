@@ -6834,7 +6834,6 @@ $ExamsReporting = "Azterketen txostenak";
 $MyReporting = "Nire txostenak";
 $SearchSkills = "Bilatu gaitasunak";
 $SaveThisSearch = "Gorde bilaketa hau";
-$SkillProfiles = "Gorde diren gaitasunen profilak";
 $Matches = "Egokitzapenak";
 $WelcomeUserXToTheSiteX = "%s, ongi etorri %s lekura";
 $CheckUsersWithId = "Erabili erabiltzailearen IDak fitxategitik, inskribatzeko";
@@ -7215,7 +7214,7 @@ $HideColumn = "Ezkutatu zutabea";
 $DisplayColumn = "Erakutsi zutabea";
 $LegalAgreementAccepted = "Lege hitzarmena onartu da";
 $TimeSpentInLp = "Ikasgaian emandako denbora";
-$IHaveFinishedTheLessonsNotifyTheTeacher = "Bukatu ditut ikastaroko ikasgaiak. Irakasleari jakinaraztea";
+$IHaveFinishedTheLessonsNotifyTheTeacher = "Bukatu ditut ikastaroko ikasgaiak. Irakasleari jakinarazi";
 $TimeSpentTimeRequired = "Erabilitako denbora / Behar izandako denbora";
 $ProgressSpentInLp = "Aurrerapena edukietan";
 ?>

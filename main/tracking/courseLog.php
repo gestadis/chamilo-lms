@@ -513,8 +513,8 @@ if ($nbStudents > 0 || isset($parameters['user_active'])) {
         echo '<script>
             $(function () {
                 function loadGraphs () {
+                    $("#tracking-course-summary-wrapper .skeleton").addClass("skeleton--loading");
                     $("#tracking-course-summary-wrapper")
-                        .html("<p><span class=\"fa fa-spinner fa-spin fa-2x\" aria-hidden=\"true\"></span></p>")
                         .load(_p.web_ajax + "course_log.ajax.php?a=graph&'.api_get_cidreq().'");
                 }
         ';
@@ -525,7 +525,7 @@ if ($nbStudents > 0 || isset($parameters['user_active'])) {
 
         if (TrackingCourseLog::HIDE_COURSE_REPORT_GRAPH_CLICK_SHOW === $hideReports) {
             echo '$("#tracking-course-summary-loader").click(function () {
-                $(this).remove();
+                    $(this).remove();
                     loadGraphs();
                 });
             ';
@@ -533,17 +533,59 @@ if ($nbStudents > 0 || isset($parameters['user_active'])) {
 
         echo '});
             </script>
-            <div id="tracking-course-summary-wrapper"></div>
+            <style>
+                #tracking-course-summary-wrapper {
+                    position: relative;
+                    z-index: 998;
+                }
+                #tracking-course-summary-loader {
+                    position: absolute;
+                    left: 50%;
+                    top: 50%;
+                    -webkit-transform: translate(-50%, -50%);
+                    -moz-transform: translate(-50%, -50%);
+                    -o-transform: translate(-50%, -50%);
+                    transform: translate(-50%, -50%);
+                    z-index: 999;
+                }
+            </style>
+            <div id="tracking-course-summary-wrapper">
+                <div class="row">
+                    <div class="col-lg-3 col-sm-3">
+                        <div class="skeleton" style="height: 82px;"></div>
+                    </div>
+                    <div class="col-lg-3 col-sm-3">
+                        <div class="skeleton" style="height: 82px;"></div>
+                    </div>
+                    <div class="col-lg-3 col-sm-3">
+                        <div class="skeleton" style="height: 82px;"></div>
+                    </div>
+                    <div class="col-lg-3 col-sm-3">
+                        <div class="skeleton" style="height: 82px;"></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="skeleton" style="height: 241px;"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="skeleton" style="height: 241px;"></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="skeleton" style="height: 241px;"></div>
+                    </div>
+                </div>
         ';
 
         if (TrackingCourseLog::HIDE_COURSE_REPORT_GRAPH_CLICK_SHOW === $hideReports) {
-            echo '<p>
-                    <button type="button" class="btn btn-info" id="tracking-course-summary-loader">'
+            echo '<button type="button" class="btn btn-info" id="tracking-course-summary-loader">'
+                .Display::returnFontAwesomeIcon('bar-chart', '', true)
                 .get_lang('ClickToShowGraphs')
                 .'</button>
-                </p>
             ';
         }
+
+        echo '</div>';
     }
 
     $html .= Display::page_subheader2(get_lang('StudentList'));
@@ -730,6 +772,12 @@ if ($nbStudents > 0 || isset($parameters['user_active'])) {
     $headers['first_login'] = get_lang('FirstLoginInCourse');
     $table->set_header($headerCounter++, get_lang('LatestLoginInCourse'), false);
     $headers['latest_login'] = get_lang('LatestLoginInCourse');
+
+    $table->set_header($headerCounter++, get_lang('LpFinalizationDate'), false);
+    $headers['lp_finalization_date'] = get_lang('LpFinalizationDate');
+
+    $table->set_header($headerCounter++, get_lang('QuizFinalizationDate'), false);
+    $headers['quiz_finalization_date'] = get_lang('QuizFinalizationDate');
 
     $counter = $headerCounter;
     if (api_get_setting('show_email_addresses') === 'true') {
@@ -979,6 +1027,8 @@ if ($export_csv) {
 
     $csv_headers[] = get_lang('FirstLoginInCourse');
     $csv_headers[] = get_lang('LatestLoginInCourse');
+    $csv_headers[] = get_lang('QuizFinalizationDate');
+    $csv_headers[] = get_lang('LpFinalizationDate');
 
     if (isset($_GET['additional_profile_field'])) {
         foreach ($_GET['additional_profile_field'] as $fieldId) {
