@@ -29,7 +29,7 @@ class PortfolioComment
      * @var int
      *
      * Add @ to the next line if portfolio_advanced_sharing config setting is true
-     * @ORM\Column(name="visibility", type="smallint", options={"default": 1})
+     * ORM\Column(name="visibility", type="smallint", options={"default": 1})
      */
     protected $visibility = 1;
 
