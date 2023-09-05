@@ -350,6 +350,11 @@ $(function() {
                     $('#form_subscriptions_edit').hide().html('');
                 {% endif %}
 
+                {% if 'personal' == type and agenda_collective_invitations and (agenda_event_subscriptions and api_is_platform_admin()) %}
+                    $('#invitation_type-group').show();
+                    $('#invitations-block, #subscriptions-block').hide();
+                {% endif %}
+
 				$("#dialog-form").dialog("open");
 				$("#dialog-form").dialog({
 					buttons: {
@@ -507,8 +512,12 @@ $(function() {
 
             var delete_url = '{{ web_agenda_ajax_url }}&a=delete_event&id='+calEvent.id;
 
+            $('#invitations-block, #subscriptions-block').hide();
+
 			// Edit event.
 			if (calEvent.editable) {
+                $('#invitation_type-group').hide();
+
 				$('#visible_to_input').hide();
                 $('#add_as_announcement_div').hide();
                 {% if type != 'admin' %}
@@ -658,6 +667,9 @@ $(function() {
                                 return '';
                             }
 
+                            $('#invitation_type-group').hide()
+                            $('#invitations-block').show();
+
                             return calEvent.invitees
                                 .map(function (invitee) { return invitee.name; })
                                 .join('<br>');
@@ -707,6 +719,8 @@ $(function() {
 
 				$("#dialog-form").dialog({
 					buttons: {
+// Reduced options to simplify interface
+/*
                         '{{ "ExportiCalConfidential"|get_lang }}' : function() {
                             url =  "{{ _p.web_main }}calendar/ical_export.php?id=" + calEvent.id+'&course_id='+calEvent.course_id+"&class=confidential";
                             window.location.href = url;
@@ -715,6 +729,7 @@ $(function() {
                             url =  "{{ _p.web_main }}calendar/ical_export.php?id=" + calEvent.id+'&course_id='+calEvent.course_id+"&class=private";
                             window.location.href = url;
 						},
+*/
                         '{{ "ExportiCalPublic"|get_lang }}': function() {
                             url =  "{{ _p.web_main }}calendar/ical_export.php?id=" + calEvent.id+'&course_id='+calEvent.course_id+"&class=public";
                             window.location.href = url;
@@ -744,6 +759,9 @@ $(function() {
                         {% endif %}
                         '{{ "Edit"|get_lang }}' : function() {
                             url =  "{{ _p.web_main }}calendar/agenda.php?action=edit&type=fromjs&id="+calEvent.id+'&course_id='+calEvent.course_id+"";
+                            if (typeof calEvent.group_id != "undefined" && {{ group_id }} != 0) {
+                              url = url + '&gidReq=' + calEvent.group_id;
+                            }
                             window.location.href = url;
                             $("#dialog-form").dialog( "close" );
                         },
@@ -813,7 +831,18 @@ $(function() {
 									$("#dialog-form").dialog('close');
 								}
 							});
-						}
+						},
+                                    {% if (agenda_collective_invitations or agenda_event_subscriptions) and 'personal' == type %}
+                                        '{{ "ExportUsers" | get_lang }}' : function() {
+                                            if (isInvitation(calEvent)) {
+                                                url =  "{{ _p.web_main }}calendar/exportEventMembers.php?a=export_invitees&id=" + calEvent.id;
+                                            } else {
+                                                url =  "{{ _p.web_main }}calendar/exportEventMembers.php?a=export_subscribers&id=" + calEvent.id;
+                                            }
+                                            window.location.href = url;
+                                        },
+                                    {% endif %}
+
 					},
 					close: function() {
                         $("#title_edit").hide();
@@ -851,6 +880,8 @@ $(function() {
 					}
 				});
 			} else {
+                $('#invitation_type-group').show();
+
 			    // Simple form
                 $('#simple_start_date').html(startDateToString);
                 if (diffDays > 1) {
@@ -936,6 +967,9 @@ $(function() {
                             return '';
                         }
 
+                        $('#invitation_type-group').hide();
+                        $('#invitations-block').show();
+
                         return calEvent.invitees
                             .map(function (invitee) { return invitee.name; })
                             .join('<br>');
@@ -943,6 +977,8 @@ $(function() {
                 {% endif %}
 
                 var buttons = {
+// Reduced options to simplify interface
+/*
                     '{{"ExportiCalConfidential"|get_lang}}' : function() {
                         url =  "ical_export.php?id=" + calEvent.id+'&course_id='+calEvent.course_id+"&class=confidential";
                         window.location.href = url;
@@ -951,6 +987,7 @@ $(function() {
                         url =  "ical_export.php?id=" + calEvent.id+'&course_id='+calEvent.course_id+"&class=private";
                         window.location.href = url;
                     },
+*/
                     '{{"ExportiCalPublic"|get_lang}}': function() {
                         url =  "ical_export.php?id=" + calEvent.id+'&course_id='+calEvent.course_id+"&class=public";
                         window.location.href = url;
@@ -1054,12 +1091,24 @@ $(function() {
 
     {{ agenda_reminders_js }}
 
+    function isInvitation (calEvent) {
+        if ((calEvent.invitees && calEvent.invitees.length)
+            || !calEvent.subscription_visibility
+        ) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     function showSubcriptionsContainer (calEvent) {
         if ((calEvent.invitees && calEvent.invitees.length)
             || !calEvent.subscription_visibility
         ) {
             return '';
         }
+
+        $('#subscriptions-block').show();
 
         var html = '';
         html += '<dl class="dl-horizontal">';

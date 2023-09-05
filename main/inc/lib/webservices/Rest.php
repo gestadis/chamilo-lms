@@ -111,6 +111,7 @@ class Rest extends WebService
     public const SAVE_SESSION = 'save_session';
     public const CREATE_SESSION_FROM_MODEL = 'create_session_from_model';
     public const UPDATE_SESSION = 'update_session';
+    public const GET_SESSIONS = 'get_sessions';
 
     public const SUBSCRIBE_USER_TO_COURSE = 'subscribe_user_to_course';
     public const SUBSCRIBE_USER_TO_COURSE_PASSWORD = 'subscribe_user_to_course_password';
@@ -120,6 +121,9 @@ class Rest extends WebService
     public const ADD_COURSES_SESSION = 'add_courses_session';
     public const ADD_USERS_SESSION = 'add_users_session';
     public const SUBSCRIBE_USER_TO_SESSION_FROM_USERNAME = 'subscribe_user_to_session_from_username';
+    public const SUBSCRIBE_USERS_TO_SESSION = 'subscribe_users_to_session';
+    public const UNSUBSCRIBE_USERS_FROM_SESSION = 'unsubscribe_users_from_session';
+    public const GET_USERS_SUBSCRIBED_TO_SESSION = 'get_users_subscribed_to_session';
 
     public const GET_COURSE_QUIZ_MDL_COMPAT = 'get_course_quiz_mdl_compat';
 
@@ -1157,9 +1161,13 @@ class Rest extends WebService
     /**
      * Get the list of users from extra field.
      *
+     * @param string $fieldName  The name of the extra_field (as in extra_field.variable) we want to filter on.
+     * @param string $fieldValue The value of the extra_field we want to filter on. If a user doesn't have the given extra_field set to that value, it will not be returned.
+     * @param int    $active     Additional filter. If 1, only return active users. Otherwise, return them all.
+     *
      * @throws Exception
      */
-    public function getUsersProfilesByExtraField(string $fieldName, string $fieldValue): array
+    public function getUsersProfilesByExtraField(string $fieldName, string $fieldValue, int $active = 0): array
     {
         self::protectAdminEndpoint();
         $users = [];
@@ -1171,6 +1179,10 @@ class Rest extends WebService
             foreach ($extraValues as $value) {
                 $userId = (int) $value;
                 $user = api_get_user_entity($userId);
+                if ($active && !$user->getActive()) {
+                    // If this user is not active, and we only asked for active users, skip to next user.
+                    continue;
+                }
                 $pictureInfo = UserManager::get_user_picture_path_by_id($user->getId(), 'web');
                 $users[$userId] = [
                     'pictureUri' => $pictureInfo['dir'].$pictureInfo['file'],
@@ -1180,7 +1192,7 @@ class Rest extends WebService
                     'username' => $user->getUsername(),
                     'officialCode' => $user->getOfficialCode(),
                     'phone' => $user->getPhone(),
-                    'extra' => [],
+                    //'extra' => [],
                 ];
             }
         }
@@ -1579,16 +1591,29 @@ class Rest extends WebService
     }
 
     /**
+     * Returns an array of users with id, firstname, lastname, email and username.
+     *
+     * @param array $params An array of parameters to filter the results (currently supports 'status', 'id_campus' and 'extra_fields')
+     *
      * @throws Exception
      */
     public function getUsersCampus(array $params): array
     {
         self::protectAdminEndpoint();
 
-        $conditions = [
-            'status' => $params['status'],
-        ];
+        if ('*' === $params['status']) {
+            $conditions = [];
+        } else {
+            $conditions = [
+                'status' => $params['status'],
+            ];
+        }
         $idCampus = !empty($params['id_campus']) ?? 1;
+        $fields = [];
+        if (!empty($params['extra_fields'])) {
+            //extra_fields must be sent as a comma-separated list of extra_field variable names
+            $fields = explode(',', $params['extra_fields']);
+        }
         $users = UserManager::get_user_list($conditions, ['firstname'], false, false, $idCampus);
         $list = [];
         foreach ($users as $item) {
@@ -1597,7 +1622,16 @@ class Rest extends WebService
                 'firstname' => $item['firstname'],
                 'lastname' => $item['lastname'],
                 'email' => $item['email'],
+                'username' => $item['username'],
+                'active' => $item['active'],
             ];
+            foreach ($fields as $field) {
+                $field = trim($field);
+                $value = UserManager::get_extra_user_data_by_field($item['user_id'], $field);
+                if (!empty($value)) {
+                    $listTemp[$field] = $value[$field];
+                }
+            }
             $list[] = $listTemp;
         }
 
@@ -1607,10 +1641,8 @@ class Rest extends WebService
     /**
      * Returns a list of courses in the given URL. If no URL is provided, we assume we are not in a multi-URL setup and
      * return all the courses.
-     *
-     * @param int $campusId
      */
-    public function getCoursesCampus($campusId = null): array
+    public function getCoursesCampus(int $campusId = 0): array
     {
         return CourseManager::get_courses_list(
             0, //offset
@@ -1622,6 +1654,38 @@ class Rest extends WebService
             empty($campusId) ? null : $campusId, //$urlId
             true //AlsoSearchCode
         );
+    }
+
+    /**
+     * Returns a list of sessions in the given URL. If no URL is provided, we assume we are not in a multi-URL setup and
+     * return all the sessions.
+     *
+     * @param int $campusId Optional
+     *
+     * @throws Exception
+     */
+    public function getSessionsCampus(int $campusId = 0): array
+    {
+        self::protectAdminEndpoint();
+
+        $list = SessionManager::get_sessions_list(
+            [],
+            [],
+            null,
+            null,
+            $campusId
+        );
+        $shortList = [];
+        foreach ($list as $session) {
+            $shortList[] = [
+                'id' => $session['id'],
+                'name' => $session['name'],
+                'access_start_date' => $session['access_start_date'],
+                'access_end_date' => $session['access_end_date'],
+            ];
+        }
+
+        return $shortList;
     }
 
     /**
@@ -2123,9 +2187,23 @@ class Rest extends WebService
     }
 
     /**
+     * Simple legacy shortcut to subscribeUsersToSession.
+     *
      * @throws Exception
      */
     public function addUsersSession(array $params): array
+    {
+        return self::subscribeUsersToSession($params);
+    }
+
+    /**
+     * Subscribe a list of users to the given session.
+     *
+     * @param array $params Containing 'id_session' and 'list_users' entries
+     *
+     * @throws Exception
+     */
+    public function subscribeUsersToSession(array $params): array
     {
         $sessionId = $params['id_session'];
         $userList = $params['list_users'];
@@ -2148,6 +2226,39 @@ class Rest extends WebService
         return [
             'status' => true,
             'message' => get_lang('UsersAdded'),
+        ];
+    }
+
+    /**
+     * Unsubscribe a given list of users from the given session.
+     *
+     * @throws Exception
+     */
+    public function unsubscribeUsersFromSession(array $params): array
+    {
+        self::protectAdminEndpoint();
+
+        $sessionId = $params['id_session'];
+        $userList = $params['list_users'];
+
+        if (!is_array($userList)) {
+            $userList = [];
+        }
+
+        if (!api_is_platform_admin() && !in_array($this->user->getId(), $userList)) {
+            self::throwNotAllowedException();
+        }
+
+        foreach ($userList as $userId) {
+            SessionManager::unsubscribe_user_from_session(
+                $sessionId,
+                $userId
+            );
+        }
+
+        return [
+            'status' => true,
+            'message' => get_lang('UserUnsubscribed'),
         ];
     }
 
@@ -2345,6 +2456,38 @@ class Rest extends WebService
 
         // return sessionId
         return intval($sessionIdList[0]['item_id']);
+    }
+
+    /**
+     * Get a list of users subscribed to the given session.
+     *
+     * @params int $sessionId
+     * @params int $moveInfo Whether to return the "moved_*" fields or not
+     */
+    public function getUsersSubscribedToSession(int $sessionId, int $moveInfo = 0): array
+    {
+        self::protectAdminEndpoint();
+
+        $users = SessionManager::get_users_by_session($sessionId);
+
+        $userList = [];
+        foreach ($users as $user) {
+            $userInfo = [
+                'user_id' => $user['user_id'],
+                'username' => $user['username'],
+                'firstname' => $user['firstname'],
+                'lastname' => $user['lastname'],
+                'status' => $user['relation_type'],
+            ];
+            if (1 === $moveInfo) {
+                $userInfo['moved_to'] = $user['moved_to'];
+                $userInfo['moved_status'] = $user['moved_status'];
+                $userInfo['moved_at'] = $user['moved_at'];
+            }
+            $userList[] = $userInfo;
+        }
+
+        return $userList;
     }
 
     /**

@@ -119,6 +119,10 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
         $onlyTeachers = true;
     }
 
+    if (isset($_SESSION['form_values'])) {
+        $default = $_SESSION['form_values'];
+    }
+
     $form = new FormValidator(
         'compose_message',
         null,
@@ -222,7 +226,7 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
         );
     }
 
-    if (isset($_GET['forward_id'])) {
+    if (isset($_GET['forward_id']) && MessageManager::isUserOwner(api_get_user_id(), (int) $_GET['forward_id'])) {
         $forwardId = (int) $_GET['forward_id'];
         $message_reply_info = MessageManager::get_message_by_id($forwardId);
         $attachments = MessageManager::getAttachmentLinkList($forwardId, MessageManager::MESSAGE_TYPE_INBOX);
@@ -272,7 +276,7 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
             get_lang('AddOneMoreFile').'</a></span>&nbsp;('.
             sprintf(
                 get_lang('MaximunFileSizeX'),
-                format_file_size(api_get_setting('message_max_upload_filesize'))
+                getIniMaxFileSizeInBytes(true, true)
             ).')'
         );
     }
@@ -301,6 +305,10 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
         }
 
         if ($check) {
+            if (isset($_SESSION['form_values'])) {
+                unset($_SESSION['form_values']);
+            }
+
             $user_list = $default['users'];
             $file_comments = $_POST['legend'];
             $title = $default['title'];
@@ -349,6 +357,10 @@ function manageForm($default, $select_from_user_list = null, $sent_to = '', $tpl
                             'confirmation',
                             false
                         ));
+                    } else {
+                        $_SESSION['form_values'] = $default;
+                        header('Location: '.api_request_uri());
+                        exit;
                     }
                 }
                 MessageManager::cleanAudioMessage();

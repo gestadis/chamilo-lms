@@ -2102,6 +2102,11 @@ class Wiki
         $group_name = $group_properties ? $group_properties['name'] : '';
         $allow_send_mail = false; //define the variable to below
         $email_assignment = null;
+
+        if (!is_string($lastime) && get_class($lastime) == 'DateTime') {
+            $lastime = $lastime->format('Y-m-d H:i:s');
+        }
+
         if ($type == 'P') {
             //if modifying a wiki page
             //first, current author and time
@@ -2253,6 +2258,11 @@ class Wiki
         }
         ///make and send email
         if ($allow_send_mail) {
+            $extraParameters = [];
+            if (api_get_configuration_value('mail_header_from_custom_course_logo') == true) {
+                $extraParameters = ['logo' => CourseManager::getCourseEmailPicture($_course)];
+            }
+
             while ($row = Database::fetch_array($result)) {
                 $userinfo = api_get_user_info(
                     $row['user_id']
@@ -2289,7 +2299,12 @@ class Wiki
                     $email_subject,
                     $email_body,
                     $sender_name,
-                    $sender_email
+                    $sender_email,
+                    [],
+                    [],
+                    false,
+                    $extraParameters,
+                    ''
                 );
             }
         }
@@ -2782,7 +2797,7 @@ class Wiki
                 $sql .= ") AND ".$groupfilter.$sessionCondition.$categoriesCondition;
             } else {
                 // warning don't use group by reflink because don't return the last version
-                $sql = "SELECT * FROM $tbl_wiki AS wp 
+                $sql = "SELECT * FROM $tbl_wiki AS wp
                     WHERE wp.c_id = ".$this->course_id."
                         AND wp.visibility = 1
                         AND (wp.title LIKE '%".Database::escape_string($search_term)."%' ";

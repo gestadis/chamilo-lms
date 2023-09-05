@@ -1308,8 +1308,8 @@ class Template
         $plugin = null;
         if ($pluginKeycloak) {
             $pluginUrl = api_get_path(WEB_PLUGIN_PATH).'keycloak/start.php?sso';
-            $pluginUrl = Display::url('Keycloak', $pluginUrl, ['class' => 'btn btn-primary']);
-            $html .= '<div>'.$pluginUrl.'</div>';
+            $pluginUrl = Display::url('Keycloak', $pluginUrl, ['class' => 'btn btn-block btn-primary']);
+            $html .= '<div style="margin-top: 10px">'.$pluginUrl.'</div>';
         }
 
         $html .= '<div></div>';
@@ -2075,11 +2075,26 @@ class Template
                 $portalImageMeta .= '<meta property="twitter:image:alt" content="'.$imageAlt.'" />'."\n";
             }
         } else {
-            $logo = ChamiloApi::getPlatformLogoPath($this->theme);
-            if (!empty($logo)) {
-                $portalImageMeta = '<meta property="og:image" content="'.$logo.'" />'."\n";
-                $portalImageMeta .= '<meta property="twitter:image" content="'.$logo.'" />'."\n";
-                $portalImageMeta .= '<meta property="twitter:image:alt" content="'.$imageAlt.'" />'."\n";
+            if (api_get_configuration_value('mail_header_from_custom_course_logo') == true) {
+                // check if current page is a course page
+                $courseId = api_get_course_int_id();
+
+                if (!empty($courseId)) {
+                    $course = api_get_course_info_by_id($courseId);
+                    if (!empty($course) && !empty($course['course_email_image_large'])) {
+                        $portalImageMeta = '<meta property="og:image" content="'.$course['course_email_image_large'].'" />'."\n";
+                        $portalImageMeta .= '<meta property="twitter:image" content="'.$course['course_email_image_large'].'" />'."\n";
+                        $portalImageMeta .= '<meta property="twitter:image:alt" content="'.$imageAlt.'" />'."\n";
+                    }
+                }
+            }
+            if (empty($portalImageMeta)) {
+                $logo = ChamiloApi::getPlatformLogoPath($this->theme);
+                if (!empty($logo)) {
+                    $portalImageMeta = '<meta property="og:image" content="'.$logo.'" />'."\n";
+                    $portalImageMeta .= '<meta property="twitter:image" content="'.$logo.'" />'."\n";
+                    $portalImageMeta .= '<meta property="twitter:image:alt" content="'.$imageAlt.'" />'."\n";
+                }
             }
         }
 

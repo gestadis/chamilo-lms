@@ -101,7 +101,7 @@ switch ($type) {
             $tpl->assign('google_calendar_url', $googleCalendarUrl);
         }
         $this_section = SECTION_MYAGENDA;
-        if (!api_is_anonymous()) {
+        if (!api_is_anonymous() && ('true' === api_get_setting('allow_personal_agenda'))) {
             $can_add_events = 1;
         }
         break;
@@ -282,7 +282,30 @@ if ('course' === $agenda->type) {
     $form->addElement('textarea', 'comment', get_lang('Comment'), ['id' => 'comment']);
 }
 
-if (api_get_configuration_value('agenda_collective_invitations') && 'personal' === $agenda->type) {
+$allowCollectiveInvitations = api_get_configuration_value('agenda_collective_invitations')
+    && 'personal' === $agenda->type;
+$allowEventSubscriptions = api_is_platform_admin()
+    && api_get_configuration_value('agenda_event_subscriptions')
+    && 'personal' === $agenda->type;
+
+if ($allowCollectiveInvitations && $allowEventSubscriptions) {
+    $form->addRadio(
+        'invitation_type',
+        get_lang('Allowed'),
+        [
+            'invitations' => get_lang('Invitations'),
+            'subscriptions' => get_lang('Subscriptions'),
+        ],
+        [
+            'onchange' => "$('#invitations-block, #subscriptions-block').hide(); $('#' + this.value + '-block').show();",
+        ]
+    );
+}
+
+if ($allowCollectiveInvitations) {
+    $form->addHtml(
+        '<div id="invitations-block" style="display:'.($allowEventSubscriptions ? 'none;' : 'block;').'">'
+    );
     $form->addHeader(get_lang('Invitations'));
     $form->addSelectAjax(
         'invitees',
@@ -294,12 +317,13 @@ if (api_get_configuration_value('agenda_collective_invitations') && 'personal' =
         ]
     );
     $form->addCheckBox('collective', '', get_lang('IsItEditableByTheInvitees'));
+    $form->addHtml('</div>');
 }
 
-if (
-    api_is_platform_admin()
-    && api_get_configuration_value('agenda_event_subscriptions') && 'personal' === $agenda->type
-) {
+if ($allowEventSubscriptions) {
+    $form->addHtml(
+        '<div id="subscriptions-block" style="display:'.($allowCollectiveInvitations ? 'none;' : 'block;').'">'
+    );
     $form->addHeader(get_lang('Subscriptions'));
     $form->addHtml('<div id="form_subscriptions_container" style="position: relative;">');
     $form->addSelect(
@@ -336,6 +360,7 @@ if (
     );
     $form->addHtml('</div>');
     $form->addHtml('<div id="form_subscriptions_edit" style="display: none;"></div>');
+    $form->addHtml('</div>');
 }
 
 if (api_get_configuration_value('agenda_reminders')) {
@@ -368,6 +393,8 @@ $tpl->assign('on_hover_info', $onHoverInfo);
 $extraSettings = Agenda::returnFullCalendarExtraSettings();
 
 $tpl->assign('fullcalendar_settings', $extraSettings);
+
+$tpl->assign('group_id', (!empty($group_id) ? $group_id : 0));
 
 $templateName = $tpl->get_template('agenda/month.tpl');
 $content = $tpl->fetch($templateName);

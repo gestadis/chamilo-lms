@@ -131,6 +131,12 @@ $nameTools = get_lang('Exercises');
 // Simple actions
 if ($is_allowedToEdit) {
     switch ($action) {
+        case 'export_all_exercises_results':
+            $sessionId = api_get_session_id();
+            $courseId = api_get_course_int_id();
+            ExerciseLib::exportAllExercisesResultsZip($sessionId, $courseId);
+
+            break;
         case 'clean_all_test':
             if ($check) {
                 if (false === $allowClean) {
@@ -659,6 +665,11 @@ if ($is_allowedToEdit && $origin !== 'learnpath') {
             ]
         );
     }
+
+    $actionsLeft .= Display::url(
+        Display::return_icon('export_pdf.png', get_lang('ExportAllExercisesAllResults'), [], ICON_SIZE_MEDIUM),
+        api_get_path(WEB_CODE_PATH).'exercise/exercise.php?'.api_get_cidreq().'&action=export_all_exercises_results'
+    );
 
     if ($limitTeacherAccess) {
         if (api_is_platform_admin()) {

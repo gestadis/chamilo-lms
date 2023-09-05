@@ -196,7 +196,7 @@ $strings['CouponsCode'] = "Code";
 $strings['DoYouHaveACoupon'] = "Vous avez un coupon?";
 $strings['stripe_enable'] = "Activer Stripe";
 $strings['StripeConfig'] = "Configuration de Stripe:";
-$strings['InfoStripeCredentials'] = "Pour obtenir les données de connexion, vous devez d'abord réer un compte Stripe (ce qui prend un certain temps), puis copier l'ID du compte depuis votre profil et le renseigner ici. Puis aller dans la configuration des clefs API et copier la clef secrète. Enfin, suivre le bouton 'Développeurs' (haut droite), enregistrer un nouveau Endpoint dans la section Webhooks, le pointer vers l'URL https://{site}/plugin/buycourses/src/stripe_response.php et l'associer à l'événement payment_intent.succeeded et copier le secret du Endpoint ici.";
+$strings['InfoStripeCredentials'] = "Pour obtenir les données de connexion, vous devez d'abord réer un compte Stripe (ce qui prend un certain temps), puis copier l'ID du compte depuis votre profil et le renseigner ici. Puis aller dans la configuration des clefs API et copier la clef secrète. Enfin, suivre le bouton 'Développeurs' (haut droite), enregistrer un nouveau Endpoint dans la section Webhooks, le pointer vers l'URL https://{site}/plugin/buycourses/src/stripe_response.php et l'associer à l'événement checkout.session.completed et copier le secret du Endpoint ici.";
 $strings['StripeAccountId'] = "ID du compte:";
 $strings['StripeSecret'] = "Clef secrète:";
 $strings['StripeEndpointSecret'] = "Clef secrète du Endpoint:";
@@ -244,3 +244,8 @@ $strings['ConfigureSubscriptionsFrequencies'] = "Configurez des périodes de sou
 $strings['FrequencyAdd'] = "Ajouter période";
 $strings['SubscriptionAlreadyExists'] = "La souscription existe déjà";
 $strings['SubscriptionPeriodDuration'] = "Durée de souscription (en jours)";
+$strings['Product'] = "Produit";
+$strings['SalePrice'] = "Prix";
+$strings['YouProductIsActivatedYouCanNowAccessIt'] = "Votre abonnement a été activé, vous avez maintenant accès au module choisi.";
+$strings['hide_shopping_cart_from_course_catalogue'] = "Cacher le chariot de vente dans le catalogue de cours et laisse le bouton s'inscrire";
+

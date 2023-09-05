@@ -3240,6 +3240,7 @@ class UserManager
      * @param    bool    Whether to prefix the fields indexes with "extra_" (might be used by formvalidator)
      * @param    bool    Whether to return invisible fields as well
      * @param    bool    Whether to split multiple-selection fields or not
+     * @param    mixed   Whether to filter on the value of filter
      *
      * @return array Array of fields => value for the given user
      */
@@ -3291,12 +3292,8 @@ class UserManager
                 } else {
                     $sqlu = "SELECT value as fval
                             FROM $t_ufv
-                            WHERE field_id=".$row['id']." AND item_id = ".$user_id;
+                            WHERE field_id = ".$row['id']." AND item_id = ".$user_id;
                     $resu = Database::query($sqlu);
-                    // get default value
-                    $sql_df = "SELECT default_value as fval_df FROM $t_uf
-                               WHERE id=".$row['id'];
-                    $res_df = Database::query($sql_df);
 
                     if (Database::num_rows($resu) > 0) {
                         $rowu = Database::fetch_array($resu);
@@ -3305,6 +3302,10 @@ class UserManager
                             $fval = explode(';', $rowu['fval']);
                         }
                     } else {
+                        // get default value
+                        $sql_df = "SELECT default_value as fval_df FROM $t_uf
+                               WHERE id = ".$row['id'];
+                        $res_df = Database::query($sql_df);
                         $row_df = Database::fetch_array($res_df);
                         $fval = $row_df['fval_df'];
                     }

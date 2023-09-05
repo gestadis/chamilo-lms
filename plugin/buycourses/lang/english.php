@@ -268,7 +268,7 @@ $strings['CouponsCode'] = "Code";
 $strings['DoYouHaveACoupon'] = "Do you have a coupon?";
 $strings['stripe_enable'] = "Enable Stripe";
 $strings['StripeConfig'] = "Stripe configuration:";
-$strings['InfoStripeCredentials'] = "To obtain the credentials you must first create an account in Stripe, copy the account id from your profile, go to the API Keys configuration section and copy the secret key, finally you must go to the Developers button (top right), register a new Endpoint in the Webhooks section, pointing to https://{site}/plugin/buycourses/src/stripe_response.php for the payment_intent.succeeded event type and copy the secret of the Endpoint.";
+$strings['InfoStripeCredentials'] = "To obtain the credentials you must first create an account in Stripe, copy the account id from your profile, go to the API Keys configuration section and copy the secret key, finally you must go to the Developers button (top right), register a new Endpoint in the Webhooks section, pointing to https://{site}/plugin/buycourses/src/stripe_response.php for the checkout.session.completed event type and copy the secret of the Endpoint.";
 $strings['StripeAccountId'] = "Account id:";
 $strings['StripeSecret'] = "Secret key:";
 $strings['StripeEndpointSecret'] = "Endpoint secret:";
@@ -316,3 +316,7 @@ $strings['ConfigureSubscriptionsFrequencies'] = "Configure subscriptions periods
 $strings['FrequencyAdd'] = "Add periods";
 $strings['SubscriptionAlreadyExists'] = "Subscription already exists";
 $strings['SubscriptionPeriodDuration'] = "Subscription duration (in days)";
+$strings['Product'] = "Product name";
+$strings['YouProductIsActivatedYouCanNowAccessIt'] = "Your product is now activated and you can now have access to it.";
+$strings['hide_shopping_cart_from_course_catalogue'] = "Hide shopping cart from the course catalogue and leave the subscribe button";
+

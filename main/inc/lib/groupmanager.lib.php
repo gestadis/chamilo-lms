@@ -499,7 +499,7 @@ class GroupManager
             // to_group_id is related to c_group_info.iid
             $itemPropertyTable = Database::get_course_table(TABLE_ITEM_PROPERTY);
             $sql = "DELETE FROM $itemPropertyTable
-                    WHERE c_id = $course_id AND to_group_id = $groupIid ";
+                    WHERE to_group_id = $groupIid ";
             Database::query($sql);
 
             // delete the groups
@@ -2447,7 +2447,10 @@ class GroupManager
                     Display::return_icon('user.png', get_lang('GroupMembers'), '', ICON_SIZE_SMALL).'</a>&nbsp;';
 
                 $edit_actions .= '<a href="'.$url.'group_overview.php?action=export&type=xls&'.api_get_cidreq(true, false).'&id='.$this_group['id'].'" title="'.get_lang('ExportUsers').'">'.
-                    Display::return_icon('export_excel.png', get_lang('Export'), '', ICON_SIZE_SMALL).'</a>&nbsp;';
+                    Display::return_icon('export_group_excel.png', get_lang('Export'), '', ICON_SIZE_SMALL).'</a>&nbsp;';
+
+                $edit_actions .= '<a href="'.$url.'group_overview.php?action=export_users&'.api_get_cidreq(true, false).'&id='.$this_group['id'].'" title="'.get_lang('ExportUsers').'">'.
+                    Display::return_icon('export_users_csv.png', get_lang('ExportUsers'), '', ICON_SIZE_SMALL).'</a>&nbsp;';
 
                 if ($surveyGroupExists) {
                     $edit_actions .= Display::url(
@@ -2753,6 +2756,39 @@ class GroupManager
         }
 
         return $result;
+    }
+
+    /**
+     * Export all students from a group to an array.
+     * This function works only in a context of a course.
+     *
+     * @param int  $groupId
+     *
+     * @return array
+     */
+    public static function exportStudentsToArray($groupId = null)
+    {
+        if (empty($groupId)) {
+            return false;
+        }
+        $data = [];
+        $data[] = [
+            'OfficialCode',
+            'Lastname',
+            'Firsname',
+            'Email',
+        ];
+        $users = self::getStudents($groupId);
+        $count = 1;
+        foreach ($users as $user) {
+            $user = api_get_user_info($user['user_id']);
+            $data[$count][] = $user['official_code'];
+            $data[$count][] = $user['lastname'];
+            $data[$count][] = $user['firstname'];
+            $data[$count][] = $user['email'];
+            $count++;
+        }
+        return $data;
     }
 
     /**

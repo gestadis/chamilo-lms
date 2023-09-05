@@ -666,13 +666,9 @@ class MessageManager
             );
 
             return false;
-        } elseif ($totalFileSize > (int) api_get_setting('message_max_upload_filesize')) {
-            $warning = sprintf(
-                get_lang('FilesSizeExceedsX'),
-                format_file_size(api_get_setting('message_max_upload_filesize'))
-            );
-
-            Display::addFlash(Display::return_message($warning, 'warning'));
+        } elseif ($totalFileSize > (int) getIniMaxFileSizeInBytes(false, true)) {
+            $warning = get_lang('FileSizeIsTooBig').' '.get_lang('MaxFileSize').' : '.getIniMaxFileSizeInBytes(true, true);
+            Display::addFlash(Display::return_message($warning, 'error'));
 
             return false;
         }
@@ -3489,5 +3485,25 @@ class MessageManager
             )
             ->setMultiple(true)
         ;
+    }
+
+    /**
+     * Reports whether the given user is sender or receiver of the given message
+     * @param int $userId
+     * @param int $messageId
+     * @return bool
+     */
+    public static function isUserOwner(int $userId, int $messageId)
+    {
+        $table = Database::get_main_table(TABLE_MESSAGE);
+        $sql = "SELECT id FROM $table
+          WHERE id = $messageId
+            AND (user_receiver_id = $userId OR user_sender_id = $userId)";
+        $res = Database::query($sql);
+        if (Database::num_rows($res) === 1) {
+            return true;
+        }
+
+        return false;
     }
 }

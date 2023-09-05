@@ -415,6 +415,8 @@ INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, d
 //$_configuration['student_follow_page_add_LP_invisible_checkbox'] = false;
 // Show the LP not marked as invisible by teacher in tracking page
 //$_configuration['student_follow_page_include_not_subscribed_lp_students'] = false;
+// Show certificate of achievement icon from the student details in course tracking
+//$_configuration['course_tracking_student_detail_show_certificate_of_achievement'] = false;
 // Allow change the order to show the tools in "My progress" page.
 /*$_configuration['my_progress_course_tools_order'] = [
     'order' => ['quizzes', 'learning_paths', 'skills'],
@@ -575,8 +577,11 @@ ALTER TABLE sys_announcement ADD COLUMN visible_boss INT DEFAULT 0;
 // HTTP Strict Transport Security is an excellent feature to support on your
 // site and strengthens your implementation of TLS by getting the User Agent
 // to enforce the use of HTTPS. Recommended value
-// "strict-transport-security: max-age=31536000; includeSubDomains".
-//$_configuration['security_strict_transport'] = 'strict-transport-security: max-age=31536000; includeSubDomains';
+// "strict-transport-security: max-age=63072000; includeSubDomains".
+// See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+// You can include the "preload" suffix, but this has consequences on the
+// top level domain (TLD), so probably not to be done lightly. See https://hstspreload.org/.
+//$_configuration['security_strict_transport'] = 'strict-transport-security: max-age=63072000; includeSubDomains';
 //
 // Content Security Policy is an effective measure to protect your site from
 // XSS attacks. By whitelisting sources of approved content, you can prevent
@@ -760,7 +765,7 @@ $_configuration['send_all_emails_to'] = [
 //$_configuration['exercise_attempts_report_show_username'] = false;
 // Allow extends allowed question types for embeddable exercises.
 /* By default, only the following question types are allowed: 1, 2, 17
-Add this types to allow them in embeddable exercises:
+Add these types to allow them in embeddable exercises:
  1 = Multiple choice
  2 = Multiple answers
  3 = Fill blanks or form
@@ -1774,6 +1779,7 @@ $_configuration['course_catalog_settings'] = [
         'variable5' => -1,
         'variable6' => 1,
     ],
+    'pre_filter_on_language' => 1, // By default, filter the courses catalogue on user language (prevents searching without language)
 ];
 */
 
@@ -1983,6 +1989,9 @@ $_configuration['auth_password_links'] = [
 
 // Shows a marker if the course was shared in other portals.
 //$_configuration['multiple_access_url_show_shared_course_marker'] = false;
+
+// Show official_code and order user based on this field in the multiple access url user management page
+//$_configuration['multiple_access_url_user_management_show_and_order_by_official_code'] = false;
 
 // Add option to copy a session with its course-session content BT#17832
 //$_configuration['duplicate_specific_session_content_on_session_copy'] = false;
@@ -2426,9 +2435,22 @@ INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, d
 // external authentication system rather than user.id.
 // $_configuration['webservice_return_user_field'] = 'oauth2_id';
 
+// Add support for careers hierarchy - refs BT#20711
+// 1. This requires the following DB change:
+// ALTER TABLE career add parent_id INT
+// ALTER TABLE career add constraint career_career_id_fk foreign key (parent_id) references career (id);
+// 2. Add an "@" before "var int" and "ORM\Column..." in the "Career::$parentId" property definition (in src/Chamilo/CoreBundle/Entity/Career.php)
+// 3. Uncomment $parentId var in src/Chamilo/CoreBundle/Entity/Career.php
+// $_configuration['career_hierarchy_enable'] = false;
+
+// KEEP THIS AT THE END
+// -------- Custom DB changes
 // Set to true to hide settings completely in a sub-URL if the setting is disabled in the
 // main URL (where the access_url_changeable field = 0)
 // $_configuration['multiple_url_hide_disabled_settings'] = false;
+
+// List of learner certificates - User extra fields to include at the exported CSV as columns
+//$_configuration['certificate_export_report_user_extra_fields'] = ['extra_fields' => ['office_address', 'office_phone_extension']];
 
 // Only courses with this option will be visible in catalogue
 // Requires DB changes:
@@ -2451,10 +2473,19 @@ INSERT INTO extra_field_options (field_id, option_value, display_text, priority,
 // Display the Portal News link in the admin page to session admin users
 //$_configuration['session_admin_access_system_announcement'] = false;
 
-// KEEP THIS AT THE END
-// -------- Custom DB changes
+// File upload size limit in MB for teachers (set to 1024 for 1GB, 5120 for 5GB, etc).
+//$_configuration['file_upload_size_limit_for_teacher'] = 0;
+
 // Add user activation by confirmation email
 // This option prevents the new user to login in the platform if your account is not confirmed via email
 // You need add a new option called "confirmation" to the registration settings
 //INSERT INTO settings_options (variable, value, display_text) VALUES ('allow_registration', 'confirmation', 'MailConfirmation');
-// ------ (End) Custom DB changes
+
+// Enable use of a custom course logo in mail & PDF headers
+// $_configuration['mail_header_from_custom_course_logo'] = false;
+
+// Enable additional_webservices.php for *remote* PPT2PNG/Oogie service
+//$_configuration['webservice_remote_ppt2png_enable'] = false;
+
+// Add more speed options to reading comprehension question type (type id = 21) in words per minute
+//$_configuration['exercise_question_reading_comprehension_extra_speeds'] = ['speeds' => [70, 110, 170]];

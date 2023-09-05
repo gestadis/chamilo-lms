@@ -2415,7 +2415,7 @@ $CreateSubgroupsInfo = "Cette options vous permet de créer de nouveaux groupes 
 $CreateNumberOfGroups = "Créer";
 $WithUsersFrom = "groupes avec des membres de";
 $FillGroup = "Compléter aléatoirement le groupe avec des apprenants du cours";
-$EmptyGroup = "désinscrire tous les utilisateurs";
+$EmptyGroup = "Désinscrire tous les utilisateurs";
 $MaxGroupsPerUserInvalid = "Le nombre maximum de groupes par utilisateur que vous avez soumis est invalide. Il y a actuellement des utilisateurs qui sont inscrits dans plus de groupes que le nombre que vous proposez.";
 $GroupOverview = "Aperçu du groupe";
 $GroupCategory = "Catégorie du groupe";
@@ -5971,7 +5971,7 @@ $ContactInformationDescription = "Cher utilisateur,<br />
 <br />
 Vous êtes sur le point de commencer à utiliser l'une des meilleures plateformes e-learning de logiciel libre du marché. Comme beaucoup d'autres projets de logiciel libre, celui-ci est supporté par une grande communauté d'étudiants, d'enseignants, de développeurs et de créateurs de contenu qui aimeraient pouvoir promouvoir le projet dans les meilleures conditions.<br /><br />
 Au travers d'une meilleure connaissance de notre public et de l'un de nos plus importants utilisateurs, vous, qui gèrerez ce système e-learning, nous pourrons nous assurer de faire savoir au plus grand nombre que notre logiciel est utilisé, et nous pourrons vous informer directement sur les événements importants à vos yeux.<br /><br />
-En complétant ce formulaire, vous acceptez que l'Association Chamilo ou ses membres puissent vous envoyer des informations par courriel au sujet d'événements importants ou de mises à jours du logiciel ou de la communauté. Ceci aidera la communauté à croître comme une entité organisée au sein de laquelle l'information se propage, au travers d'un respect permanent de votre temps et de votre vie privée.<br /><br />
+En complétant ce formulaire, vous acceptez que l'Association Chamilo ou ses membres puissent vous envoyer des informations par courriel au sujet d'événements importants ou de mises à jour du logiciel ou de la communauté. Ceci aidera la communauté à croître comme une entité organisée au sein de laquelle l'information se propage, au travers d'un respect permanent de votre temps et de votre vie privée.<br /><br />
 Veuillez prendre en considération que vous n'êtes <b>pas obligé</b> de compléter ce formulaire. Si vous désirez rester anonyme, nous perdrons la possibilité de vous offrir les privilèges d'être un administrateur de portail enregistré, mais nous respecterons votre décision. Laissez simplement ce formulaire vide et cliquez sur \"Suivant\". De même, une fois l'envoi de l'information du formulaire ci-dessous confirmé, vous devrez cliquer sur \"Suivant\".";
 $CompanyActivity = "Activité de votre entreprise";
 $PleaseAllowUsALittleTimeToSubscribeYouToOneOfOurCourses = "Merci de nous donner un moment pour vous inscrire à l'un de nos cours. Si vous pensez avoir été oublié, merci de contacter les administrateurs du site. Vous pouvez généralement trouver leurs informations de contact dans le pied de page.";
@@ -7129,7 +7129,7 @@ $ShowUsersNotAddedInTheURL = "Afficher les utilisateurs non ajoutés à l'URL";
 $UserNotAddedInURL = "Utilisateurs non ajoutés à l'URL";
 $UsersRegisteredInNoSession = "Utilisateurs non enregistrés dans aucune session";
 $CommandLineInterpreter = "Interpréteur en ligne de commande (CLI)";
-$PleaseVisitOurWebsite = "Veuillez visiter notre site web: http://www.chamilo.org";
+$PleaseVisitOurWebsite = "Veuillez visiter notre site web: https://chamilo.org/download";
 $SpaceUsedOnSystemCannotBeMeasuredOnWindows = "L'espace disque ne peut être mesuré de manière fiable sur les serveurs Windows.";
 $XOldTablesDeleted = "%d anciennes tables supprimées";
 $XOldDatabasesDeleted = "%d anciennes bases de données supprimées";
@@ -7934,7 +7934,7 @@ $Avatar = "Avatar";
 $StudyCycle = "Semestre";
 $ReadingComprehension = "Compréhension à la lecture";
 $ReadingQuestionCongratsSpeedXNotReachedForYWords = "Désolé, il semblerait que la vitesse de %s mots/minute soit trop rapide pour vous pour l'instant, selon cette tentative sur un texte de %s mots.";
-$ReadingQuestionCongratsSpeedXReachedForYWords = "Félicitacions, vous avez atteint la vitesse de %s mots/minute en comprenant correctement un texte de %s mots.";
+$ReadingQuestionCongratsSpeedXReachedForYWords = "Félicitations, vous avez atteint la vitesse de %s mots/minute en comprenant correctement un texte de %s mots.";
 $ReadingComprehensionLevelX = "%s mots par minute";
 $TutorXIsNotSubscribedToCourse = "Le coach %s n'est pas inscrit dans ce cours";
 $UpdateTitleInLps = "Mettre ce titre à jour dans les parcours";
@@ -8753,9 +8753,9 @@ $OptionsToHideInExport = "Options pour masquer dans l'export";
 $HideAssignment = "Masquer les travaux";
 $AddSurveyToCourse = "Ajouter l'enquête au cours";
 $MoveTheCurrentSurvey = "Aller à l'enquête suivante";
-$ShareEventsInSessions = "Partager les événnements dans les sessions";
-$AgendaEventsInBaseCourseWillBeVisibleInCourseSessions = "Les événnements du cours seront visibles dans toutes les sessions";
-$AgendaEventsOnlyVisibleInCurrentCourse = "Les événnements du cours ne sont visibles que dans le cours de base";
+$ShareEventsInSessions = "Partager les événements dans les sessions";
+$AgendaEventsInBaseCourseWillBeVisibleInCourseSessions = "Les événements du cours seront visibles dans toutes les sessions";
+$AgendaEventsOnlyVisibleInCurrentCourse = "Les événements du cours ne sont visibles que dans le cours de base";
 $TestResult = "Résultat du test";
 $FilterByLp = "Filtrer par parcours";
 $ShareForumsInSessions = "Partager les forums avec toutes les sessions";
@@ -8907,7 +8907,7 @@ $ProvideACommentFirst = "Veuillez d'abord écrire un commentaire";
 $QuizFinalizationDate = "Dernière date de fin d'un exercice";
 $LpFinalizationDate = "Dernière date de fin d'un parcours";
 $OnlyThoseThatCorrespondToAllTheSelectedCategories = "Doit être dans TOUTES les catégories sélectionnées";
-$reportByAttempts = "Rapport par tentative";
+$ReportByAttempts = "Rapport par tentative";
 $QuestionsTopic = "Sujet des questions";
 $QuestionsTopicHelp = "Le sujet des questions sera utilisé à la fois comme titre de l'exercice créé et comme requête envoyée au générateur de questions par Intelligence Artificielle (IA) pour qu'il génère des questions sur ce sujet dans la langue configurée de ce cours. Vous pourrez réviser ces propositions de questions ci-dessous avant de les importer.";
 $AIQuestionsGenerator = "Générateur de questions par IA";
@@ -8951,4 +8951,23 @@ $ExportExerciseAllResults = "Exporter tous les résultats d'un exercice";
 $ExportExerciseNoResult = "Aucun résultat à exporter dans cet exercice.";
 $UserXChangedToYToCancelClickZ = "L'utilisateur %s a été changé en %s. Pour annuler, cliquez <a href='%s'>ici</a>.";
 $Exlearner = "Ex-étudiant";
+$FileSizeIsTooBig = "La taille du fichier est trop grande";
+$AnErrorOccured = "Une erreur s\'est produite";
+$EmailPicture = "Image pour les en-têtes";
+$AddEmailPicture = "Ajouter une image pour les en-têtes";
+$AddEmailPictureComment = "L'image sera utilisée dans les en-têtes de ce cours mais également des e-mails envoyés et des PDFs générés depuis ce cours. L'image doit avoir un ratio de 25:7. Vous pouvez recouper l'image au moment de l'envoi.";
+$DeleteEmailPicture = "Supprimer l'image d'en-tête";
+$AddPictureComment = "L'image finale doit avoir un format 16:9, mais vous pouvez la recouper lors de l'envoi.";
+$ExportAllExercisesAllResults = "Exporter tous les résultats de tous les exercices";
+$ClickToViewDetails = "Cliquez pour voir les détails";
+$CertificateOfAchievementHelp = "Ce rapport s'applique sur toutes les données de l'utilisateur sur la plateforme.";
+$DateFormatddmmyyyy = "jj/mm/aaaa";
+$ExportCertificateReport = "Exporter un rapport d'émission de certificats";
+$HideCareersHierarchy = "Masquer les hiérarchies";
+$ShowCareersHierarchy = "Montrer les hiérarchies";
+$ParentCareer = "Filière parente";
+$CareerCannotBeDeletedAsItHasChildren = "Cette filière ne peut pas être supprimée tant que tous ses enfants n'ont pas été supprimés ou déplacés vers une autre filière.";
+$EmailUsedTwiceInImportFile = "Ce courriel est déjà utilisé par un autre utilisateur du même fichier.";
+$NotificationInYourForums = "Vous avez de nouveaux posts dans les forums suivants de vos cours.";
+$ExtraFieldIdComment = "Cet identifiant est interne au système et ne doit pas contenir d'espaces ni de caractères spéciaux. Il pourra ensuite être référé depuis des plugins également, pour filtrer les éléments qui auxquels il est rattaché.";
 ?>

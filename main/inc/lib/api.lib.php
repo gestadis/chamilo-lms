@@ -20,7 +20,7 @@ use Symfony\Component\Finder\Finder;
  */
 
 // PHP version requirement.
-define('REQUIRED_PHP_VERSION', '7.1');
+define('REQUIRED_PHP_VERSION', '7.4');
 define('REQUIRED_MIN_MEMORY_LIMIT', '128');
 define('REQUIRED_MIN_UPLOAD_MAX_FILESIZE', '10');
 define('REQUIRED_MIN_POST_MAX_SIZE', '10');
@@ -152,6 +152,7 @@ define('TOOL_PORTFOLIO', 'portfolio');
 define('TOOL_PORTFOLIO_COMMENT', 'portfolio_comment');
 define('TOOL_PLAGIARISM', 'compilatio');
 define('TOOL_XAPI', 'xapi');
+define('TOOL_H5P', 'h5p');
 
 // CONSTANTS defining Chamilo interface sections
 define('SECTION_CAMPUS', 'mycampus');
@@ -696,6 +697,7 @@ define('RESOURCE_WORK', 'work');
 define('RESOURCE_SESSION_COURSE', 'session_course');
 define('RESOURCE_GRADEBOOK', 'gradebook');
 define('RESOURCE_XAPI_TOOL', 'xapi_tool');
+define('RESOURCE_H5P_TOOL', 'h5p_tool');
 define('ADD_THEMATIC_PLAN', 6);
 
 // Max online users to show per page (whoisonline)
@@ -2534,6 +2536,28 @@ function api_format_course_array($course_data)
     }
 
     $_course['course_image_large'] = $url_image;
+
+    // email pictures
+    // Course image
+    $url_image = null;
+    $_course['course_email_image_source'] = '';
+    $mailPicture = $courseSys.'/course-email-pic-cropped.png';
+    if (file_exists($mailPicture)) {
+        $url_image = $webCourseHome.'/course-email-pic-cropped.png';
+        $_course['course_email_image_source'] = $mailPicture;
+    }
+    $_course['course_email_image'] = $url_image;
+
+    // Course large image
+    $url_image = null;
+    $_course['course_email_image_large_source'] = '';
+    $mailPicture = $courseSys.'/course-email-pic.png';
+    if (file_exists($mailPicture)) {
+        $url_image = $webCourseHome.'/course-email-pic.png';
+        $_course['course_email_image_large_source'] = $mailPicture;
+    }
+
+    $_course['course_email_image_large'] = $url_image;
 
     return $_course;
 }
@@ -9536,10 +9560,10 @@ function api_mail_html(
     $mail->Mailer = api_get_mail_configuration_value('SMTP_MAILER');
     $mail->Host = api_get_mail_configuration_value('SMTP_HOST');
     $mail->Port = api_get_mail_configuration_value('SMTP_PORT');
-    $mail->CharSet = api_get_mail_configuration_value('SMTP_CHARSET') ? api_get_mail_configuration_value('SMTP_CHARSET') : 'UTF-8';
+    $mail->CharSet = api_get_mail_configuration_value('SMTP_CHARSET') ?: 'UTF-8';
     // Stay far below SMTP protocol 980 chars limit.
     $mail->WordWrap = 200;
-    $mail->SMTPOptions = api_get_mail_configuration_value('SMTPOptions') ?? [];
+    $mail->SMTPOptions = api_get_mail_configuration_value('SMTPOptions') ?: [];
 
     if (api_get_mail_configuration_value('SMTP_AUTH')) {
         $mail->SMTPAuth = 1;
@@ -9549,7 +9573,7 @@ function api_mail_html(
             $mail->SMTPSecure = api_get_mail_configuration_value('SMTP_SECURE');
         }
     }
-    $mail->SMTPDebug = api_get_mail_configuration_value('SMTP_DEBUG') ? api_get_mail_configuration_value('SMTP_DEBUG') : 0;
+    $mail->SMTPDebug = api_get_mail_configuration_value('SMTP_DEBUG') ?: 0;
 
     // 5 = low, 1 = high
     $mail->Priority = 3;
@@ -9635,6 +9659,9 @@ function api_mail_html(
 
     if (isset($additionalParameters['link'])) {
         $mailView->assign('link', $additionalParameters['link']);
+    }
+    if (isset($additionalParameters['logo'])) {
+        $mailView->assign('logo', $additionalParameters['logo']);
     }
     $mailView->assign('mail_header_style', api_get_configuration_value('mail_header_style'));
     $mailView->assign('mail_content_style', api_get_configuration_value('mail_content_style'));
@@ -10233,8 +10260,6 @@ function api_unserialize_content($type, $serialized, $ignoreErrors = false)
  */
 function api_set_noreply_and_from_address_to_mailer(PHPMailer $mailer, array $sender, array $replyToAddress = [])
 {
-    $platformEmail = $GLOBALS['platform_email'];
-
     $noReplyAddress = api_get_setting('noreply_email_address');
     $avoidReplyToAddress = false;
 
@@ -10266,8 +10291,8 @@ function api_set_noreply_and_from_address_to_mailer(PHPMailer $mailer, array $se
 
     //If the SMTP configuration only accept one sender
     if (
-        isset($platformEmail['SMTP_UNIQUE_SENDER']) &&
-        $platformEmail['SMTP_UNIQUE_SENDER']
+        !empty(api_get_mail_configuration_value('SMTP_UNIQUE_SENDER')) &&
+        api_get_mail_configuration_value('SMTP_UNIQUE_SENDER')
     ) {
         $senderName = $notification->getDefaultPlatformSenderName();
         $senderEmail = $notification->getDefaultPlatformSenderEmail();

@@ -77,6 +77,7 @@ class ExtraField extends Model
     public $pageUrl;
     public $extraFieldType = 0;
 
+    public $table;
     public $table_field_options;
     public $table_field_values;
     public $table_field_tag;
@@ -2233,9 +2234,9 @@ class ExtraField extends Model
     {
         $form = new FormValidator($this->type.'_field', 'post', $url);
 
-        $form->addElement('hidden', 'type', $this->type);
+        $form->addHidden('type', $this->type);
         $id = isset($_GET['id']) ? (int) $_GET['id'] : null;
-        $form->addElement('hidden', 'id', $id);
+        $form->addHidden('id', $id);
 
         // Setting the form elements
         $header = get_lang('Add');
@@ -2247,7 +2248,7 @@ class ExtraField extends Model
             $defaults = $this->get($id, false);
         }
 
-        $form->addElement('header', $header);
+        $form->addHeader($header);
 
         if ('edit' === $action) {
             $translateUrl = api_get_path(WEB_CODE_PATH).'extrafield/translate.php?'
@@ -2256,10 +2257,10 @@ class ExtraField extends Model
 
             $form->addText(
                 'display_text',
-                [get_lang('Name'), $translateButton]
+                [get_lang('Title'), $translateButton]
             );
         } else {
-            $form->addElement('text', 'display_text', get_lang('Name'));
+            $form->addText('display_text', get_lang('Title'));
         }
 
         // Field type
@@ -2272,8 +2273,15 @@ class ExtraField extends Model
             $types,
             ['id' => 'field_type']
         );
-        $form->addElement('label', get_lang('Example'), '<div id="example">-</div>');
-        $form->addElement('text', 'variable', get_lang('FieldLabel'), ['class' => 'span5']);
+        $form->addLabel(get_lang('Example'), '<div id="example">-</div>');
+        $form->addElement(
+            'text',
+            'variable',
+            [
+                get_lang('SysId'),
+                get_lang('ExtraFieldIdComment')
+            ]
+        );
         $form->addElement(
             'text',
             'field_options',
@@ -2297,23 +2305,23 @@ class ExtraField extends Model
                     get_lang('EditExtraFieldOptions'),
                     'extra_field_options.php?type='.$this->type.'&field_id='.$id
                 );
-                $form->addElement('label', null, $url);
+                $form->addLabel(null, $url);
 
                 if (self::FIELD_TYPE_SELECT == $defaults['field_type']) {
                     $urlWorkFlow = Display::url(
                         get_lang('EditExtraFieldWorkFlow'),
                         'extra_field_workflow.php?type='.$this->type.'&field_id='.$id
                     );
-                    $form->addElement('label', null, $urlWorkFlow);
+                    $form->addLabel(null, $urlWorkFlow);
                 }
 
                 $form->freeze('field_options');
             }
         }
-        $form->addElement(
-            'text',
+        $form->addText(
             'default_value',
             get_lang('FieldDefaultValue'),
+            false,
             ['id' => 'default_value']
         );
 
@@ -2344,7 +2352,7 @@ class ExtraField extends Model
         $form->addGroup($group, '', get_lang('FieldLoggeable'), '', false);
         */
 
-        $form->addElement('text', 'field_order', get_lang('FieldOrder'));
+        $form->addNumeric('field_order', get_lang('FieldOrder'), ['step' => 1, 'min' => 0]);
 
         if ('edit' == $action) {
             $option = new ExtraFieldOption($this->type);
@@ -3189,6 +3197,58 @@ JAVASCRIPT;
         $result = Database::store_result($result);
 
         return $result;
+    }
+
+    /**
+     * For one given field ID, get all the item_id + value.
+     *
+     * @return array
+     */
+    public function getAllValuesByFieldId(int $fieldId)
+    {
+        $type = $this->get_field_type_by_id($fieldId);
+        $sql = "SELECT item_id, value FROM ".$this->table_field_values." WHERE field_id = $fieldId";
+        $res = Database::query($sql);
+        $values = [];
+        if (Database::num_rows($res) > 0) {
+            while ($row = Database::fetch_array($res)) {
+                if (is_null($row['value'])) {
+                    // If the entry exists but is NULL, consider it an empty string (to reproduce the behaviour of UserManager::get_extra_user_data()
+                    $values[$row['item_id']] = '';
+                } else {
+                    if ($type == self::FIELD_TYPE_SELECT_MULTIPLE) {
+                        $values[$row['item_id']] = explode(';', $row['value']);
+                    } elseif (empty($row['value'])) {
+                        // Avoid "0" values when no value should be set
+                        $values[$row['item_id']] = null;
+                    } else {
+                        $values[$row['item_id']] = $row['value'];
+                    }
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Gets the default value for one specific field.
+     *
+     * @param int $fieldId Field ID
+     *
+     * @return mixed Default value for the field (could be null, or usually a string)
+     */
+    public function getDefaultValueByFieldId(int $fieldId)
+    {
+        $sql = "SELECT default_value FROM $this->table WHERE id = $fieldId";
+        $res = Database::query($sql);
+        if (Database::num_rows($res) > 0) {
+            $row = Database::fetch_array($res);
+
+            return $row['default_value'];
+        }
+
+        return null;
     }
 
     /**
