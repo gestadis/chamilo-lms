@@ -56,6 +56,7 @@ $form->addElement('radio', 'file_type', get_lang('OutputFileType'), 'XML', 'xml'
 $form->addElement('radio', 'file_type', null, 'CSV', 'csv');
 $form->addElement('radio', 'file_type', null, 'XLS', 'xls');
 $form->addElement('checkbox', 'addcsvheader', get_lang('AddCSVHeader'), get_lang('YesAddCSVHeader'), '1');
+$form->addElement('checkbox', 'addlastlogin', get_lang('IncludeLastLogin'), get_lang('IncludeLastLogin'), '1');
 $form->addElement('select', 'course_code', get_lang('OnlyUsersFromCourse'), $courses);
 $form->addElement('select', 'course_session', get_lang('OnlyUsersFromCourseSession'), $coursesSessions);
 $form->addButtonExport(get_lang('Export'));
@@ -95,7 +96,8 @@ if ($form->validate()) {
                 u.phone		AS Phone,
                 u.registration_date AS RegistrationDate,
                 u.active    AS Active,
-                u.expiration_date
+                u.expiration_date,
+                u.last_login AS LastLogin
             ";
     if (strlen($course_code) > 0) {
         $sql .= " FROM $user_table u, $course_user_table cu
@@ -132,8 +134,10 @@ if ($form->validate()) {
     $data = [];
     $extra_fields = UserManager::get_extra_fields(0, 0, 5, 'ASC', false);
 
+    $headers = false;
     if (!empty($export['addcsvheader'])) {
         if ($export['addcsvheader'] == '1' && ($export['file_type'] == 'csv' || $export['file_type'] == 'xls')) {
+            $headers = true;
             if ($_configuration['password_encryption'] != 'none') {
                 $data[] = [
                     'UserId',
@@ -146,9 +150,12 @@ if ($form->validate()) {
                     'OfficialCode',
                     'PhoneNumber',
                     'RegistrationDate',
-            'Active',
+                    'Active',
                     'ExpirationDate',
                 ];
+                if ($export['addlastlogin'] == '1') {
+                    $data[0][] = 'LastLogin';
+                }
             } else {
                 $data[] = [
                     'UserId',
@@ -165,6 +172,9 @@ if ($form->validate()) {
                     'Active',
                     'ExpirationDate',
                 ];
+                if ($export['addlastlogin'] == '1') {
+                    $data[0][] = 'LastLogin';
+                }
             }
 
             foreach ($extra_fields as $extra) {
@@ -191,6 +201,11 @@ if ($form->validate()) {
         $default = $extraField->getDefaultValueByFieldId($fieldInfo[0]);
         $fieldValues = $extraField->getAllValuesByFieldId($fieldInfo[0]);
         foreach ($data as $userId => &$values) {
+            if ($headers === true && $userId === 0) {
+                // Avoid the header line, if any
+                continue;
+            }
+
             if (isset($fieldValues[$userId])) {
                 if (is_array($fieldValues[$userId])) {
                     $values['extra_'.$fieldInfo[1]] = $fieldValues[$userId];
