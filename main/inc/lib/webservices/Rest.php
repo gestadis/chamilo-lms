@@ -101,6 +101,9 @@ class Rest extends WebService
     public const DELETE_USER = 'delete_user';
     public const GET_USERS_API_KEYS = 'get_users_api_keys';
     public const GET_USER_API_KEY = 'get_user_api_key';
+    public const GET_USER_LAST_CONNEXION = 'get_user_last_connexion';
+    public const GET_USER_TOTAL_CONNEXION_TIME = 'get_user_total_connexion_time';
+    public const GET_USER_SUB_GROUP = 'get_user_sub_group';
 
     public const GET_COURSES = 'get_courses';
     public const GET_COURSES_FROM_EXTRA_FIELD = 'get_courses_from_extra_field';
@@ -1879,6 +1882,7 @@ class Rest extends WebService
         $hr_dept_id = 0;
         $original_user_id_name = $userParam['original_user_id_name'];
         $original_user_id_value = $userParam['original_user_id_value'];
+        $sendMail = (empty($userParam['send_mail']) ? false : true);
 
         $extra_list = isset($userParam['extra']) ? $userParam['extra'] : [];
         if (isset($userParam['language'])) {
@@ -1915,7 +1919,10 @@ class Rest extends WebService
             $auth_source,
             $expiration_date,
             $active,
-            $hr_dept_id
+            $hr_dept_id,
+            [],
+            '',
+            $sendMail
         );
 
         if (empty($userId)) {
@@ -3952,6 +3959,59 @@ class Rest extends WebService
         ];
     }
 
+    /**
+     * @throws Exception
+     */
+    public function getUserLastConnexion(string $username): array
+    {
+        if (false === api_get_configuration_value('webservice_enable_adminonly_api')
+            || !UserManager::is_admin($this->user->getId())
+        ) {
+            self::throwNotAllowedException();
+        }
+
+        $userInfo = api_get_user_info_from_username($username);
+
+        if (empty($userInfo)) {
+            throw new Exception(get_lang('UserNotFound'));
+        }
+
+        $lastConnexionDate = Tracking::get_last_connection_date($userInfo['id']);
+
+        return [
+            'id' => $userInfo['id'],
+            'username' => $userInfo['username'],
+            'last_connexion_date' => $lastConnexionDate,
+        ];
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function getUserTotalConnexionTime(string $username): array
+    {
+        if (false === api_get_configuration_value('webservice_enable_adminonly_api')
+            || !UserManager::is_admin($this->user->getId())
+        ) {
+            self::throwNotAllowedException();
+        }
+
+        $userInfo = api_get_user_info_from_username($username);
+
+        if (empty($userInfo)) {
+            throw new Exception(get_lang('UserNotFound'));
+        }
+
+        $totalConnexionTimeInSecond = Tracking::get_time_spent_on_the_platform($userInfo['id'], 'ever');
+        $totalConnexionTime = api_time_to_hms($totalConnexionTimeInSecond);
+
+        return [
+            'id' => $userInfo['id'],
+            'username' => $userInfo['username'],
+            'total_connexion_time' => $totalConnexionTime,
+        ];
+    }
+
     public static function isAllowedByRequest(bool $inpersonate = false): bool
     {
         $username = $_GET['username'] ?? null;
@@ -4084,7 +4144,25 @@ class Rest extends WebService
     {
         $userGroup = new UserGroup();
 
+        if (!$userGroup->groupExists($groupId) or !$userGroup->userExists($userId)) {
+            throw new Exception('user_id or group_id does not exist');
+        }
+
         return [$userGroup->add_user_to_group($userId, $groupId, $relationType)];
+    }
+
+    /**
+     * Get the list of group/class IDs to which the user belongs.
+     *
+     * @return array Array containing the group IDs like ['groups' => [1, 2, 3]]
+     */
+    public function getUserSubGroup(int $userId): array
+    {
+        $userGroup = new UserGroup();
+
+        $res = $userGroup->get_usergroup_by_user($userId);
+
+        return ['groups' => $res];
     }
 
     /**

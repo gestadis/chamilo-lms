@@ -1634,6 +1634,9 @@ requires extension "php-soap"  sudo apt-get install php-soap
 // LP view menu location. Options: "left" or "right"
 // $_configuration['lp_menu_location'] = 'left';
 
+// Hide the "Open in new window" button in learning paths when viewing long content (using the button disconnects SCORM tracking - more details in #4954)
+//$_configuration['lp_ios_hide_open_in_new_window_button'] = false;
+
 // Show notification events
 /*CREATE TABLE IF NOT EXISTS notification_event (
 id INT unsigned NOT NULL auto_increment PRIMARY KEY,
@@ -2236,6 +2239,14 @@ VALUES (21, 13, 'send_notification_at_a_specific_date', 'Send notification at a 
 // Overwrites the app/config/auth.conf.php settings
 //$_configuration['extldap_config'] = ['host' => '', 'port' => ''];
 
+// To use an encrypted ldap admin password in app/config/auth.conf.php
+// if set to true then you need to put in app/config/auth.conf.php the encrypted passeword in $extldap_config['admin_password']
+// To generate the encrypted password you can use the script tests/scripts/ldap_encrypt_admin_password.php
+//$_configuration['ldap_encrypt_admin_password'] = false;
+
+// Salt to use for admin ldap password decryption
+//$_configuration['ldap_admin_password_salt'] = 'salt';
+
 // Option to hide the teachers info on courses about info page.
 //$_configuration['course_about_teacher_name_hide'] = false;
 
@@ -2489,3 +2500,14 @@ INSERT INTO extra_field_options (field_id, option_value, display_text, priority,
 
 // Add more speed options to reading comprehension question type (type id = 21) in words per minute
 //$_configuration['exercise_question_reading_comprehension_extra_speeds'] = ['speeds' => [70, 110, 170]];
+
+//hide copy icon in LP's authoring options
+//$_configuration['lp_hide_copy_option'] = false;
+
+// Password rotation
+// Requires creating a "Date and time" extra user field with the system id "password_updated_at"
+// Note: only a password change by the user itself will be taken into account.
+// Admins editing someone else's password do not count as a password update that would avoid the rotation request.
+// If this feature is enabled on an existing portal, the registration date of users will be taken as
+// the latest password change date.
+//$_configuration['security_password_rotate_days'] = 90;

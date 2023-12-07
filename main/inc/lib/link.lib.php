@@ -1046,7 +1046,7 @@ class Link extends Model
                     switch ($myrow['visibility']) {
                         case '1':
                             $urlVisibility .= '&action=invisible';
-                            $title = get_lang('MakeInvisible');
+                            $title = get_lang('Hide');
                             $toolbar .= Display::toolbarButton(
                                 '',
                                 $urlVisibility,
@@ -1059,7 +1059,7 @@ class Link extends Model
                             break;
                         case '0':
                             $urlVisibility .= '&action=visible';
-                            $title = get_lang('MakeVisible');
+                            $title = get_lang('Show');
                             $toolbar .= Display::toolbarButton(
                                 '',
                                 $urlVisibility,
@@ -1822,16 +1822,24 @@ class Link extends Model
         $client = new Client(['defaults' => $defaults]);
 
         try {
-            $response = $client->get($url);
+            $responseIpv6 = $client->get($url);
 
-            if (200 !== $response->getStatusCode()) {
+            if (200 === $responseIpv6->getStatusCode()) {
+                return true;
+            }
+        } catch (Exception $e) {
+            try {
+                $responseIpv4 = $client->request('GET', $url, ['force_ip_resolve' => 'v4']);
+
+                if (200 === $responseIpv4->getStatusCode()) {
+                    return true;
+                }
+            } catch (Exception $e) {
                 return false;
             }
-
-            return true;
-        } catch (Exception $e) {
-            return false;
         }
+
+        return false;
     }
 
     /**

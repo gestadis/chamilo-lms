@@ -1710,6 +1710,11 @@ class Exercise
             if (api_get_setting('search_enabled') === 'true') {
                 $this->search_engine_edit();
             }
+            Event::addEvent(
+                LOG_EXERCISE_UPDATE,
+                LOG_EXERCISE_ID,
+                $id
+            );
         } else {
             // Creates a new exercise
             // In this case of new exercise, we don't do the api_get_utc_datetime()
@@ -1816,6 +1821,11 @@ class Exercise
                 if (api_get_setting('search_enabled') === 'true' && extension_loaded('xapian')) {
                     $this->search_engine_save();
                 }
+                Event::addEvent(
+                    LOG_EXERCISE_CREATE,
+                    LOG_EXERCISE_ID,
+                    $this->iid
+                );
             }
         }
 
@@ -2014,6 +2024,11 @@ class Exercise
                 WHERE iid = ".$this->iid;
             Database::query($sql);
         }
+        Event::addEvent(
+            LOG_EXERCISE_DELETE,
+            LOG_EXERCISE_ID,
+            $this->iid
+        );
 
         return true;
     }
@@ -9780,7 +9795,7 @@ class Exercise
                                     'class' => 'ajax',
                                     'data-title' => get_lang('EmbedExerciseLink'),
                                     'title' => get_lang('EmbedExerciseLink'),
-                                    'data-content' => get_lang('CopyUrlToIncludeInIframe').'<br>'.$urlEmbed,
+                                    'data-content' => get_lang('CopyUrlToIncludeInIframe').'<br>'.$urlEmbed.'<br><br>'.get_lang('CopyIframeCodeToIncludeExercise').'<br><textarea rows=&quot;5&quot; cols=&quot;70&quot;>&lt;iframe width=&quot;840&quot; height=&quot;472&quot; src=&quot;'.$urlEmbed.'&quot; title=&quot;Chamilo exercise&quot;&gt;&lt;/iframe&gt;</textarea>',
                                     'href' => 'javascript:void(0);',
                                 ]
                             );

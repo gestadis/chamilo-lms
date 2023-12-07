@@ -234,8 +234,15 @@ define('LOG_CAREER_CREATE', 'career_created');
 define('LOG_CAREER_DELETE', 'career_deleted');
 define('LOG_USER_PERSONAL_DOC_DELETED', 'user_doc_deleted');
 define('LOG_WIKI_ACCESS', 'wiki_page_view');
+define('LOG_EXERCISE_CREATE', 'exe_created');
+define('LOG_EXERCISE_UPDATE', 'exe_updated');
+define('LOG_EXERCISE_DELETE', 'exe_deleted');
+define('LOG_LP_CREATE', 'lp_created');
+define('LOG_LP_UPDATE', 'lp_updated');
+define('LOG_LP_DELETE', 'lp_deleted');
 // All results from an exercise
 define('LOG_EXERCISE_RESULT_DELETE', 'exe_result_deleted');
+define('LOG_EXERCISE_RESULT_DELETE_INCOMPLETE', 'exe_incomplete_results_deleted');
 // Logs only the one attempt
 define('LOG_EXERCISE_ATTEMPT_DELETE', 'exe_attempt_deleted');
 define('LOG_LP_ATTEMPT_DELETE', 'lp_attempt_deleted');
@@ -9150,21 +9157,21 @@ function api_get_configuration_value($variable)
     // Check if variable exists
     if (isset($_configuration[$variable])) {
         if (is_array($_configuration[$variable]) && api_is_multiple_url_enabled() && is_int(array_keys($_configuration[$variable])[0])) {
-            // It has been configured for at least one sub URL so we will not return the complete variable
+            // It has been configured for at least one sub URL, so we will not return the complete variable
             /*
-         * The idea is that if the first level key of the configuration variable is an int
-         * then it is a multiURL configuration and if it's a string then it's a configuration that is not multiURL.
-         * For example if in app/config/configuration.php you have set :
-         * $_configuration['ticket_project_user_roles'] = [
-         *     'permissions' => [
-         *         1 => [17] // project_id = 1, STUDENT_BOSS = 17
-         *     ]
-         * ];
-         * You do not want to enter in this bloc even if multiURL is activated because the option is configured globaly
-         * and you want to return the full array.
-         * The is_int is to consider only the option that are array and configured for multiURL
-         * which means there is an int as the first level key of the array.
-         */
+             * The idea is that if the first level key of the configuration variable is an int
+             * then it is a multiURL configuration and if it's a string then it's a configuration that is not multiURL.
+             * For example if in app/config/configuration.php you have set :
+             * $_configuration['ticket_project_user_roles'] = [
+             *     'permissions' => [
+             *         1 => [17] // project_id = 1, STUDENT_BOSS = 17
+             *     ]
+             * ];
+             * You do not want to enter this block even if multiURL is activated because the option is configured globally
+             * and you want to return the full array.
+             * The is_int is to consider only the option that are array and configured for multiURL
+             * which means there is an int as the first level key of the array.
+             */
             // Check if it exists for the sub portal
             if (array_key_exists($urlId, $_configuration[$variable])) {
                 return $_configuration[$variable][$urlId];
@@ -9703,15 +9710,29 @@ function api_mail_html(
     if (is_array($recipient_email)) {
         foreach ($recipient_email as $dest) {
             if (api_valid_email($dest)) {
-                $mail->AddAddress($dest, $recipient_name);
+                if (UserManager::isEmailingAllowed($dest)) {
+                    // Do not send if user is not active = 1
+                    $mail->AddAddress($dest, $recipient_name);
+                }
+            } else {
+                // error_log('e-mail recipient '.$dest.' is not valid.');
+                return 0;
             }
         }
     } else {
         if (api_valid_email($recipient_email)) {
-            $mail->AddAddress($recipient_email, $recipient_name);
+            if (UserManager::isEmailingAllowed($recipient_email)) {
+                // Do not send if user is not active = 1
+                $mail->AddAddress($recipient_email, $recipient_name);
+            }
         } else {
+            // error_log('e-mail recipient '.$recipient_email.' is not valid.');
             return 0;
         }
+    }
+    if (empty($mail->getAllRecipientAddresses())) {
+        // error_log('No valid and active destination e-mail in api_mail_html() with address '.print_r($recipient_email, 1).'. Not sending.');
+        return 0;
     }
 
     if (is_array($extra_headers) && count($extra_headers) > 0) {
@@ -10579,4 +10600,37 @@ function api_flush_settings_cache(int $url_id): bool
     }
 
     return true;
+}
+
+/**
+ * Decrypt sent data with encoded secret defined in app/config/configuration.php
+ * in the variable $_configuration['ldap_admin_password_salt'].
+ *
+ * @param $encryptedText The text to be decrypted
+ */
+function api_decrypt_ldap_password(string $encryptedText): string
+{
+    if (!empty(api_get_configuration_value('ldap_admin_password_salt'))) {
+        $secret = api_get_configuration_value('ldap_admin_password_salt');
+    } else {
+        return false;
+    }
+    $secret = hex2bin($secret);
+    $iv = base64_decode(substr($encryptedText, 0, 16), true);
+    $data = base64_decode(substr($encryptedText, 16), true);
+    $tag = substr($data, strlen($data) - 16);
+    $data = substr($data, 0, strlen($data) - 16);
+
+    try {
+        return openssl_decrypt(
+        $data,
+        'aes-256-gcm',
+        $secret,
+        OPENSSL_RAW_DATA,
+        $iv,
+        $tag
+      );
+    } catch (\Exception $e) {
+        return false;
+    }
 }

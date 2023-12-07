@@ -1661,6 +1661,23 @@ class UserManager
         if (!is_null($password)) {
             $user->setPlainPassword($password);
             Event::addEvent(LOG_USER_PASSWORD_UPDATE, LOG_USER_ID, $user_id);
+            $date = api_get_local_time(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                'Y-m-d'
+            );
+            $extraFieldValue = new ExtraFieldValue('user');
+            $extraFieldValue->save(
+                [
+                    'item_id' => $user->getId(),
+                    'variable' => 'password_updated_at',
+                    'value' => $date,
+                ]
+            );
         }
 
         $userManager->updateUser($user, true);
@@ -1688,7 +1705,6 @@ class UserManager
 
         if (!empty($email) && $send_email) {
             $recipient_name = api_get_person_name($firstname, $lastname, null, PERSON_NAME_EMAIL_ADDRESS);
-            $emailsubject = '['.api_get_setting('siteName').'] '.get_lang('YourReg').' '.api_get_setting('siteName');
             $sender_name = api_get_person_name(
                 api_get_setting('administratorName'),
                 api_get_setting('administratorSurname'),
@@ -1713,48 +1729,109 @@ class UserManager
                 false,
                 false
             );
-            // variables for the default template
             $tplContent->assign('complete_name', stripslashes(api_get_person_name($firstname, $lastname)));
             $tplContent->assign('login_name', $username);
-
             $originalPassword = '';
             if ($reset_password > 0) {
                 $originalPassword = stripslashes($original_password);
             }
             $tplContent->assign('original_password', $originalPassword);
+            // variables for the default template
             $tplContent->assign('portal_url', $url);
             // Adding this variable but not used in default template, used for task BT19518 with a customized template
             $tplContent->assign('status_type', $status);
-
-            $layoutContent = $tplContent->get_template('mail/user_edit_content.tpl');
-            $emailBody = $tplContent->fetch($layoutContent);
-
-            $mailTemplateManager = new MailTemplateManager();
-
-            if (!empty($emailTemplate) &&
-                isset($emailTemplate['user_edit_content.tpl']) &&
-                !empty($emailTemplate['user_edit_content.tpl'])
-            ) {
-                $userInfo = api_get_user_info($user_id);
-                $emailBody = $mailTemplateManager->parseTemplate($emailTemplate['user_edit_content.tpl'], $userInfo);
-            }
-
             $creatorInfo = api_get_user_info($creator_id);
             $creatorEmail = isset($creatorInfo['email']) ? $creatorInfo['email'] : '';
+            $emailsubject = '['.api_get_setting('siteName').'] '.get_lang('YourReg').' '.api_get_setting('siteName');
 
-            api_mail_html(
-                $recipient_name,
-                $email,
-                $emailsubject,
-                $emailBody,
-                $sender_name,
-                $email_admin,
-                null,
-                null,
-                null,
-                null,
-                $creatorEmail
-            );
+            if (!is_null($password) && api_get_configuration_value('send_two_inscription_confirmation_mail')) {
+                // The user has a new password *and* we need to tell him so,
+                // but the configuration is set to send 2 separate e-mails
+                // (one for username, one for password) when sending pass
+                $layoutContent = $tplContent->get_template('mail/new_user_first_email_confirmation.tpl');
+                $emailBody = $tplContent->fetch($layoutContent);
+                $mailTemplateManager = new MailTemplateManager();
+                if (!empty($emailTemplate) &&
+                    isset($emailTemplate['new_user_first_email_confirmation.tpl']) &&
+                    !empty($emailTemplate['new_user_first_email_confirmation.tpl'])
+                ) {
+                    $userInfo = api_get_user_info($user_id);
+                    $emailBody = $mailTemplateManager->parseTemplate(
+                        $emailTemplate['new_user_first_email_confirmation.tpl'],
+                        $userInfo
+                    );
+                }
+
+                api_mail_html(
+                    $recipient_name,
+                    $email,
+                    $emailsubject,
+                    $emailBody,
+                    $sender_name,
+                    $email_admin,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $creatorEmail
+                );
+
+                $layoutContent = $tplContent->get_template('mail/new_user_second_email_confirmation.tpl');
+                $emailBody = $tplContent->fetch($layoutContent);
+                $mailTemplateManager = new MailTemplateManager();
+                if (!empty($emailTemplate) &&
+                    isset($emailTemplate['new_user_second_email_confirmation.tpl']) &&
+                    !empty($emailTemplate['new_user_second_email_confirmation.tpl'])
+                ) {
+                    $userInfo = api_get_user_info($user_id);
+                    $emailBody = $mailTemplateManager->parseTemplate(
+                        $emailTemplate['new_user_second_email_confirmation.tpl'],
+                        $userInfo
+                    );
+                }
+
+                api_mail_html(
+                    $recipient_name,
+                    $email,
+                    $emailsubject,
+                    $emailBody,
+                    $sender_name,
+                    $email_admin,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $creatorEmail
+                );
+            } else {
+                $layoutContent = $tplContent->get_template('mail/user_edit_content.tpl');
+                $emailBody = $tplContent->fetch($layoutContent);
+                $mailTemplateManager = new MailTemplateManager();
+                if (!empty($emailTemplate) &&
+                    isset($emailTemplate['user_edit_content.tpl']) &&
+                    !empty($emailTemplate['user_edit_content.tpl'])
+                ) {
+                    $userInfo = api_get_user_info($user_id);
+                    $emailBody = $mailTemplateManager->parseTemplate(
+                        $emailTemplate['user_edit_content.tpl'],
+                        $userInfo
+                    );
+                }
+
+                api_mail_html(
+                    $recipient_name,
+                    $email,
+                    $emailsubject,
+                    $emailBody,
+                    $sender_name,
+                    $email_admin,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $creatorEmail
+                );
+            }
         }
 
         if (!empty($hook)) {
@@ -7621,29 +7698,76 @@ SQL;
 
     public static function redirectToResetPassword($userId)
     {
-        if (!api_get_configuration_value('force_renew_password_at_first_login')) {
-            return;
+        $forceRenew = api_get_configuration_value('force_renew_password_at_first_login');
+
+        if ($forceRenew) {
+            $askPassword = self::get_extra_user_data_by_field(
+                $userId,
+                'ask_new_password'
+            );
+
+            if (!empty($askPassword) && isset($askPassword['ask_new_password']) &&
+                1 === (int) $askPassword['ask_new_password']
+            ) {
+                $uniqueId = api_get_unique_id();
+                $userObj = api_get_user_entity($userId);
+
+                $userObj->setConfirmationToken($uniqueId);
+                $userObj->setPasswordRequestedAt(new \DateTime());
+
+                Database::getManager()->persist($userObj);
+                Database::getManager()->flush();
+
+                $url = api_get_path(WEB_CODE_PATH).'auth/reset.php?token='.$uniqueId;
+                api_location($url);
+            }
         }
 
-        $askPassword = self::get_extra_user_data_by_field(
-            $userId,
-            'ask_new_password'
-        );
+        $forceRotateDays = api_get_configuration_value('security_password_rotate_days');
+        $forceRotate = false;
 
-        if (!empty($askPassword) && isset($askPassword['ask_new_password']) &&
-            1 === (int) $askPassword['ask_new_password']
-        ) {
-            $uniqueId = api_get_unique_id();
-            $userObj = api_get_user_entity($userId);
+        if ($forceRotateDays > 0) {
+            // get the date of the last password update recorded
+            $lastUpdate = self::get_extra_user_data_by_field(
+                $userId,
+                'password_updated_at'
+            );
 
-            $userObj->setConfirmationToken($uniqueId);
-            $userObj->setPasswordRequestedAt(new \DateTime());
+            if (empty($lastUpdate) or empty($lastUpdate['password_updated_at'])) {
+                $userObj = api_get_user_entity($userId);
+                $registrationDate = $userObj->getRegistrationDate();
+                $now = new \DateTime(null, new DateTimeZone('UTC'));
+                $interval = $now->diff($registrationDate);
+                $daysSince = $interval->format('%a');
+                if ($daysSince > $forceRotateDays) {
+                    $forceRotate = true;
+                }
+            } else {
+                $now = new \DateTime(null, new DateTimeZone('UTC'));
+                // In some cases, old records might contain an incomplete Y-m-d H:i:s format
+                if (strlen($lastUpdate['password_updated_at']) == 16) {
+                    $lastUpdate['password_updated_at'] .= ':00';
+                }
+                $date = \DateTime::createFromFormat('Y-m-d H:i:s', $lastUpdate['password_updated_at'], new DateTimeZone('UTC'));
+                $interval = $now->diff($date);
+                $daysSince = $interval->format('%a');
+                if ($daysSince > $forceRotateDays) {
+                    $forceRotate = true;
+                }
+            }
+            if ($forceRotate) {
+                $uniqueId = api_get_unique_id();
+                $userObj = api_get_user_entity($userId);
 
-            Database::getManager()->persist($userObj);
-            Database::getManager()->flush();
+                $userObj->setConfirmationToken($uniqueId);
+                $userObj->setPasswordRequestedAt(new \DateTime());
 
-            $url = api_get_path(WEB_CODE_PATH).'auth/reset.php?token='.$uniqueId;
-            api_location($url);
+                Database::getManager()->persist($userObj);
+                Database::getManager()->flush();
+
+                $url = api_get_path(WEB_CODE_PATH).'auth/reset.php?token='.$uniqueId.'&rotate=1';
+                api_location($url);
+            }
         }
     }
 
@@ -7916,6 +8040,59 @@ SQL;
                 });
             }
         }';
+    }
+
+    /**
+     * Get a list of users with the given e-mail address + their "active" field value (0 or 1).
+     *
+     * @param string $mail User id
+     *
+     * @return array List of users e-mails + active field
+     */
+    public static function getUsersByMail(string $mail): array
+    {
+        $resultData = Database::select(
+            'id, active',
+            Database::get_main_table(TABLE_MAIN_USER),
+            [
+                'where' => ['email = ?' => $mail],
+            ],
+            'all',
+            null
+        );
+
+        if ($resultData === false) {
+            return [];
+        }
+
+        return $resultData;
+    }
+
+    /**
+     * Get whether we can send an e-mail or not.
+     * If the e-mail is not in the database, send the mail.
+     * If the e-mail is in the database but none of its occurences is active, don't send.
+     *
+     * @param string $mail The e-mail address to check
+     *
+     * @return bool Whether we can send an e-mail or not
+     */
+    public function isEmailingAllowed(string $mail): bool
+    {
+        $list = self::getUsersByMail($mail);
+        if (empty($list)) {
+            // No e-mail matches, send the mail
+            return true;
+        }
+        $send = false;
+        foreach ($list as $id => $user) {
+            if ($user['active'] == 1) {
+                // as soon as we find at least one active user, send the mail
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

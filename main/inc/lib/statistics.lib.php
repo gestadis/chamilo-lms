@@ -1059,31 +1059,58 @@ class Statistics
         $content .= $form->returnForm();
         $content .= '</div>';
 
-        $table = new SortableTable(
-            'activities',
-            ['Statistics', 'getNumberOfActivities'],
-            ['Statistics', 'getActivitiesData'],
-            7,
-            50,
-            'DESC'
-        );
-        $parameters = [];
+        if (!empty($_GET['keyword'])) {
+            $table = new SortableTable(
+                'activities',
+                ['Statistics', 'getNumberOfActivities'],
+                ['Statistics', 'getActivitiesData'],
+                7,
+                50,
+                'DESC'
+            );
+            $parameters = [];
 
-        $parameters['report'] = 'activities';
-        if (isset($_GET['keyword'])) {
-            $parameters['keyword'] = Security::remove_XSS($_GET['keyword']);
+            $parameters['report'] = 'activities';
+            if (isset($_GET['keyword'])) {
+                $parameters['keyword'] = Security::remove_XSS($_GET['keyword']);
+            }
+
+            $table->set_additional_parameters($parameters);
+            $table->set_header(0, get_lang('EventType'));
+            $table->set_header(1, get_lang('DataType'));
+            $table->set_header(2, get_lang('Value'));
+            $table->set_header(3, get_lang('Course'));
+            $table->set_header(4, get_lang('Session'));
+            $table->set_header(5, get_lang('UserName'));
+            $table->set_header(6, get_lang('IPAddress'));
+            $table->set_header(7, get_lang('Date'));
+            $content .= $table->return_table();
         }
 
-        $table->set_additional_parameters($parameters);
-        $table->set_header(0, get_lang('EventType'));
-        $table->set_header(1, get_lang('DataType'));
-        $table->set_header(2, get_lang('Value'));
-        $table->set_header(3, get_lang('Course'));
-        $table->set_header(4, get_lang('Session'));
-        $table->set_header(5, get_lang('UserName'));
-        $table->set_header(6, get_lang('IPAddress'));
-        $table->set_header(7, get_lang('Date'));
-        $content .= $table->return_table();
+        $content .= '<div class="alert alert-info">'.get_lang('ImportantActivities').' : '.'<br>';
+        $prefix = 'LOG_';
+        $userDefinedConstants = get_defined_constants(true)['user'];
+        $filteredConstants = array_filter($userDefinedConstants, function ($constantName) use ($prefix) {
+            return strpos($constantName, $prefix) === 0;
+        }, ARRAY_FILTER_USE_KEY);
+        $constantNames = array_keys($filteredConstants);
+        $link = api_get_self().'?report=activities&activities_direction=DESC&activities_column=7&keyword=';
+        foreach ($constantNames as $constantName) {
+            if ($constantName != 'LOG_WS') {
+                if (substr($constantName, -3) == '_ID') {
+                    continue;
+                }
+                $content .= '- <a href="'.$link.constant($constantName).'">'.constant($constantName).'</a><br>'.PHP_EOL;
+            } else {
+                $constantValue = constant($constantName);
+                $reflection = new ReflectionClass('Rest');
+                $constants = $reflection->getConstants();
+                foreach ($constants as $name => $value) {
+                    $content .= '- <a href="'.$link.$constantValue.$value.'">'.$constantValue.$value.'</a><br>'.PHP_EOL;
+                }
+            }
+        }
+        $content .= '</div>';
 
         return $content;
     }
@@ -1465,7 +1492,7 @@ class Statistics
     }
 
     /**
-     * It displays learnpath results from lti provider.
+     * Display learnpath results from lti provider.
      *
      * @return false|string
      */
@@ -1610,7 +1637,7 @@ class Statistics
         return $content;
     }
 
-    public static function getBossTable($bossId)
+    public static function getBossTable($bossId): string
     {
         $students = UserManager::getUsersFollowedByStudentBoss($bossId);
 
@@ -1646,12 +1673,12 @@ class Statistics
     }
 
     /**
-     * @param string $startDate
-     * @param string $endDate
+     * Return a list of logins by date.
      *
-     * @return array
+     * @param string $startDate Start date in YYYY-MM-DD format
+     * @param string $endDate   End date in YYYY-MM-DD format
      */
-    public static function getLoginsByDate($startDate, $endDate)
+    public static function getLoginsByDate($startDate, $endDate): array
     {
         /** @var DateTime $startDate */
         $startDate = api_get_utc_datetime("$startDate 00:00:00");
@@ -1785,9 +1812,20 @@ class Statistics
         return $results;
     }
 
-    public static function returnDuplicatedUsersTable(array $additionalExtraFieldsInfo): SortableTableFromArray
-    {
-        $usersInfo = Statistics::getDuplicatedUsers($additionalExtraFieldsInfo);
+    /**
+     * Return duplicate users at a SortableTableFromArray object.
+     *
+     * @param string $type The type of duplication we are checking for ('name' or 'email')
+     */
+    public static function returnDuplicatedUsersTable(
+        string $type = 'name',
+        array $additionalExtraFieldsInfo
+    ): SortableTableFromArray {
+        if ($type == 'email') {
+            $usersInfo = Statistics::getDuplicatedUserMails($additionalExtraFieldsInfo);
+        } else {
+            $usersInfo = Statistics::getDuplicatedUsers($additionalExtraFieldsInfo);
+        }
 
         $column = 0;
 
@@ -1798,6 +1836,9 @@ class Statistics
         ]);
         $table->set_header($column++, get_lang('Id'));
 
+        if ($type == 'email') {
+            $table->set_header($column++, get_lang('Email'));
+        }
         if (api_is_western_name_order()) {
             $table->set_header($column++, get_lang('FirstName'));
             $table->set_header($column++, get_lang('LastName'));
@@ -1805,8 +1846,10 @@ class Statistics
             $table->set_header($column++, get_lang('LastName'));
             $table->set_header($column++, get_lang('FirstName'));
         }
+        if ($type == 'name') {
+            $table->set_header($column++, get_lang('Email'));
+        }
 
-        $table->set_header($column++, get_lang('Email'));
         $table->set_header($column++, get_lang('RegistrationDate'));
         $table->set_column_filter(
             $column - 1,
@@ -1874,12 +1917,10 @@ class Statistics
     /**
      * It gets lti learnpath results by date.
      *
-     * @param $startDate
-     * @param $endDate
-     *
-     * @return array
+     * @param string $startDate Start date in YYYY-MM-DD format
+     * @param string $endDate   End date in YYYY-MM-DD format
      */
-    private static function getLtiLearningPathByDate($startDate, $endDate)
+    private static function getLtiLearningPathByDate(string $startDate, string $endDate): array
     {
         /** @var DateTime $startDate */
         $startDate = api_get_utc_datetime("$startDate 00:00:00");
@@ -1899,6 +1940,11 @@ class Statistics
         return $result;
     }
 
+    /**
+     * Get a list of users duplicated (firstname and lastname are both the same).
+     *
+     * @param array $additionalExtraFieldsInfo A list of extra fields we want to get in return, additional to the user details
+     */
     private static function getDuplicatedUsers(array $additionalExtraFieldsInfo): array
     {
         $sql = "SELECT firstname, lastname, COUNT(*) as count
@@ -1917,8 +1963,10 @@ class Statistics
         $usersInfo = [];
 
         while ($rowStat = Database::fetch_assoc($result)) {
+            $firstname = Database::escape_string($rowStat['firstname']);
+            $lastname = Database::escape_string($rowStat['lastname']);
             $subsql = "SELECT id, email, registration_date, status, active
-                FROM user WHERE firstname = '{$rowStat['firstname']}' AND lastname = '{$rowStat['lastname']}'"
+                FROM user WHERE firstname = '$firstname' AND lastname = '$lastname'"
             ;
 
             $subResult = Database::query($subsql);
@@ -1944,6 +1992,87 @@ class Statistics
                 }
 
                 $studentInfo[] = $rowUser['email'];
+                $studentInfo[] = $rowUser['registration_date'];
+                $studentInfo[] = Tracking::get_first_connection_date(
+                    $studentId,
+                    DATE_TIME_FORMAT_LONG
+                );
+                $studentInfo[] = Tracking::get_last_connection_date(
+                    $studentId,
+                    true,
+                    false,
+                    DATE_TIME_FORMAT_LONG
+                );
+                $studentInfo[] = $rowUser['status'];
+                $studentInfo[] = Tracking::count_course_per_student($studentId);
+                $studentInfo[] = Tracking::countSessionsPerStudent($studentId);
+
+                foreach ($additionalExtraFieldsInfo as $fieldInfo) {
+                    $extraValue = $objExtraValue->get_values_by_handler_and_field_id($studentId, $fieldInfo['id'], true);
+                    $studentInfo[] = $extraValue['value'] ?? null;
+                }
+
+                $studentInfo[] = $rowUser['active']; // once to show status
+                $studentInfo[] = $rowUser['active']; // twice to show actions
+
+                $usersInfo[] = $studentInfo;
+            }
+        }
+
+        return $usersInfo;
+    }
+
+    /**
+     * Get a list of duplicated user emails.
+     *
+     * @param array $additionalExtraFieldsInfo A list of extra fields we want to get in return, additional to the user details
+     */
+    private static function getDuplicatedUserMails(array $additionalExtraFieldsInfo): array
+    {
+        $sql = "SELECT email, COUNT(*) as count
+            FROM user
+            GROUP BY email
+            HAVING count > 1
+            ORDER BY email"
+        ;
+
+        $result = Database::query($sql);
+
+        if (1 > Database::num_rows($result)) {
+            return [];
+        }
+
+        $usersInfo = [];
+
+        while ($rowStat = Database::fetch_assoc($result)) {
+            $email = Database::escape_string($rowStat['email']);
+            $subsql = "SELECT id, firstname, lastname, registration_date, status, active
+                FROM user WHERE email = '$email'"
+            ;
+
+            $subResult = Database::query($subsql);
+
+            if (1 > Database::num_rows($subResult)) {
+                continue;
+            }
+
+            $objExtraValue = new ExtraFieldValue('user');
+
+            while ($rowUser = Database::fetch_assoc($subResult)) {
+                $studentId = $rowUser['id'];
+
+                $studentInfo = [];
+                $studentInfo[] = $rowUser['id'];
+
+                $studentInfo[] = $rowStat['email'];
+                if (api_is_western_name_order()) {
+                    $studentInfo[] = $rowUser['firstname'];
+                    $studentInfo[] = $rowUser['lastname'];
+                } else {
+                    $studentInfo[] = $rowUser['lastname'];
+                    $studentInfo[] = $rowUser['firstname'];
+                }
+
                 $studentInfo[] = $rowUser['registration_date'];
                 $studentInfo[] = Tracking::get_first_connection_date(
                     $studentId,

@@ -2500,6 +2500,10 @@ class UserGroup extends Model
         $user_id = (int) $user_id;
         $group_id = (int) $group_id;
         $relation_type = (int) $relation_type;
+        // Temporary hack to avoid issues with roles - see #4980
+        if ($relation_type == GROUP_USER_PERMISSION_READER) {
+            $relation_type = 0;
+        }
         if (!empty($user_id) && !empty($group_id)) {
             $role = $this->get_user_group_role($user_id, $group_id);
 
@@ -3394,5 +3398,37 @@ class UserGroup extends Model
         $result = Database::query($sql);
 
         return Database::store_result($result, 'ASSOC');
+    }
+
+    /**
+     * Check the given ID matches an existing group.
+     *
+     * @return bool
+     */
+    public function groupExists(int $groupId)
+    {
+        $sql = "SELECT id FROM ".$this->table." WHERE id = ".$groupId;
+        $result = Database::query($sql);
+        if (Database::num_rows($result) === 1) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check the given ID matches an existing user.
+     *
+     * @return bool
+     */
+    public function userExists(int $userId)
+    {
+        $sql = "SELECT id FROM ".$this->table_user." WHERE id = ".$userId;
+        $result = Database::query($sql);
+        if (Database::num_rows($result) === 1) {
+            return true;
+        }
+
+        return false;
     }
 }

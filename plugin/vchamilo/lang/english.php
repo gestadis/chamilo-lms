@@ -4,7 +4,7 @@
  * @license GNU General Public License - http://www.gnu.org/copyleft/gpl.html
  * @author Valery Fremaux <valery.fremaux@gmail.com>
  */
-$strings['archiverealroot'] = 'Archive container real root (no symlinks here)';
+$strings['archiverealroot'] = 'Cache container real root (system path, no symlinks here)';
 $strings['backtoindex'] = 'Back to instance index';
 $strings['badconnection'] = 'Connection FAILED';
 $strings['cancel'] = 'Cancel';
@@ -115,7 +115,7 @@ $strings['CoursePath'] = 'Path to courses directory';
 $strings['HomePath'] = 'Path to home directory';
 $strings['UploadPath'] = 'Path to upload directory';
 
-$strings['ArchiveUrl'] = 'Archive URL';
+$strings['ArchiveUrl'] = 'Cache URL';
 $strings['HomeUrl'] = 'Home URL';
 $strings['UploadUrl'] = 'Upload URL';
 $strings['CourseUrl'] = 'Course URL';

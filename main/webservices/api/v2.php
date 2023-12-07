@@ -627,6 +627,44 @@ try {
                 )
             );
             break;
+        case Rest::GET_USER_LAST_CONNEXION:
+            $username = (string) $httpRequest->query->get('user');
+
+            if (empty($username)) {
+                throw new Exception(get_lang('NoData'));
+            }
+
+            Event::addEvent(LOG_WS.$action, 'username', $username);
+            $restResponse->setData(
+                $restApi->getUserLastConnexion(
+                    $username,
+                )
+            );
+            break;
+        case Rest::GET_USER_TOTAL_CONNEXION_TIME:
+            $username = (string) $httpRequest->query->get('user');
+
+            if (empty($username)) {
+                throw new Exception(get_lang('NoData'));
+            }
+
+            Event::addEvent(LOG_WS.$action, 'username', $username);
+            $restResponse->setData(
+                $restApi->getUserTotalConnexionTime(
+                    $username,
+                )
+            );
+            break;
+        case Rest::GET_USER_SUB_GROUP:
+            $userId = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+            if (empty($userId)) {
+                throw new Exception('user_id not provided');
+            }
+
+            Event::addEvent(LOG_WS.$action, 'user_id', $userId);
+            $data = $restApi->getUserSubGroup($userId);
+            $restResponse->setData($data);
+            break;
         case Rest::GET_COURSES:
             $campusId = api_get_current_access_url_id();
             if (!empty($_POST['id_campus'])) {
@@ -904,6 +942,12 @@ try {
         case Rest::ADD_GROUP_SUB_USER:
             $groupId = (int) $_POST['group_id'];
             $userId = (int) $_POST['user_id'];
+            if (empty($userId)) {
+                throw new Exception('user_id not provided');
+            }
+            if (empty($groupId)) {
+                throw new Exception('group_id not provided');
+            }
             $role = 2;
             if (isset($_POST['role'])) {
                 $role = (int) $_POST['role'];

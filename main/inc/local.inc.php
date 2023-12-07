@@ -741,7 +741,7 @@ if (!empty($_SESSION['_user']['user_id']) && !($login || $logout)) {
                 // update user expiration date when the login is the first time
                 if (isset($_user['status']) && STUDENT == $_user['status']) {
                     $userExpirationXDate = api_get_configuration_value('update_student_expiration_x_date');
-                    $userSpentTime = Tracking::get_time_spent_on_the_platform($_user['user_id']);
+                    $userSpentTime = Tracking::get_time_spent_on_the_platform($_user['user_id'], 'ever');
                     if (false !== $userExpirationXDate && empty($userSpentTime)) {
                         $expDays = (int) $userExpirationXDate['days'];
                         $expMonths = (int) $userExpirationXDate['months'];
@@ -852,15 +852,17 @@ if (!empty($_SESSION['_user']['user_id']) && !($login || $logout)) {
                     if (!empty($thisAuthSource['login']) && file_exists($thisAuthSource['login'])) {
                         include_once $thisAuthSource['login'];
                     }
-                    if (isset($thisAuthSource['newUser']) && file_exists($thisAuthSource['newUser'])) {
-                        include_once $thisAuthSource['newUser'];
-                    } else {
-                        error_log(
-                            'Chamilo Authentication external file'.
-                            ' could not be found - this might prevent your system from using'.
-                            ' the authentication process in the user creation process',
-                            0
-                        );
+                    if (isset($thisAuthSource['newUser'])) {
+                        if (file_exists($thisAuthSource['newUser'])) {
+                            include_once $thisAuthSource['newUser'];
+                        } else {
+                            error_log(
+                                'Chamilo Authentication external file'.
+                                ' could not be found - this might prevent your system from using'.
+                                ' the authentication process in the user creation process',
+                                0
+                            );
+                        }
                     }
                 }
             } //end if is_array($extAuthSource)

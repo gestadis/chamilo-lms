@@ -325,6 +325,16 @@ if (!empty($links) &&
 }
 
 //    PASSWORD, if auth_source is platform
+$allow_users_to_change_email_with_no_password = true;
+if (is_platform_authentication() &&
+    api_get_setting('allow_users_to_change_email_with_no_password') == 'false'
+) {
+    $allow_users_to_change_email_with_no_password = false;
+}
+if (!$allow_users_to_change_email_with_no_password) {
+    $passwordExtraCommentForPasswordChange = get_lang('ToChangeYourEmailMustTypeYourPassword').". ";
+}
+
 if ($showPassword &&
     is_profile_editable() &&
     api_get_setting('profile', 'password') === 'true'
@@ -332,7 +342,7 @@ if ($showPassword &&
     $form->addElement(
         'password',
         'password0',
-        [get_lang('Pass'), get_lang('TypeCurrentPassword')],
+        [get_lang('Pass'), $passwordExtraCommentForPasswordChange.get_lang('TypeCurrentPassword')],
         [
             'size' => 40,
             'show_hide' => true,
@@ -362,8 +372,17 @@ if ($showPassword &&
     $form->addRule(['password1', 'password2'], get_lang('PassTwo'), 'compare');
     $form->addPasswordRule('password1');
     $form->addNoSamePasswordRule('password1', $currentUser);
+} elseif (!$allow_users_to_change_email_with_no_password) {
+    $form->addElement(
+        'password',
+        'password0',
+        [get_lang('Pass'), $passwordExtraCommentForPasswordChange],
+        [
+            'size' => 40,
+            'show_hide' => true,
+        ]
+    );
 }
-
 $form->addHtml($extraLink);
 
 $extraField = new ExtraField('user');
@@ -656,6 +675,25 @@ if ($form->validate()) {
     $sql = rtrim($sql, ',');
     if ($changePassword && !empty($password)) {
         UserManager::updatePassword(api_get_user_id(), $password);
+        if (api_get_configuration_value('security_password_rotate_days') > 0) {
+            $date = api_get_local_time(
+                null,
+                'UTC',
+                'UTC',
+                null,
+                null,
+                null,
+                'Y-m-d H:i:s'
+            );
+            $extraFieldValue = new ExtraFieldValue('user');
+            $extraFieldValue->save(
+                [
+                    'item_id' => $user->getId(),
+                    'variable' => 'password_updated_at',
+                    'value' => $date,
+                ]
+            );
+        }
     }
 
     if (api_get_setting('profile', 'officialcode') === 'true' &&
@@ -822,7 +860,7 @@ if ($allowSocialTool) {
  */
 function is_platform_authentication()
 {
-    $tabUserInfo = api_get_user_info();
+    $tabUserInfo = api_get_user_info(api_get_user_id());
 
     return $tabUserInfo['auth_source'] == PLATFORM_AUTH_SOURCE;
 }

@@ -8807,7 +8807,7 @@ $QuizRemindSubject = "Tienes un nuevo mensaje de %s";
 $QuizFirstRemindBody = "Hola \%s,<br /><br /> Un nuevo ejercicio %s ha sido agregado en el curso %s.<br /><br />Curso: %s <br />Ejercicio: %s <br />";
 $QuizLastRemindBody = "Visitar el ejercicio en <a href=\"%s\">%s</a><br />";
 $QuizDhrRemindBody = "Hola %s,<br /><br />Como padre, estan recibiendo este correo para avisarle que %s tiene un nuevo ejercicio %s en el curso %s.<br /><br />Estudiante: %s<br /> Curso: %s<br />Ejercicio: %s<br />";
-$QuizRemindDuration = "Duration del ejercicio: %s <br />";
+$QuizRemindDuration = "Duración del ejercicio: %s <br />";
 $QuizRemindStartDate = "Fecha de inicio del ejercicio: %s <br />";
 $QuizRemindEndDate = "Fecha de fin del ejercicio: %s <br />";
 $CareerDiagramLegend = "Leyenda del diagrama de carrera";
@@ -9062,4 +9062,11 @@ $EmailUsedTwiceInImportFile = "Este correo electrónico ya está usado por otro 
 $NotificationInYourForums = "Hay nuevos posts en los foros siguientes de tus cursos.";
 $ExtraFieldIdComment = "Este identificador es interno al sistema y no debe contener espacios ni caracteres especiales. Podrá ser usado también por plugins para filtrar entre los elementos que lo usan.";
 $IncludeLastLogin = "Incluir último login";
+$DuplicatedUsersByMail = "Usuarios duplicados por e-mail";
+$ThisReportOnlyListsUsersThatHaveTheSameEmail = "Este reporte solo lista usuarios que tienen el mismo e-mail.";
+$CancelNotifyMe = "Dejar de notificarme";
+$EmptyExpirationDate = "La fecha de expiración no puede ser vacía.";
+$MailingTestNotSent = "El correo de prueba no ha podido ser enviado. Puede que la dirección introducida sea incorrecta, que pertenezca a un usuario inactivo, o que su servidor de correos no esté bien configurado (ver archivo mail.conf.php).";
+$PasswordExpiredPleaseSetNewPassword = "Su contraseña se ha vencido. Por favor, defina una nueva contraseña antes de seguir.";
+$CopyIframeCodeToIncludeExercise = "Copie el código del iframe a continuación para incluir el ejercicio:";
 ?>

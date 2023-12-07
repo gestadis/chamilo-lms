@@ -9037,4 +9037,11 @@ $EmailUsedTwiceInImportFile = "This email is already in use by another user in t
 $NotificationInYourForums = "You have new posts in the following forums of your courses.";
 $ExtraFieldIdComment = "This identifier is internal to the system and should not contain spaces nor special characters. It can be used from plugins as well, to filter the elements it is attached to.";
 $IncludeLastLogin = "Include last login";
+$DuplicatedUsersByMail = "Duplicated users by e-mail";
+$ThisReportOnlyListsUsersThatHaveTheSameEmail = "This report only lists users that have the same email.";
+$CancelNotifyMe = "Stop notifying me";
+$EmptyExpirationDate = "Expiration date cannot be empty.";
+$MailingTestNotSent = "E-mail not sent. You might have introduced an incorrect address, the address might belong to an inactive user, or the mail server is not correctly configured (check the mail.conf.php file).";
+$PasswordExpiredPleaseSetNewPassword = "Your password has expired. Please set a new password before you continue.";
+$CopyIframeCodeToIncludeExercise = "Copy iframe code below to include the exercise :";
 ?>
