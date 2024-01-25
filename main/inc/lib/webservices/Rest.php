@@ -151,6 +151,7 @@ class Rest extends WebService
     public const DELETE_GROUP_SUB_USER = 'delete_group_sub_user';
     public const DELETE_GROUP_SUB_COURSE = 'delete_group_sub_course';
     public const DELETE_GROUP_SUB_SESSION = 'delete_group_sub_session';
+    public const GET_AUDIT_ITEMS = 'get_audit_items';
 
     /**
      * @var Session
@@ -1895,12 +1896,22 @@ class Rest extends WebService
             $expiration_date = $userParam['expiration_date'];
         }
 
+        // If check_email_duplicates was set, trigger exception (i.e. do not create) if the e-mail is already used
+        if ($userParam['check_email_duplicates']) {
+            if (!empty($email)) {
+                $userFromEmail = api_get_user_info_from_email($email);
+                if (!empty($userFromEmail)) {
+                    throw new Exception(get_lang('EmailUsedTwice'));
+                }
+            }
+        }
+
         // Default language.
         if (empty($language)) {
             $language = api_get_setting('platformLanguage');
         }
 
-        // First check wether the login already exists.
+        // First check whether the login already exists.
         if (!UserManager::is_username_available($loginName)) {
             throw new Exception(get_lang('UserNameNotAvailable'));
         }
@@ -2568,6 +2579,7 @@ class Rest extends WebService
      * Updates a user identified by its login name.
      *
      * @throws Exception on failure
+     * @todo make a safe version for use by the final user on its account
      */
     public function updateUserFromUserName(array $parameters): bool
     {
@@ -2591,6 +2603,13 @@ class Rest extends WebService
 
         if (!api_is_platform_admin() && $userId != $this->user->getId()) {
             self::throwNotAllowedException();
+        }
+
+        if (!empty($parameters['new_login_name'])) {
+            // Make sure the new username, if set, is available
+            if (!UserManager::is_username_available($parameters['new_login_name'])) {
+                throw new Exception(get_lang('LoginAlreadyTaken'));
+            }
         }
 
         /** @var User $user */
@@ -2619,6 +2638,9 @@ class Rest extends WebService
                     break;
                 case 'firstname':
                     $user->setFirstname($value);
+                    break;
+                case 'new_login_name':
+                    $user->setUsername($value);
                     break;
                 case 'phone':
                     $user->setPhone($value);
@@ -4213,16 +4235,8 @@ class Rest extends WebService
         return [$userGroup->unsubscribeSessionsFromUserGroup($groupId, [$sessionId], false)];
     }
 
-    protected static function generateApiKeyForUser(int $userId): string
-    {
-        UserManager::add_api_key($userId, self::SERVICE_NAME);
-
-        $apiKeys = UserManager::get_api_keys($userId, self::SERVICE_NAME);
-
-        return current($apiKeys);
-    }
-
     /**
+     * Encode the given parameters (structured array) in JSON format
      * @param array $additionalParams Optional
      *
      * @return string
@@ -4240,6 +4254,50 @@ class Rest extends WebService
         return json_encode($params);
     }
 
+    /**
+     * Get audit items from track_e_default.
+     * @throws Exception
+     */
+    public function getAuditItems(
+        string $defaultEventType,
+        ?int $cId = null,
+        ?int $sessionId = null,
+        ?string $afterDate = null,
+        ?string $beforeDate = null,
+        ?int $userId = null,
+        int $offset = 0,
+        int $limit = 100
+    ): array {
+        self::protectAdminEndpoint();
+
+        return Event::getAuditItems(
+            $defaultEventType,
+            $cId,
+            $sessionId,
+            $afterDate,
+            $beforeDate,
+            $userId,
+            $offset,
+            $limit
+        );
+    }
+
+    /**
+     * Generate an API key for webservices access for the given user ID
+     */
+    protected static function generateApiKeyForUser(int $userId): string
+    {
+        UserManager::add_api_key($userId, self::SERVICE_NAME);
+
+        $apiKeys = UserManager::get_api_keys($userId, self::SERVICE_NAME);
+
+        return current($apiKeys);
+    }
+
+    /**
+     * Helper generating a query URL (to the current script) from an array of parameters
+     * (course, session, api_key and username) commonly used in webservice calls
+     */
     private function generateUrl(array $additionalParams = []): string
     {
         $queryParams = [

@@ -632,7 +632,11 @@ class Template
             $css[] = api_get_cdn_path($webPublicPath.'assets/'.$file);
         }
 
-        $css[] = $webJsPath.'mediaelement/plugins/vrview/vrview.css';
+        $isVrViewEnabled = Display::isVrViewEnabled();
+
+        if ($isVrViewEnabled) {
+            $css[] = $webJsPath.'mediaelement/plugins/vrview/vrview.css';
+        }
 
         $features = api_get_configuration_value('video_features');
         $defaultFeatures = [
@@ -643,9 +647,12 @@ class Template
             'tracks',
             'volume',
             'fullscreen',
-            'vrview',
             'markersrolls',
         ];
+
+        if ($isVrViewEnabled) {
+            $defaultFeatures[] = 'vrview';
+        }
 
         if (!empty($features) && isset($features['features'])) {
             foreach ($features['features'] as $feature) {
@@ -754,17 +761,21 @@ class Template
     {
         global $disable_js_and_css_files, $htmlHeadXtra;
         $isoCode = api_get_language_isocode();
+        $isVrViewEnabled = Display::isVrViewEnabled();
         $selectLink = 'bootstrap-select/dist/js/i18n/defaults-'.$isoCode.'_'.strtoupper($isoCode).'.min.js';
 
         if ($isoCode == 'en') {
             $selectLink = 'bootstrap-select/dist/js/i18n/defaults-'.$isoCode.'_US.min.js';
         }
         // JS files
-        $js_files = [
-            'chosen/chosen.jquery.min.js',
-            'mediaelement/plugins/vrview/vrview.js',
-            'mediaelement/plugins/markersrolls/markersrolls.min.js',
-        ];
+        $js_files = [];
+        $js_files[] = 'chosen/chosen.jquery.min.js';
+
+        if ($isVrViewEnabled) {
+            $js_files[] = 'mediaelement/plugins/vrview/vrview.js';
+        }
+
+        $js_files[] = 'mediaelement/plugins/markersrolls/markersrolls.min.js';
 
         if (api_get_setting('accessibility_font_resize') === 'true') {
             $js_files[] = 'fontresize.js';
@@ -1215,6 +1226,9 @@ class Template
             'icon' => 'user fa-fw',
             'placeholder' => get_lang('UserName'),
         ];
+        if (api_get_configuration_value('security_login_autocomplete_disable') === true) {
+            $params['autocomplete'] = 'new-password';
+        }
         $browserAutoCapitalize = false;
         // Avoid showing the autocapitalize option if the browser doesn't
         // support it: this attribute is against the HTML5 standard
@@ -1233,6 +1247,9 @@ class Template
             'icon' => 'lock fa-fw',
             'placeholder' => get_lang('Pass'),
         ];
+        if (api_get_configuration_value('security_login_autocomplete_disable') === true) {
+            $params['autocomplete'] = 'new-password';
+        }
         if ($browserAutoCapitalize) {
             $params['autocapitalize'] = 'none';
         }
@@ -1315,6 +1332,42 @@ class Template
         $html .= '<div></div>';
 
         return $html;
+    }
+
+    public function enableCookieUsageWarning()
+    {
+        $form = new FormValidator(
+            'cookiewarning',
+            'post',
+            '',
+            '',
+            [
+                //'onsubmit' => "$(this).toggle('show')",
+            ],
+            FormValidator::LAYOUT_BOX_NO_LABEL
+        );
+        $form->addHidden('acceptCookies', '1');
+        $form->addHtml(
+            '<div class="cookieUsageValidation">
+                '.get_lang('YouAcceptCookies').'
+                <button class="btn btn-link" onclick="$(this).next().toggle(\'slow\'); $(this).toggle(\'slow\')" type="button">
+                    ('.get_lang('More').')
+                </button>
+                <div style="display:none; margin:20px 0;">
+                    '.get_lang('HelpCookieUsageValidation').'
+                </div>
+                <button class="btn btn-link" onclick="$(this).parents(\'form\').submit()" type="button">
+                    ('.get_lang('Accept').')
+                </button>
+            </div>'
+        );
+
+        if ($form->validate()) {
+            api_set_site_use_cookie_warning_cookie();
+        } else {
+            $form->protect();
+            $this->assign('frmDisplayCookieUsageWarning', $form->returnForm());
+        }
     }
 
     /**

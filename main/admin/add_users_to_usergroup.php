@@ -25,6 +25,7 @@ $interbreadcrumb[] = ['url' => 'usergroups.php', 'name' => get_lang('Classes')];
 
 // setting the name of the tool
 $tool_name = get_lang('SubscribeUsersToClass');
+$showAllStudentByDefault = api_get_configuration_value('usergroup_add_user_show_all_student_by_default');
 
 $htmlHeadXtra[] = '
 <script>
@@ -34,6 +35,11 @@ $(function () {
         window.location = "add_users_to_usergroup.php?id='.$id.'" +"&relation=" + $(this).val();
     });
 });
+
+function activeUsers(originalUrl) {
+    var searchValue = document.getElementById("first_letter_user").value;
+    window.location.href = originalUrl + "&firstLetterUser=" + encodeURIComponent(searchValue);
+}
 
 function add_user_to_session (code, content) {
     document.getElementById("user_to_add").value = "";
@@ -87,7 +93,7 @@ function change_select(reset) {
     if (reset) {
         document.formulaire["first_letter_user"].value = "";
 
-        if ('.(api_get_configuration_value('usergroup_add_user_show_all_student_by_default') ? 0 : 1).') {
+        if ('.($showAllStudentByDefault ? 0 : 1).') {
             document.formulaire["form_sent"].value = "1";
 
             return;
@@ -129,10 +135,10 @@ if (empty($id)) {
 
 $first_letter_user = '';
 
-if (isset($_POST['form_sent']) && $_POST['form_sent']) {
+if ((isset($_POST['form_sent']) && $_POST['form_sent']) || isset($_REQUEST['firstLetterUser'])) {
     $form_sent = $_POST['form_sent'];
     $elements_posted = $_POST['elements_in_name'] ?? null;
-    $first_letter_user = $_POST['firstLetterUser'];
+    $first_letter_user = Security::remove_XSS($_REQUEST['firstLetterUser']);
 
     if (!is_array($elements_posted)) {
         $elements_posted = [];
@@ -227,9 +233,6 @@ foreach ($filters as $param) {
 $searchForm->addButtonSearch();
 
 $data = $usergroup->get($id);
-$list_in = $usergroup->getUsersByUsergroupAndRelation($id, $relation);
-$list_all = $usergroup->get_users_by_usergroup();
-
 $order = ['lastname'];
 if (api_is_western_name_order()) {
     $order = ['firstname'];
@@ -239,12 +242,19 @@ $orderListByOfficialCode = 'true' === api_get_setting('order_user_list_by_offici
 if ($orderListByOfficialCode) {
     $order = ['official_code', 'lastname'];
 }
+$list_in = $usergroup->getUsersByUsergroupAndRelation($id, $relation, $order);
+$list_all = $usergroup->get_users_by_usergroup();
 
 $conditions = [];
 if (!empty($first_letter_user) && strlen($first_letter_user) >= 3) {
     foreach ($filters as $filter) {
         $conditions[$filter['name']] = $first_letter_user;
     }
+}
+
+$activeUser = isset($_REQUEST['active_users']) ? (int) $_REQUEST['active_users'] : null;
+if (1 === $activeUser) {
+    $conditions['active'] = $activeUser;
 }
 
 $filterData = [];
@@ -262,9 +272,14 @@ if ($searchForm->validate()) {
 }
 
 $elements_not_in = $elements_in = [];
-
+$hideElementsIn = [];
 foreach ($list_in as $listedUserId) {
     $userInfo = api_get_user_info($listedUserId);
+
+    if (1 === $activeUser && empty($userInfo['active'])) {
+        $hideElementsIn[] = $listedUserId;
+        continue;
+    }
 
     $elements_in[$listedUserId] = formatCompleteName($userInfo, $orderListByOfficialCode);
 }
@@ -272,7 +287,7 @@ foreach ($list_in as $listedUserId) {
 $user_with_any_group = !empty($_REQUEST['user_with_any_group']);
 $user_list = [];
 
-if (!empty($conditions)) {
+if (!(!$showAllStudentByDefault && !isset($_POST['firstLetterUser']) && !isset($_REQUEST['active_users'])) && !$user_with_any_group) {
     $user_list = UserManager::getUserListLike($conditions, $order, true, 'OR');
 }
 
@@ -305,7 +320,10 @@ if (!empty($user_list)) {
     }
 }
 
-if (api_get_configuration_value('usergroup_add_user_show_all_student_by_default')
+if (!$showAllStudentByDefault && !isset($_POST['firstLetterUser']) && !isset($_REQUEST['active_users'])) {
+    $elements_not_in = [];
+}
+if ($showAllStudentByDefault
     && empty($elements_not_in)
     && empty($first_letter_user)
 ) {
@@ -350,6 +368,15 @@ echo '<a href="usergroup_user_import.php">'.
 
 echo '<a href="'.api_get_self().'?id='.$id.'&action=export">'.
     Display::return_icon('export_csv.png', get_lang('Export'), [], ICON_SIZE_MEDIUM).'</a>';
+
+$isActiveUser = !empty($activeUser);
+$activeUsersParam = $isActiveUser ? '0' : '1';
+$newUrl = api_get_self() . '?id=' . $id . '&active_users=' . $activeUsersParam;
+$buttonLabelKey = $isActiveUser ? 'ShowAllUsers' : 'OnlyShowActiveUsers';
+$buttonLabel = get_lang($buttonLabelKey);
+
+echo '<a href="#" onclick="activeUsers(\'' . htmlspecialchars($newUrl) . '\'); return false;" class="btn btn-default">' . $buttonLabel . '</a>';
+
 echo '</div>';
 
 echo '<div id="advanced_search_options" style="display:none">';
@@ -486,9 +513,17 @@ echo '</div>';
                     false
                 );
                 unset($sessionUsersList);
+                if (!empty($hideElementsIn)) {
+                    foreach ($hideElementsIn as $hideElementId) {
+                        echo '<input type="hidden" name="elements_in_name[]" value="'.$hideElementId.'">';
+                    }
+                }
                 ?>
             </div>
         </div>
+        <?php if (isset($activeUser)) { ?>
+            <input type="hidden" name="active_users" value="<?php echo $activeUser; ?>" >;
+        <?php } ?>
         <?php
         echo '<button class="btn btn-primary" type="button" value="" onclick="valide()" ><em class="fa fa-check"></em>'.
             get_lang('SubscribeUsersToClass').'</button>';

@@ -82,9 +82,9 @@ switch ($action) {
         $file = str_replace(' ', '+', $file);
         $attendanceId = $_REQUEST['attendance_id'];
         if (!empty($selected)) {
-            list($prefix, $userId, $attendanceCalendarId) = explode('-', $selected);
+            list($prefix, $userId, $attendanceCalendarId, $courseId) = explode('-', $selected);
             $attendance = new Attendance();
-            $attendance->saveSignature($userId, $attendanceCalendarId, $file, $attendanceId);
+            $attendance->saveSignature($userId, $attendanceCalendarId, $file, $attendanceId, $courseId);
             echo 1;
             exit;
         }
@@ -121,7 +121,8 @@ switch ($action) {
 
         $courseId = (int) $request->get('course_id');
         $sessionId = (int) $request->get('session_id');
-        $userId = (int) $request->get('user_id');
+        $hash = (string) $request->get('hash');
+        $userId = (int) UserManager::decryptUserHash($hash);
 
         $user_info = api_get_user_info($userId);
 

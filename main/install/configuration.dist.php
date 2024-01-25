@@ -2355,6 +2355,10 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 // Requires edit Entity CAttendanceCalendar : src/Chamilo/CourseBundle/Entity/CAttendanceCalendar.php add the @ symbol for attribute $blocked into ORM\Column() line.
 //$_configuration['enable_sign_attendance_sheet'] = false;
 
+// Shows a link to the "my missing signatures" page in the /index.php and /user_portal.php page.
+// It will only appears if enable_sign_attendance_sheet is alos true.
+//$_configuration['show_missing_signatures_page'] = false;
+
 // Make sessions by duration always accessible to coaches (otherwise
 // they are only accessible during the active duration).
 //$_configuration['session_coach_access_after_duration_end'] = false;
@@ -2511,3 +2515,21 @@ INSERT INTO extra_field_options (field_id, option_value, display_text, priority,
 // If this feature is enabled on an existing portal, the registration date of users will be taken as
 // the latest password change date.
 //$_configuration['security_password_rotate_days'] = 90;
+
+// Prevent login/pass cache by browser
+// If enabled, users' browsers will not be able to re-use previous
+// login/passwords in the main login form. Browsers might choose not to
+// support this feature.
+//$_configuration['security_login_autocomplete_disable'] = false;
+
+// Block session about page access for all users
+// $_configuration['session_about_block_all_access'] = false;
+
+// Block course about page access for all users
+// $_configuration['course_about_block_all_access'] = false;
+
+// Add the user first connexion column to the page main/admin/user_list.php
+// $_configuration['admin_user_list_add_first_connexion_column'] = false;
+
+// Set the following parameter to true to enable student to be assign as teacher of a course
+//$_configuration['course_allow_student_role_to_be_teacher'] = false;

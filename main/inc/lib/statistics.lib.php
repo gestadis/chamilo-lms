@@ -415,9 +415,10 @@ class Statistics
                 }
 
                 // User id.
+                $userIdHash = UserManager::generateUserHash($row[6]);
                 $row[5] = Display::url(
                     $row[5],
-                    api_get_path(WEB_AJAX_PATH).'user_manager.ajax.php?a=get_user_popup&user_id='.$row[6],
+                    api_get_path(WEB_AJAX_PATH).'user_manager.ajax.php?a=get_user_popup&hash='.$userIdHash,
                     ['class' => 'ajax']
                 );
 
@@ -1165,7 +1166,7 @@ class Statistics
                    HAVING t.c_id <> ''
                    AND DATEDIFF( '".api_get_utc_datetime()."' , access_date ) <= ".$date_diff;
         }
-        $sql .= ' ORDER BY `'.$columns[$column].'` '.$sql_order[$direction];
+        $sql .= ' ORDER BY '.$columns[$column].' '.$sql_order[$direction];
         $from = ($page_nr - 1) * $per_page;
         $sql .= ' LIMIT '.$from.','.$per_page;
 
