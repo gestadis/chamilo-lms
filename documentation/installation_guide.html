@@ -157,7 +157,7 @@ This guide only covers these 2 last methods. For other methods, you can always a
 <br /><br />
     To install, follow these 6 simple steps:
 <ol>
-  <li><a href="https://chamilo.org/chamilo-lms/">Download Chamilo LMS</a></li>
+  <li><a href="https://chamilo.org/download/">Download Chamilo LMS</a></li>
   <li>Unzip it</li>
   <li>Copy the Chamilo directory in your web server's root directory. This can be
     <span style="font-weight: bold;">C:\xampp\htdocs\</span> on a Windows server or <span style="font-weight: bold;">/var/www/html/chamilo</span> (or /var/www/chamilo/) on a Linux server (You need to create the folder "chamilo")</li>
@@ -330,6 +330,7 @@ As this is only a minor version change from previous 1.11.* versions of Chamilo,
   <li> clean your app/cache/twig directory: delete all the contents *in* this directory (do NOT remove the directory itself, only its contents!).
        It will all be re-generated.
       You can also delete the contents of this directory through the "Cleanup of cache and temporary files " option in the "System" box of the Administration page.</li>
+   <li> edit app/config/configuration.php and change manually the <i>$_configuration['system_version']</i> setting to the new version number</li>
   <li> you're done! No other upgrade procedure is required</li>
 </ul>
     <div><em>Important:</em> If you are updating to 1.11.16 on a system that was initially installed before 2016 (before version 1.11.0),
@@ -394,7 +395,7 @@ some manual work, but the upgrade procedure will not touch sublanguages directly
 
 <br />
 
-<span class="text-muted">* Styles and images are located in the main/css or main/img
+<span class="text-muted">* Styles and images are located in the main/img/ or app/Resources/public/css/themes/
 directories. You can still recover them from your backup if you have made it.
  Any modified style or image that uses the default style/image name will be
  overwritten by the next step. To avoid loosing your customisations, always
@@ -756,11 +757,25 @@ If you have issues with files taking a long time to download, make sure you reco
     RewriteRule ^(tests|.git) - [F,L,NC]
   &lt;/Directory&gt;
 
-    AddType application/font-woff .woff .woff2
-    &lt;IfModule mod_expires.c&gt;
-      ExpiresActive On
-      ExpiresByType application/font-woff "access plus 1 month"
-    &lt;/IfModule&gt;
+  AddType application/font-woff .woff .woff2
+  &lt;IfModule mod_expires.c&gt;
+    ExpiresActive On
+    ExpiresByType application/font-woff "access plus 1 month"
+  &lt;/IfModule&gt;
+  # Disallow direct access to /main/inc/lib/javascript/bigupload/files
+  RedirectMatch 403 ^/main/inc/lib/javascript/bigupload/files
+
+  # Disallow MIME sniffing to prevent XSS from unknown/incorrect file extensions
+  <IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+  </IfModule>
+
+  <Files "web.config">
+    Require all denied
+  </Files>
+  <IfModule mod_autoindex.c>
+    Options -Indexes
+  </IfModule>
     </pre>
 
     <h4>Special note on sharing questions between courses</h4>
@@ -856,6 +871,11 @@ If you have issues with files taking a long time to download, make sure you reco
   location ^~ /tests/ {
     deny all;
   }
+  location ~* /web.config$ {
+    deny all;
+    return 403;
+  }
+  autoindex off;
     </pre>
 
     <h3>Apple on OS X servers</h3>

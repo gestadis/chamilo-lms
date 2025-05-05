@@ -656,12 +656,15 @@ while ($row = Database::fetch_array($rs)) {
 $sessionTable = Database::get_main_table(TABLE_MAIN_SESSION);
 
 // Get the list of sessions where the user is subscribed as student
-$sql = 'SELECT scu.session_id, scu.c_id
-        FROM '.Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER).' scu
+$sql = 'SELECT DISTINCT sc.session_id, sc.c_id
+        FROM '.Database::get_main_table(TABLE_MAIN_SESSION_COURSE).' sc
         INNER JOIN '.$sessionTable.' as s
-        ON (s.id = scu.session_id)
-        WHERE user_id = '.$student_id.'
-        ORDER BY display_end_date DESC
+        ON (s.id = sc.session_id)
+        INNER JOIN '.Database::get_main_table(TABLE_MAIN_SESSION_COURSE_USER).' as scu
+        ON (scu.session_id = sc.session_id)
+        WHERE s.id = scu.session_id
+        AND user_id = '.$student_id.'
+        ORDER BY display_end_date DESC, position ASC
         ';
 $rs = Database::query($sql);
 $tmp_sessions = [];
@@ -1271,7 +1274,7 @@ if (empty($details)) {
         echo '<tr>
             <th>'.get_lang('Course').'</th>
             <th>'.get_lang('Time').'</th>
-            <th>'.get_lang('Progress').'</th>
+            <th>'.get_lang('Progress'). ' '. Display::return_icon('info3.gif', get_lang('progressBasedOnVisiblesLPsInEachCourse'), [], ICON_SIZE_TINY).' </th>
             <th>'.get_lang('Score').'</th>
             <th>'.get_lang('AttendancesFaults').'</th>
             <th>'.get_lang('Evaluations').'</th>
@@ -2402,11 +2405,11 @@ if (!empty($sessionId)) {
 $allow = api_get_configuration_value('allow_user_message_tracking');
 if ($allow && (api_is_drh() || api_is_platform_admin())) {
     if ($filterMessages) {
-        $users = MessageManager::getUsersThatHadConversationWithUser($student_id, $coachAccessStartDate, $coachAccessEndDate);
+        $users = MessageManager::getMessageExchangeWithUser($student_id, $coachAccessStartDate, $coachAccessEndDate);
     } else {
-        $users = MessageManager::getUsersThatHadConversationWithUser($student_id);
+        $users = MessageManager::getMessageExchangeWithUser($student_id);
     }
-    $users = MessageManager::getUsersThatHadConversationWithUser($student_id);
+
     echo Display::page_subheader2(get_lang('MessageTracking'));
 
     $table = new HTML_Table(['class' => 'table']);

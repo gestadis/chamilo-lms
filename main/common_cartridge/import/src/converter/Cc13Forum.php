@@ -7,8 +7,8 @@ class Cc13Forum extends Cc13Entities
 {
     public function fullPath($path, $dir_sep = DIRECTORY_SEPARATOR)
     {
-        $token = '$IMS-CC-FILEBASE$';
-        $path = str_replace($token, '', $path);
+        $token = '/\$(?:IMS|1EdTech)[-_]CC[-_]FILEBASE\$/';
+        $path = preg_replace($token, '', $path);
 
         if (is_string($path) && ($path != '')) {
             $dot_dir = '.';
@@ -103,7 +103,7 @@ class Cc13Forum extends Cc13Entities
     {
         $topic_data = [];
 
-        $topic_file = $this->getExternalXml($instance['resource_indentifier']);
+        $topic_file = $this->getExternalXml($instance['resource_identifier']);
 
         if (!empty($topic_file)) {
             $topic_file_path = Cc1p3Convert::$pathToManifestFolder.DIRECTORY_SEPARATOR.$topic_file;
@@ -146,16 +146,19 @@ class Cc13Forum extends Cc13Entities
         return $topic_data;
     }
 
-    private function generateAttachmentHtml($filename)
+    private function generateAttachmentHtml(string $filename, ?string $rootPath)
     {
-        $images_extensions = ['gif', 'jpeg', 'jpg', 'jif', 'jfif', 'png', 'bmp'];
+        $images_extensions = ['gif', 'jpeg', 'jpg', 'jif', 'jfif', 'png', 'bmp', 'webp'];
 
         $fileinfo = pathinfo($filename);
+        if (empty($rootPath)) {
+            $rootPath = '';
+        }
 
         if (in_array($fileinfo['extension'], $images_extensions)) {
-            return '<img src="$@FILEPHP@$/'.$filename.'" title="'.$fileinfo['basename'].'" alt="'.$fileinfo['basename'].'" /><br />';
+            return '<img src="'.$rootPath.$filename.'" title="'.$fileinfo['basename'].'" alt="'.$fileinfo['basename'].'" /><br />';
         } else {
-            return '<a href="$@FILEPHP@$/'.$filename.'" title="'.$fileinfo['basename'].'" alt="'.$fileinfo['basename'].'">'.$fileinfo['basename'].'</a><br />';
+            return '<a href="'.$rootPath.$filename.'" title="'.$fileinfo['basename'].'" alt="'.$fileinfo['basename'].'">'.$fileinfo['basename'].'</a><br />';
         }
 
         return '';

@@ -334,14 +334,13 @@ class ExtraFieldValue extends Model
                             break;
                     }
 
-                    $cleanedName = api_replace_dangerous_char($value['name']);
-                    $fileName = ExtraField::FIELD_TYPE_FILE."_{$params['item_id']}_$cleanedName";
                     if (!file_exists($fileDir)) {
                         mkdir($fileDir, $dirPermissions, true);
                     }
 
                     if (!empty($value['tmp_name']) && isset($value['error']) && $value['error'] == 0) {
                         $cleanedName = api_replace_dangerous_char($value['name']);
+                        $cleanedName = disable_dangerous_file($cleanedName);
                         $fileName = ExtraField::FIELD_TYPE_FILE."_{$params['item_id']}_$cleanedName";
                         moveUploadedFile($value, $fileDir.$fileName);
 
@@ -964,11 +963,12 @@ class ExtraFieldValue extends Model
     }
 
     /**
+     * Return extra fields details for an item if the extra field is marked as filter.
      * @param int $itemId
      *
      * @return array
      */
-    public function getAllValuesByItem($itemId)
+    public function getAllValuesByItem(int $itemId): array
     {
         $itemId = (int) $itemId;
         $extraFieldType = $this->getExtraField()->getExtraFieldType();
@@ -984,9 +984,9 @@ class ExtraFieldValue extends Model
 
         $result = Database::query($sql);
         $idList = [];
+        $finalResult = [];
         if (Database::num_rows($result)) {
             $result = Database::store_result($result, 'ASSOC');
-            $finalResult = [];
             foreach ($result as $item) {
                 $finalResult[$item['id']] = $item;
             }

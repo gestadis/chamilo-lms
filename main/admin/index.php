@@ -147,6 +147,11 @@ if (api_is_platform_admin()) {
         'url' => 'usergroups.php',
         'label' => get_lang('Classes'),
     ];
+    $items[] = [
+        'class' => 'item-user-advanced_edit',
+        'url' => 'user_advanced_edit.php',
+        'label' => get_lang('AdvancedUserEdition'),
+    ];
     if (api_get_configuration_value('show_link_request_hrm_user')) {
         $items[] = [
             'class' => 'item-user-linking-requests',
@@ -177,6 +182,11 @@ if (api_is_platform_admin()) {
             'label' => get_lang('Classes'),
         ],
     ];
+    $items[] = [
+        'class' => 'item-user-advanced_edit',
+        'url' => 'user_advanced_edit.php',
+        'label' => get_lang('AdvancedUserEdition'),
+    ];
 
     if (api_is_session_admin()) {
         if ('true' === api_get_setting('limit_session_admin_role')) {
@@ -193,6 +203,15 @@ if (api_is_platform_admin()) {
 
                 return !in_array($item['url'], $urls);
             });
+        }
+
+        $allowJustification = ((api_get_plugin_setting('justification', 'tool_enable') === 'true') && (api_get_plugin_setting('justification', 'access_for_session_admin') === 'true'));
+        if ($allowJustification) {
+            $items[] = [
+                'class' => 'item-justification-list',
+                'url' => api_get_path(WEB_PLUGIN_PATH).'justification/list.php',
+                'label' => get_lang('Justification'),
+            ];
         }
     }
 
@@ -282,6 +301,11 @@ if (api_is_platform_admin()) {
         'class' => 'item-course-import',
         'url' => 'course_import.php',
         'label' => get_lang('ImportCourses'),
+    ];
+    $items[] = [
+        'class' => 'item-course-import-update',
+        'url' => 'course_update_import.php',
+        'label' => get_lang('UpdateCourseListXMLCSV'),
     ];
     $items[] = [
         'class' => 'item-course-category',
@@ -517,14 +541,20 @@ if (api_is_platform_admin()) {
     }
 
     $blockPlatform['items'] = $items;
-} elseif (api_is_session_admin() && api_get_configuration_value('session_admin_access_system_announcement')) {
+} elseif (api_is_session_admin()) {
     $items = [];
     $items[] = [
-        'class' => 'item-global-announcement',
-        'url' => 'system_announcements.php',
-        'label' => get_lang('SystemAnnouncements'),
+        'class' => 'item-stats',
+        'url' => 'statistics/index.php',
+        'label' => get_lang('Statistics'),
     ];
-
+    if (api_get_configuration_value('session_admin_access_system_announcement')) {
+        $items[] = [
+            'class' => 'item-global-announcement',
+            'url' => 'system_announcements.php',
+            'label' => get_lang('SystemAnnouncements'),
+        ];
+    }
     $blockPlatform['items'] = $items;
 }
 
@@ -615,14 +645,11 @@ $items[] = [
 $allowCareer = api_get_configuration_value('allow_session_admin_read_careers');
 
 if (api_is_platform_admin() || ($allowCareer && api_is_session_admin())) {
-    // option only visible in development mode. Enable through code if required
-    if (is_dir(api_get_path(SYS_TEST_PATH).'datafiller/')) {
-        $items[] = [
-            'class' => 'item-session-user-move-stats',
-            'url' => 'user_move_stats.php',
-            'label' => get_lang('MoveUserStats'),
-        ];
-    }
+    $items[] = [
+        'class' => 'item-session-user-move-stats',
+        'url' => 'user_move_stats.php',
+        'label' => get_lang('MoveUserStats'),
+    ];
 
     $items[] = [
         'class' => 'item-session-user-move',
@@ -918,7 +945,7 @@ if (api_is_platform_admin()) {
     ];
     $items[] = [
         'class' => 'item-forum',
-        'url' => 'https://forum.chamilo.org/',
+        'url' => 'https://chamilo.org/en/forum',
         'label' => get_lang('ChamiloForum'),
     ];
     $items[] = [

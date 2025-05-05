@@ -274,7 +274,7 @@ class Agenda
                 $attributes = [
                     'user' => api_get_user_id(),
                     'title' => $title,
-                    'text' => $content,
+                    'text' => Security::remove_XSS($content),
                     'date' => $start,
                     'enddate' => $end,
                     'all_day' => $allDay,
@@ -320,7 +320,7 @@ class Agenda
             case 'course':
                 $attributes = [
                     'title' => $title,
-                    'content' => $content,
+                    'content' => Security::remove_XSS($content),
                     'start_date' => $start,
                     'end_date' => $end,
                     'all_day' => $allDay,
@@ -476,7 +476,7 @@ class Agenda
                 if (api_is_platform_admin()) {
                     $attributes = [
                         'title' => $title,
-                        'content' => $content,
+                        'content' => Security::remove_XSS($content),
                         'start_date' => $start,
                         'end_date' => $end,
                         'all_day' => $allDay,
@@ -1876,7 +1876,7 @@ class Agenda
                 if (Database::num_rows($result)) {
                     $event = Database::fetch_array($result, 'ASSOC');
                     $event['description'] = $event['text'];
-                    $event['content'] = $event['text'];
+                    $event['content'] = Security::remove_XSS($event['text'], STUDENT);
                     $event['start_date'] = $event['date'];
                     $event['end_date'] = $event['enddate'];
                 }
@@ -1904,7 +1904,7 @@ class Agenda
                             'agenda_event_invitation_id' => $event->getInvitation()->getId(),
                             'collective' => $event->isCollective(),
                             'description' => $event->getText(),
-                            'content' => $event->getText(),
+                            'content' => Security::remove_XSS($event->getText(), STUDENT),
                             'start_date' => $event->getDate()->format('Y-m-d H:i:s'),
                             'end_date' => $event->getEndDate()->format('Y-m-d H:i:s'),
                         ];
@@ -1919,7 +1919,7 @@ class Agenda
                     $result = Database::query($sql);
                     if (Database::num_rows($result)) {
                         $event = Database::fetch_array($result, 'ASSOC');
-                        $event['description'] = $event['content'];
+                        $event['description'] = Security::remove_XSS($event['content'], STUDENT);
 
                         // Getting send to array
                         $event['send_to'] = $this->getUsersAndGroupSubscribedToEvent(
@@ -1952,7 +1952,7 @@ class Agenda
                 $result = Database::query($sql);
                 if (Database::num_rows($result)) {
                     $event = Database::fetch_array($result, 'ASSOC');
-                    $event['description'] = $event['content'];
+                    $event['description'] = Security::remove_XSS($event['content']);
                 }
                 break;
         }
@@ -2133,11 +2133,12 @@ class Agenda
 
         foreach ($invitees as $invitee) {
             $inviteeUser = $invitee->getUser();
-
-            $inviteeList[] = [
-                'id' => $inviteeUser->getId(),
-                'name' => $inviteeUser->getCompleteNameWithUsername(),
-            ];
+            if (!empty($inviteeUser)) {
+                $inviteeList[] = [
+                    'id' => $inviteeUser->getId(),
+                    'name' => $inviteeUser->getCompleteNameWithUsername(),
+                ];
+            }
         }
 
         return $inviteeList;
@@ -3031,7 +3032,34 @@ class Agenda
             );
             $form->addElement('hidden', 'to', 'true');
         } else {
-            $sendTo = isset($params['send_to']) ? $params['send_to'] : ['everyone' => true];
+            $defaultSendTo = ['everyone' => true];
+            if (api_get_configuration_value('course_agenda_set_default_send_to_with_none')) {
+                $defaultSendTo = ['everyone' => false];
+            }
+            $defaultSendToCurrentUser = '';
+            if (api_get_configuration_value('course_agenda_set_default_send_to_with_current_user')) {
+                $defaultSendToCurrentUser = api_get_user_id();
+            }
+            if (api_get_configuration_value('course_agenda_set_default_send_to_with_teachers')) {
+                $currentCourseInfo = api_get_course_info();
+                $sessionId = api_get_session_id();
+                if ($sessionId) {
+                    $usersSendTo = SessionManager::getCoachesByCourseSession($sessionId, $currentCourseInfo['real_id']);
+               } else {
+                    $courseTeachers = CourseManager::get_teacher_list_from_course_code($currentCourseInfo['code']);
+                    $courseTeachersUid = [];
+                    foreach ($courseTeachers as $courseTeacher) {
+                        $courseTeachersUid[] = $courseTeacher['user_id'];
+                    }
+                    $usersSendTo = $courseTeachersUid;
+                }
+                $usersSendTo[] = $defaultSendToCurrentUser;
+                $defaultSendTo = ['users' => $usersSendTo];
+            } elseif ($defaultSendToCurrentUser) {
+                $defaultSendTo = ['users' => [$defaultSendToCurrentUser]];
+            }
+            $sendTo = isset($params['send_to']) ? $params['send_to'] : $defaultSendTo;
+
             if ($this->type == 'course') {
                 $this->showToForm($form, $sendTo, [], false, true);
             }
@@ -3105,12 +3133,13 @@ class Agenda
             $toolbar = 'AgendaStudent';
         }
 
-        $form->addElement(
-            'html_editor',
+        $form->addHtmlEditor(
             'content',
             get_lang('Description'),
-            null,
+            false,
+            false,
             [
+                'style' => 'vertical-align:middle;',
                 'ToolbarSet' => $toolbar,
                 'Width' => '100%',
                 'Height' => '200',

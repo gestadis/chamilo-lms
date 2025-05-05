@@ -202,11 +202,11 @@ function show_add_forumcategory_form($lp_id)
     $form->addElement('header', get_lang('AddForumCategory'));
     $form->addElement('text', 'forum_category_title', get_lang('Title'), ['autofocus']);
     $form->applyFilter('forum_category_title', 'html_filter');
-    $form->addElement(
-        'html_editor',
+    $form->addHtmlEditor(
         'forum_category_comment',
         get_lang('Description'),
-        null,
+        false,
+        false,
         ['ToolbarSet' => 'Forum', 'Width' => '98%', 'Height' => '200']
     );
 
@@ -283,11 +283,11 @@ function show_add_forum_form($inputvalues = [], $lp_id = 0)
     $form->applyFilter('forum_title', 'html_filter');
 
     // The comment of the forum.
-    $form->addElement(
-        'html_editor',
+    $form->addHtmlEditor(
         'forum_comment',
         get_lang('Description'),
-        null,
+        false,
+        false,
         ['ToolbarSet' => 'Forum', 'Width' => '98%', 'Height' => '200']
     );
 
@@ -436,8 +436,8 @@ function show_add_forum_form($inputvalues = [], $lp_id = 0)
     } else {
         // the default values when editing = the data in the table
         $defaults['forum_id'] = isset($inputvalues['forum_id']) ? $inputvalues['forum_id'] : null;
-        $defaults['forum_title'] = prepare4display(isset($inputvalues['forum_title']) ? $inputvalues['forum_title'] : null);
-        $defaults['forum_comment'] = prepare4display(isset($inputvalues['forum_comment']) ? $inputvalues['forum_comment'] : null);
+        $defaults['forum_title'] = prepare4display(isset($inputvalues['forum_title']) ? $inputvalues['forum_title'] : "");
+        $defaults['forum_comment'] = prepare4display(isset($inputvalues['forum_comment']) ? $inputvalues['forum_comment'] : "");
         $defaults['start_time'] = isset($inputvalues['start_time']) ? api_get_local_time($inputvalues['start_time']) : null;
         $defaults['end_time'] = isset($inputvalues['end_time']) ? api_get_local_time($inputvalues['end_time']) : null;
         $defaults['moderated']['moderated'] = isset($inputvalues['moderated']) ? $inputvalues['moderated'] : 0;
@@ -533,11 +533,11 @@ function show_edit_forumcategory_form($inputvalues = [])
     $form->addElement('text', 'forum_category_title', get_lang('Title'));
     $form->applyFilter('forum_category_title', 'html_filter');
 
-    $form->addElement(
-        'html_editor',
+    $form->addHtmlEditor(
         'forum_category_comment',
         get_lang('Comment'),
-        null,
+        false,
+        false,
         ['ToolbarSet' => 'Forum', 'Width' => '98%', 'Height' => '200']
     );
 
@@ -1801,7 +1801,7 @@ function get_forums(
                         forum.c_id = $course_id AND
                         item_properties.c_id = $course_id
                         $includeGroupsForumSelect
-                    ORDER BY forum_order ASC";
+                    ORDER BY forum.forum_order ASC";
 
             // Select the number of threads of the forums (only the threads that are not deleted).
             $sql2 = "SELECT count(*) AS number_of_threads, threads.forum_id
@@ -4047,11 +4047,11 @@ function show_edit_post_form(
 
     $form->addElement('text', 'post_title', get_lang('Title'));
     $form->applyFilter('post_title', 'html_filter');
-    $form->addElement(
-        'html_editor',
+    $form->addHtmlEditor(
         'post_text',
         get_lang('Text'),
-        null,
+        true,
+        false,
         api_is_allowed_to_edit(null, true) ? [
             'ToolbarSet' => 'Forum',
             'Width' => '100%',
@@ -4063,7 +4063,6 @@ function show_edit_post_form(
             'UserStatus' => 'student',
         ]
     );
-    $form->addRule('post_text', get_lang('ThisFieldIsRequired'), 'required');
 
     $extraFields = new ExtraField('forum_post');
     $extraFields->addElements($form, $current_post['post_id']);

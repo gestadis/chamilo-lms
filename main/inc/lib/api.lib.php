@@ -544,6 +544,7 @@ define('HOT_SPOT_COMBINATION', 26);
 define('FILL_IN_BLANKS_COMBINATION', 27);
 define('MULTIPLE_ANSWER_DROPDOWN_COMBINATION', 28);
 define('MULTIPLE_ANSWER_DROPDOWN', 29);
+define('ANSWER_IN_OFFICE_DOC', 30);
 
 define('EXERCISE_CATEGORY_RANDOM_SHUFFLED', 1);
 define('EXERCISE_CATEGORY_RANDOM_ORDERED', 2);
@@ -591,6 +592,7 @@ define(
     MULTIPLE_ANSWER_TRUE_FALSE.':'.
     MULTIPLE_ANSWER_COMBINATION_TRUE_FALSE.':'.
     ORAL_EXPRESSION.':'.
+    ANSWER_IN_OFFICE_DOC.':'.
     GLOBAL_MULTIPLE_ANSWER.':'.
     MEDIA_QUESTION.':'.
     CALCULATED_ANSWER.':'.
@@ -917,7 +919,7 @@ function api_get_path($path = '', $configuration = [])
         // Initialization of a table that contains common-purpose paths.
         $paths[$root_web][REL_PATH] = $root_rel;
         $paths[$root_web][REL_COURSE_PATH] = $root_rel.$course_folder;
-        $paths[$root_web][REL_CODE_PATH] = $root_rel.$code_folder;
+        $paths[$root_web][REL_CODE_PATH] = $root_rel.preg_replace('#^/#', '', $code_folder);
         $paths[$root_web][REL_DEFAULT_COURSE_DOCUMENT_PATH] = $paths[$root_web][REL_PATH].'main/default_course_document/';
 
         $paths[$root_web][WEB_PATH] = $slashed_root_web;
@@ -941,7 +943,7 @@ function api_get_path($path = '', $configuration = [])
         $paths[$root_web][WEB_HOME_PATH] = $paths[$root_web][WEB_PATH].$paths[$root_web][REL_HOME_PATH];
 
         $paths[$root_web][SYS_PATH] = $root_sys;
-        $paths[$root_web][SYS_CODE_PATH] = $root_sys.$code_folder;
+        $paths[$root_web][SYS_CODE_PATH] = $root_sys.preg_replace('#^/#', '', $code_folder);
         $paths[$root_web][SYS_TEST_PATH] = $paths[$root_web][SYS_PATH].$paths[$root_web][SYS_TEST_PATH];
         $paths[$root_web][SYS_TEMPLATE_PATH] = $paths[$root_web][SYS_CODE_PATH].$paths[$root_web][SYS_TEMPLATE_PATH];
         $paths[$root_web][SYS_PUBLIC_PATH] = $paths[$root_web][SYS_PATH].$paths[$root_web][SYS_PUBLIC_PATH];
@@ -1449,7 +1451,7 @@ function api_protect_teacher_script()
 function api_block_anonymous_users($printHeaders = true)
 {
     $user = api_get_user_info();
-    if (!(isset($user['user_id']) && $user['user_id']) || api_is_anonymous($user['user_id'], true)) {
+    if (empty($user['user_id']) || api_is_anonymous($user['user_id'], true)) {
         api_not_allowed($printHeaders);
 
         return false;
@@ -4030,11 +4032,9 @@ function api_not_allowed(
 
     global $this_section;
 
-    if (CustomPages::enabled() && !isset($user_id)) {
-        if (empty($user_id)) {
-            // Why the CustomPages::enabled() need to be to set the request_uri
-            $_SESSION['request_uri'] = $_SERVER['REQUEST_URI'];
-        }
+    if (CustomPages::enabled() && (empty($user_id) || api_is_anonymous())) {
+        // Why the CustomPages::enabled() need to be to set the request_uri
+        $_SESSION['request_uri'] = $_SERVER['REQUEST_URI'];
         CustomPages::display(CustomPages::INDEX_UNLOGGED);
     }
 
@@ -4280,7 +4280,7 @@ function convert_sql_date($last_post_datetime)
     list($year, $month, $day) = explode('-', $last_post_date);
     list($hour, $min, $sec) = explode(':', $last_post_time);
 
-    return mktime((int) $hour, (int) $min, (int) $sec, (int) $month, (int) $day, (int) $year);
+    return gmmktime((int) $hour, (int) $min, (int) $sec, (int) $month, (int) $day, (int) $year);
 }
 
 /**
@@ -9442,7 +9442,10 @@ function api_site_use_cookie_warning_cookie_exist()
  * Given a number of seconds, format the time to show hours, minutes and seconds.
  *
  * @param int    $time         The time in seconds
- * @param string $originFormat Optional. PHP o JS
+ * @param string $originFormat Optional.
+ *                             PHP (used for scorm)
+ *                             JS (used in most cases and understood by excel)
+ *                             LANG (used to present unit in the user language)
  *
  * @return string (00h00'00")
  */
@@ -9461,6 +9464,8 @@ function api_format_time($time, $originFormat = 'php')
 
     if ($originFormat == 'js') {
         $formattedTime = trim(sprintf("%02d : %02d : %02d", $hours, $mins, $secs));
+    } elseif ($originFormat == 'lang') {
+        $formattedTime = trim(sprintf(get_lang('HoursMinutesSeconds'), $hours, $mins, $secs));
     } else {
         $formattedTime = trim(sprintf("%02d$h%02d'%02d\"", $hours, $mins, $secs));
     }
@@ -9670,6 +9675,22 @@ function api_mail_html(
     }
     if (isset($additionalParameters['logo'])) {
         $mailView->assign('logo', $additionalParameters['logo']);
+    } elseif (api_get_configuration_value('email_logo') == true) {
+        $logoSubPath = 'themes/'.api_get_visual_theme().'/images/email-logo.png';
+        $logoSysPath = api_get_path(SYS_PATH).'web/css/'.$logoSubPath;
+        if (file_exists($logoSysPath)) {
+            $logoWebPath = api_get_path(WEB_CSS_PATH).$logoSubPath;
+            $imgTag = \Display::img(
+                $logoWebPath,
+                api_get_setting('siteName'),
+                [
+                    'id' => 'header-logo',
+                    'class' => 'img-responsive',
+                ]
+            );
+            $logoTag = \Display::url($imgTag, api_get_path(WEB_PATH));
+            $mailView->assign('logo', $logoTag);
+        }
     }
     $mailView->assign('mail_header_style', api_get_configuration_value('mail_header_style'));
     $mailView->assign('mail_content_style', api_get_configuration_value('mail_content_style'));
@@ -10620,11 +10641,11 @@ function api_decrypt_ldap_password(string $encryptedText): string
         return false;
     }
 
-    return api_decrypt_hash($encryptedText,$secret);
+    return api_decrypt_hash($encryptedText, $secret);
 }
 
 /**
- * Decrypt sent hash encoded with secret
+ * Decrypt sent hash encoded with secret.
  *
  * @param $encryptedText The hash text to be decrypted
  * @param $secret        The secret used to encoded the hash
@@ -10633,7 +10654,6 @@ function api_decrypt_ldap_password(string $encryptedText): string
  */
 function api_decrypt_hash(string $encryptedHash, string $secret): string
 {
-    $secret = hex2bin($secret);
     $iv = base64_decode(substr($encryptedHash, 0, 16), true);
     $data = base64_decode(substr($encryptedHash, 16), true);
     $tag = substr($data, strlen($data) - 16);
@@ -10654,7 +10674,7 @@ function api_decrypt_hash(string $encryptedHash, string $secret): string
 }
 
 /**
- * Encrypt sent data with secret
+ * Encrypt sent data with secret.
  *
  * @param $data   The text to be encrypted
  * @param $secret The secret to use encode data
@@ -10663,11 +10683,10 @@ function api_decrypt_hash(string $encryptedHash, string $secret): string
  */
 function api_encrypt_hash($data, $secret)
 {
-  $secret = hex2bin($secret);
-  $iv = random_bytes(12);
-  $tag = '';
+    $iv = random_bytes(12);
+    $tag = '';
 
-  $encrypted = openssl_encrypt(
+    $encrypted = openssl_encrypt(
     $data,
     'aes-256-gcm',
     $secret,
@@ -10678,5 +10697,5 @@ function api_encrypt_hash($data, $secret)
     16
   );
 
-  return base64_encode($iv) . base64_encode($encrypted . $tag);
+    return base64_encode($iv).base64_encode($encrypted.$tag);
 }

@@ -28,7 +28,7 @@ if (!empty($groupId)) {
 switch ($action) {
     case 'preview':
         $userInCourse = false;
-        if (CourseManager::is_user_subscribed_in_course($currentUserId, CourseManager::get_course_code_from_course_id($courseId), $sessionId)) {
+        if ($courseId != 0 && CourseManager::is_user_subscribed_in_course($currentUserId, CourseManager::get_course_code_from_course_id($courseId), $sessionId)) {
             $userInCourse = true;
         }
         $allowToEdit = (
@@ -54,7 +54,7 @@ switch ($action) {
             if ($groupProperties['announcements_state'] == GroupManager::TOOL_PRIVATE_BETWEEN_USERS) {
                 // check if user is a group member to give access
                 $groupInfo = GroupManager::get_group_properties($groupId);
-                if (array_key_exists($currentUserId,GroupManager::get_subscribed_users($groupInfo))) {
+                if (array_key_exists($currentUserId, GroupManager::get_subscribed_users($groupInfo))) {
                     $allowToEdit = true;
                 }
             }

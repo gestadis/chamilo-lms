@@ -2257,7 +2257,7 @@ class Event
         $courseId,
         $userId,
         $sessionId,
-        $minutes = 5
+        $minutes = 0.5
     ) {
         if (Session::read('login_as')) {
             return false;
@@ -2288,7 +2288,7 @@ class Event
 
         $result = Database::query($sql);
 
-        // Save every 5 minutes by default
+        // Save every 30 seconds by default
         $seconds = $minutes * 60;
         $maxSeconds = 3600; // Only update if max diff is one hour
         if (Database::num_rows($result)) {
@@ -2367,8 +2367,8 @@ class Event
                         user_id = $userId AND
                         c_id = $courseId  AND
                         session_id = $sessionId AND
-                        login_course_date > '$time'
-                    ORDER BY login_course_date DESC
+                        logout_course_date > '$time'
+                    ORDER BY logout_course_date DESC
                     LIMIT 1";
             $result = Database::query($sql);
             $insert = false;
@@ -2385,9 +2385,15 @@ class Event
             }
 
             if ($insert) {
+                $defaultExtraTime = api_get_configuration_value('tracking_default_course_extra_time_on_logout');
+                $loginCourseDate = $currentDate = api_get_utc_datetime();
+                if (!empty($defaultExtraTime)) {
+                    $loginDiff = time() - $defaultExtraTime;
+                    $loginCourseDate = api_get_utc_datetime($loginDiff);
+                }
                 $ip = Database::escape_string(api_get_real_ip());
                 $sql = "INSERT INTO $tableCourseAccess (c_id, user_ip, user_id, login_course_date, logout_course_date, counter, session_id)
-                        VALUES ($courseId, '$ip', $userId, '$currentDate', '$currentDate', 1, $sessionId)";
+                        VALUES ($courseId, '$ip', $userId, '$loginCourseDate', '$currentDate', 1, $sessionId)";
                 Database::query($sql);
             }
 

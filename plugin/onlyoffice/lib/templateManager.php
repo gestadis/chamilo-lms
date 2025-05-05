@@ -1,7 +1,6 @@
 <?php
 /**
- *
- * (c) Copyright Ascensio System SIA 2021
+ * (c) Copyright Ascensio System SIA 2024.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,54 +13,24 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
+require_once __DIR__.'/../../../main/inc/global.inc.php';
 
-require_once __DIR__ . "/../../../main/inc/global.inc.php";
-
-class TemplateManager {
-
+class TemplateManager
+{
     /**
-     * Mapping local path to templates
-     *
-     * @var Array
-     */
-    private static $localPath = [
-        "bg" => "bg-BG",
-        "cs" => "cs-CS",
-        "de" => "de-DE",
-        "el" => "el-GR",
-        "en" => "en-US",
-        "es" => "es-ES",
-        "fr" => "fr-FR",
-        "it" => "it-IT",
-        "ja" => "ja-JP",
-        "ko" => "ko-KR",
-        "lv" => "lv-LV",
-        "nl" => "nl-NL",
-        "pl" => "pl-PL",
-        "pt" => "pt-PT",
-        "pt-BR" => "pt-BR",
-        "ru" => "ru-RU",
-        "sk" => "sk-SK",
-        "sv" => "sv-SE",
-        "uk" => "uk-UA",
-        "vi" => "vi-VN",
-        "zh" => "zh-CN"
-    ];
-
-    /**
-     * Return path to template new file
+     * Return path to template new file.
      */
     public static function getEmptyTemplate($fileExtension): string
     {
         $langInfo = LangManager::getLangUser();
-        $lang = $langInfo["isocode"];
-        if (!array_key_exists($lang, self::$localPath)) {
-            $lang = "en";
+        $lang = $langInfo['isocode'];
+        $templateFolder = api_get_path(SYS_PLUGIN_PATH).'onlyoffice/assets/';
+        if (!is_dir($templateFolder.$lang)) {
+            $lang = 'default';
         }
-        $templateFolder = api_get_path(SYS_PLUGIN_PATH) . "onlyoffice/assets/" . self::$localPath[$lang];
+        $templateFolder = $templateFolder.$lang;
 
-        return $templateFolder . "/" . ltrim($fileExtension, ".") . ".zip";
+        return $templateFolder.'/'.ltrim($fileExtension, '.').'.zip';
     }
 }

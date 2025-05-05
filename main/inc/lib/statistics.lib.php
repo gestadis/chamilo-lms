@@ -449,7 +449,7 @@ class Statistics
                 FROM $categoryTable
                 ORDER BY tree_pos";
         $res = Database::query($sql);
-        $categories = [];
+        $categories = [null => get_lang('NoCategory')];
         while ($category = Database::fetch_object($res)) {
             $categories[$category->code] = $category->name;
         }
@@ -1072,9 +1072,7 @@ class Statistics
             $parameters = [];
 
             $parameters['report'] = 'activities';
-            if (isset($_GET['keyword'])) {
-                $parameters['keyword'] = Security::remove_XSS($_GET['keyword']);
-            }
+            $parameters['keyword'] = Security::remove_XSS($_GET['keyword']);
 
             $table->set_additional_parameters($parameters);
             $table->set_header(0, get_lang('EventType'));
@@ -1913,6 +1911,74 @@ class Statistics
         ];
 
         return $table;
+    }
+
+    /**
+     * Exports a user report by course and session to an Excel file.
+     */
+    public static function exportUserReportByCourseSession(int $courseId, ?string $startDate = null, ?string $endDate = null): void
+    {
+        $courseInfo = api_get_course_info_by_id($courseId);
+        $sessions = SessionManager::get_session_by_course($courseId, $startDate, $endDate);
+
+        $headers = [
+            get_lang('CourseName'),
+            get_lang('SessionName'),
+            get_lang('LastName'),
+            get_lang('FirstName'),
+            get_lang('UserName'),
+            get_lang('Email'),
+            get_lang('EndDate'),
+            get_lang('Score'),
+            get_lang('Progress'),
+        ];
+
+        $extraField = new ExtraField('user');
+        $extraFields = $extraField->get_all(['filter = ?' => 1], 'option_order');
+
+        foreach ($extraFields as $field) {
+            $headers[] = $field['variable'];
+        }
+
+        $exportData = [$headers];
+        foreach ($sessions as $session) {
+            $sessionId = (int) $session['id'];
+            $students = SessionManager::get_users_by_session($sessionId);
+            $extraValueObj = new ExtraFieldValue('user');
+
+            foreach ($students as $student) {
+                $studentId = $student['user_id'];
+                $studentInfo = api_get_user_info($studentId);
+                $courseCode = $courseInfo['code'];
+
+                $lastConnection = Tracking::getLastConnectionTimeInSessionCourseLp($studentId, $courseCode, $sessionId);
+                $lastConnectionFormatted = $lastConnection ? date('Y-m-d', $lastConnection) : '';
+
+                $averageScore = round(Tracking::getAverageStudentScore($studentId, $courseCode, [], $sessionId));
+                $averageProgress = round(Tracking::get_avg_student_progress($studentId, $courseCode, [], $sessionId));
+
+                $userData = [
+                    $courseInfo['name'],
+                    $session['name'],
+                    $studentInfo['lastname'],
+                    $studentInfo['firstname'],
+                    $studentInfo['username'],
+                    $studentInfo['mail'],
+                    $lastConnectionFormatted,
+                    $averageScore,
+                    $averageProgress,
+                ];
+
+                foreach ($extraFields as $field) {
+                    $extraValue = $extraValueObj->get_values_by_handler_and_field_id($studentId, $field['id'], true);
+                    $userData[] = $extraValue['value'] ?? '';
+                }
+
+                $exportData[] = $userData;
+            }
+        }
+
+        Export::arrayToXls($exportData, 'session_report_'.$courseInfo['code'].'_'.date('Y-m-d'));
     }
 
     /**

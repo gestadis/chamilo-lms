@@ -19,8 +19,6 @@ $_configuration['db_port'] = '{DATABASE_PORT}';
 $_configuration['main_database'] = '{DATABASE_MAIN}';
 $_configuration['db_user'] = '{DATABASE_USER}';
 $_configuration['db_password'] = '{DATABASE_PASSWORD}';
-// Enable access to database management for platform admins.
-$_configuration['db_manager_enabled'] = false;
 
 /**
  * Directory settings.
@@ -448,7 +446,7 @@ $_configuration['agenda_colors'] = [
     'student_publication' => '#FF8C00'
 ];
 */
-// Display sessions ocuppations in personal agenda
+// Display sessions occupations in personal agenda
 //$_configuration['personal_calendar_show_sessions_occupation'] = false;
 // It allows to send invitations to friends for an agenda event. Requires DB changes:
 /*
@@ -460,6 +458,11 @@ ALTER TABLE agenda_event_invitation ADD CONSTRAINT FK_52A2D5E161220EA6 FOREIGN K
 ALTER TABLE personal_agenda ADD agenda_event_invitation_id BIGINT DEFAULT NULL, ADD collective TINYINT(1) NOT NULL;
 ALTER TABLE personal_agenda ADD CONSTRAINT FK_D8612460AF68C6B FOREIGN KEY (agenda_event_invitation_id) REFERENCES agenda_event_invitation (id) ON DELETE CASCADE;
 CREATE UNIQUE INDEX UNIQ_D8612460AF68C6B ON personal_agenda (agenda_event_invitation_id);
+*/
+// After Chamilo v1.11.30 it's necessary to change the foreign key in agenda_event_invitee.user_id so that the record is deleted when deleting a user
+/*
+ALTER TABLE agenda_event_invitee DROP FOREIGN KEY FK_4F5757FEA76ED395;
+ALTER TABLE agenda_event_invitee ADD CONSTRAINT FK_4F5757FEA76ED395 FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE;
 */
 // Then add the "@" symbol to AgendaEventInvitation and AgendaEventInvitee classes in the ORM\Entity() line.
 // Then uncomment the "use EventCollectiveTrait;" line in the PersonalAgenda class.
@@ -490,6 +493,14 @@ UPDATE agenda_event_invitee SET type = 'invitee';
 //$_configuration['agenda_reminders'] = false;
 // Sets the sender ID when using the cron main/cron/agenda_reminders.php to send reminders in course events.
 //$_configuration['agenda_reminders_sender_id'] = 0;
+//
+//In course agenda do not select any participant by default
+//$_configuration['course_agenda_set_default_send_to_with_none'] = false;
+//In course agenda add the current user has default participant
+//$_configuration['course_agenda_set_default_send_to_with_current_user'] = false;
+//In course agenda add the course teachers or the course session coach in session context has default participants
+//$_configuration['course_agenda_set_default_send_to_with_teachers'] = false;
+
 // ------
 //
 // Save some tool titles with HTML editor. Require DB changes:
@@ -637,6 +648,11 @@ ALTER TABLE sys_announcement ADD COLUMN visible_boss INT DEFAULT 0;
 // More info: https://www.chromium.org/updates/same-site
 // Also: https://developers.google.com/search/blog/2020/01/get-ready-for-new-samesitenone-secure
 //$_configuration['security_session_cookie_samesite_none'] = false;
+//
+// Enable Permissions-Policy header
+// More info: https://scotthelme.co.uk/goodbye-feature-policy-and-hello-permissions-policy/
+// and also:  https://scotthelme.co.uk/a-new-security-header-feature-policy/
+//$_configuration['security_permissions_policy'] = 'geolocation=(self "https://example.com"), microphone=()';
 // ------ HTTP headers security section ends here
 //
 // ------ Survey configuration settings
@@ -746,6 +762,10 @@ $_configuration['send_all_emails_to'] = [
 // If questions are reused between courses only deletes the non-reused questions
 // or reused questions where the quiz has the lowest iid value from c_quiz_rel_question
 // $_configuration['quiz_question_delete_automatically_when_deleting_exercise'] = false;
+// Opens the quiz question description by default
+//$_configuration['quiz_question_description_open_by_default'] = false;
+// Opens advanced parameters options by default when creating or editing quiz questions
+//$_configuration['quiz_question_edit_open_advanced_params_by_default'] = false;
 // Define how many seconds an AJAX request should be started to avoid loss of connection.
 //$_configuration['quiz_keep_alive_ping_interval'] = 0;
 // Hide search form in session list
@@ -983,6 +1003,9 @@ $_configuration['gradebook_badge_sidebar'] = [
 // Block access to any user to "my progress" page
 //$_configuration['block_my_progress_page'] = false;
 
+// Hides the "my progress" tab from the navigation menu
+//$_configuration['hide_my_progress_tab'] = false;
+
 // Add user extra fields in report: main/mySpace/exercise_category_report.php
 //$_configuration['exercise_category_report_user_extra_fields'] = ['fields' => ['skype', 'rssfeeds']];
 
@@ -1109,11 +1132,27 @@ ALTER TABLE portfolio_rel_tag ADD CONSTRAINT FK_DB734472613FECDF FOREIGN KEY (se
 // - edit src/Chamilo/CoreBundle/Entity/Portfolio.php, PortfolioCategory.php, PortfolioAttachment.php and PortfolioComment.php PortfolioRelTag.php
 //   and follow the instructions about the @ORM\Entity() line
 // - launch composer install to rebuild the autoload.php
+// To allow to add tags to portfolio items, create a extrafield called "tags" that can be modified and visible to others
+/*
+INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, default_value, field_order, visible_to_self, visible_to_others, changeable, filter, created_at) VALUES (19, 10, 'tags', 'tags', '', 0, 1, 1, 1, 0, NOW());
+*/
+// To enable (make visible for students) the new Portfolio tool when creating a course it's necessary to create a new setting parameter
+/*
+INSERT INTO settings_current (variable, subkey, type, category, selected_value, title, comment, scope, subkeytext, access_url, access_url_changeable, access_url_locked) VALUES ('course_create_active_tools', 'portfolio', 'checkbox', 'Tools', 'true', 'CourseCreateActiveToolsTitle', 'CourseCreateActiveToolsComment', null, 'Portfolio', 1, 0, 0);
+*/
 //$_configuration['allow_portfolio_tool'] = false;
 // Allow advanced selection of who can view the posts and comments. It requires DB changes:
 // ALTER TABLE portfolio_comment ADD visibility SMALLINT DEFAULT 1 NOT NULL;
 // Then add the "@" symbol to the CPortfolioComment::$visibility property in the ORM\Column() line.
 //$_configuration['portfolio_advanced_sharing'] = false;
+// Show base course posts in session course. Requires DB changes and edit the Portfolio entity
+// adding the "@" symbol to the beginning of ORM\ManyToOne, ORM\JoinColumn, ORM\OneToMany lines for the Portfolio::$duplicatedFrom and Portfolio::$duplicates properties.
+/*
+ALTER TABLE portfolio ADD duplicated_from INT DEFAULT NULL;
+ALTER TABLE portfolio ADD CONSTRAINT FK_A9ED1062FC4CB679 FOREIGN KEY (duplicated_from) REFERENCES portfolio (id) ON DELETE SET NULL;
+CREATE INDEX IDX_A9ED1062FC4CB679 ON portfolio (duplicated_from);
+*/
+//$_configuration['portfolio_show_base_course_post_in_sessions'] = false;
 
 // DEPRECATED: gradebook_enable_best_score is deprecated. Use gradebook_display_extra_stats instead.
 // Enable best score column in gradebook. Previously called disable_gradebook_stats
@@ -1167,6 +1206,10 @@ VALUES (2, 13, 'session_courses_read_only_mode', 'Lock Course In Session', 1, 1,
 // Allow SCORM packages when importing a course
 // $_configuration['allow_import_scorm_package_in_course_builder'] = false;
 
+// Avoid all the scorms folders to be included by default in the partial course backup
+// and enable the scroms folders to be selected manualy
+//$_configuration['course_backup_allow_scorm_selection_in_select_form'] = false;
+
 // Hide announcement "sent to" label
 // $_configuration['hide_announcement_sent_to_users_info'] = false;
 
@@ -1178,6 +1221,10 @@ VALUES (2, 13, 'session_courses_read_only_mode', 'Lock Course In Session', 1, 1,
 
 // Hide gradebook "download report in PDF" button
 // $_configuration['gradebook_hide_pdf_report_button'] = false;
+
+// Shows a link to the "Global gradebooks" page in the /index.php and /user_portal.php page.
+// It also enables the main/gradebook/all_my_gradebooks.php page.
+//$_configuration['show_all_my_gradebooks_page'] = false;
 
 // Show pending survey link in user menu
 // $_configuration['show_pending_survey_in_menu'] = false;
@@ -1547,7 +1594,7 @@ CREATE TABLE c_plagiarism_compilatio_docs (
     id INT AUTO_INCREMENT NOT NULL,
     c_id int(11) NOT NULL,
     document_id int(11) NOT NULL,
-    compilatio_id varchar(32) CHARACTER SET utf8 NOT NULL,
+    compilatio_id varchar(40) CHARACTER SET utf8 NOT NULL,
     PRIMARY KEY (id)
 ) DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci ENGINE = InnoDB;
 
@@ -1557,20 +1604,15 @@ ALTER TABLE c_plagiarism_compilatio_docs ADD COLUMN id INT AUTO_INCREMENT NOT NU
 ALTER TABLE c_plagiarism_compilatio_docs CHANGE COLUMN id_doc document_id INT NOT NULL;
 ALTER TABLE c_plagiarism_compilatio_docs MODIFY compilatio_id VARCHAR(40) NOT NULL;
 
-requires extension "php-soap"  sudo apt-get install php-soap
 */
 //$_configuration['allow_compilatio_tool'] = false;
 /*$_configuration['compilatio_tool'] = [
     'settings' => [
         'key' => '',
-        'soap_url' => '',
+        'api_url' => 'https://app.compilatio.net/api',
         'proxy_host' => '',
         'proxy_port' => '',
         'max_filesize' => '',
-        'transport_mode' => '',
-        'wget_uri' => '',
-        'wget_login' => '',
-        'wget_password' => '',
     ]
 ];*/
 
@@ -2247,6 +2289,12 @@ VALUES (21, 13, 'send_notification_at_a_specific_date', 'Send notification at a 
 // Salt to use for admin ldap password decryption
 //$_configuration['ldap_admin_password_salt'] = 'salt';
 
+// Limit providers for OpenID (classic) authentication
+/*$_configuration['auth_openid_allowed_providers'] = [
+    'example.com',
+    '*.example.com',
+];*/
+
 // Option to hide the teachers info on courses about info page.
 //$_configuration['course_about_teacher_name_hide'] = false;
 
@@ -2316,7 +2364,9 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 // Course extra fields to be presented on course settings
 //$_configuration['course_configuration_tool_extra_fields_to_show_and_edit'] = ['fields' => ['ExtrafieldLabel1', 'ExtrafieldLabel2']];
 
-// Relation to prefill course extra field with user extra field on course creacion on main/create_course/add_course.php and main/admin/course_add.php
+// Relation to prefill course extra field with user extra field on course creation
+// on main/create_course/add_course.php and main/admin/course_add.php
+// Fill the array with the course extra field to fill => user extra field where the value comes from
 /*$_configuration['course_creation_user_course_extra_field_relation_to_prefill'] = [
     'fields' => [
         'CourseExtrafieldLabel1' => 'UserExtrafieldLabel1',
@@ -2363,6 +2413,14 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 // they are only accessible during the active duration).
 //$_configuration['session_coach_access_after_duration_end'] = false;
 
+// Hide visibility options for session visibility after end date.
+// Admitted options: SESSION_VISIBLE_READ_ONLY, SESSION_VISIBLE, SESSION_INVISIBLE
+/*$_configuration['session_visibility_after_end_date_options_configuration'] = [
+    'visibility_options_to_hide' => [
+        'SESSION_VISIBLE_READ_ONLY '
+    ]
+];*/
+
 // Restrict the list of students to subscribe in the course session. And disable
 // registration for users in all courses from Resume Session page
 //$_configuration['session_course_users_subscription_limited_to_session_users'] = false;
@@ -2389,7 +2447,7 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 // Add the "remember password" link to the "subscription to session" confirmation email
 //$_configuration['email_template_subscription_to_session_confirmation_lost_password'] = false;
 
-// Add a custom extra footer for notificacions emails for a specific language, for example for
+// Add a custom extra footer for notifications emails for a specific language, for example for
 // privacy policy notices. Multiple languages and paragraphs can be added.
 /*$_configuration['notifications_extended_footer_message'] = ['english' => ['paragraphs' => [
     'Change or delete this paragraph or add another one'
@@ -2505,6 +2563,19 @@ INSERT INTO extra_field_options (field_id, option_value, display_text, priority,
 // Add more speed options to reading comprehension question type (type id = 21) in words per minute
 //$_configuration['exercise_question_reading_comprehension_extra_speeds'] = ['speeds' => [70, 110, 170]];
 
+// Text appearing at the end of the test when the user has failed. Requires DB changes.
+/*
+ALTER TABLE c_quiz ADD text_when_finished_failure LONGTEXT DEFAULT NULL;
+*/
+// Then add the "@" symbol to the CQuiz class in the ORM\Column() line for its $textWhenFinishedFailure property.
+//$_configuration['exercise_text_when_finished_failure'] = false;
+
+// Add an option to subscribe the user at the end of test when the user has failed. Requires DB changes.
+/*
+INSERT INTO extra_field (extra_field_type, field_type, variable, display_text, default_value, field_order, visible_to_self, visible_to_others, changeable, filter, created_at) VALUES (17, 5, 'subscribe_session_when_finished_failure', 'SubscribeSessionWhenFinishedFailure', '', 0, 1, 0, 1, 0, NOW());
+*/
+//$_configuration['exercise_subscribe_session_when_finished_failure'] = false;
+
 //hide copy icon in LP's authoring options
 //$_configuration['lp_hide_copy_option'] = false;
 
@@ -2533,3 +2604,42 @@ INSERT INTO extra_field_options (field_id, option_value, display_text, priority,
 
 // Set the following parameter to true to enable student to be assign as teacher of a course
 //$_configuration['course_allow_student_role_to_be_teacher'] = false;
+
+// Set the following parameter to true to activate the integration of the mathjax script in all HTML documents
+//$_configuration['mathjax_enable_script_header_in_all_HTML_document'] = false;
+
+// E-mail-specific logo
+// Set to true to use web/css/[current-theme]/images/email-logo.png as an
+// e-mail logo instead of the platform logo. Only works if setting
+// 'use_course_logo_in_course_page' is not set or there is no logo for that
+// course. Recommended e-mail logo width is 540px.
+//$_configuration['email_logo'] = false;
+
+// Define the maximum time in seconds to be registered if no action by user in the LP for more than the php session lifetime.
+//$_configuration['time_to_be_registered_for_abusiveTime'] = 600;
+
+// Define the default time in seconds to be registered if the user does logout from a course and there is no recent entry in track_e_course_access.
+//$_configuration['tracking_default_course_extra_time_on_logout'] = 600;
+
+// Set to true to hide lp creation icon on lp list if in a session
+//$_configuration['session_hide_lp_creation'] = false;
+// Set to true to hide lp copy icon on lp list if in a session
+//$_configuration['session_hide_lp_copy'] = false;
+// Set to true to hide document upload icon on document list if in a session
+//$_configuration['session_hide_document_upload'] = false;
+
+// Define a special path token for the Common Cartridge export content.
+// Due to changes in naming by the responsible organization, the Chamilo default
+// is '$1EdTech-CC-FILEBASE$' (the latest), but previous versions of the standard
+// recommended '$IMS-CC-FILEBASE$', so you might want to use that for greater compatibility.
+//$_configuration['commoncartridge_path_token'] = '$IMS-CC-FILEBASE$';
+
+// Set the following parameter to true to enable a session lifetime controller that notifies users that their session is about to expire
+//$_configuration['session_lifetime_controller'] = false;
+
+// Extra fields to include in session course excel report on main/session/resume_session.php
+/*$_configuration['session_course_excel_export'] = [
+    'session_fields' => ['session_extrafield1','session_extrafield2',],
+    'user_fields_before' => ['DNI'],
+    'user_fields_after' => ['user_extrafield1','user_extrafield2',],
+];*/

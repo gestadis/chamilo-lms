@@ -36,6 +36,7 @@ switch ($action) {
         }
         break;
     case 'get_count_message':
+        api_block_anonymous_users(false);
         $userId = api_get_user_id();
         $invitations = MessageManager::getMessagesCountForUser($userId);
         header('Content-type:application/json');
@@ -46,6 +47,7 @@ switch ($action) {
 
         $subject = isset($_REQUEST['subject']) ? trim($_REQUEST['subject']) : null;
         $messageContent = isset($_REQUEST['content']) ? trim($_REQUEST['content']) : null;
+        $messageContent = attr_on_filter($messageContent);
 
         if (empty($subject) || empty($messageContent)) {
             echo Display::return_message(get_lang('ErrorSendingMessage'), 'error');

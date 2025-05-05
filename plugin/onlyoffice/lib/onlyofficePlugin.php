@@ -1,7 +1,6 @@
 <?php
 /**
- *
- * (c) Copyright Ascensio System SIA 2021
+ * (c) Copyright Ascensio System SIA 2024.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 /**
@@ -25,23 +23,31 @@
 class OnlyofficePlugin extends Plugin implements HookPluginInterface
 {
     /**
+     * OnlyofficePlugin name.
+     */
+    private $pluginName = 'onlyoffice';
+
+    /**
      * OnlyofficePlugin constructor.
      */
     protected function __construct()
     {
         parent::__construct(
-            "1.2.0",
-            "Asensio System SIA",
+            '1.5.0',
+            'Asensio System SIA',
             [
-                "enable_onlyoffice_plugin" => "boolean",
-                "document_server_url" => "text",
-                "jwt_secret" => "text"
+                'enable_onlyoffice_plugin' => 'boolean',
+                'document_server_url' => 'text',
+                'jwt_secret' => 'text',
+                'jwt_header' => 'text',
+                'document_server_internal' => 'text',
+                'storage_url' => 'text',
             ]
         );
     }
 
     /**
-     * Create OnlyofficePlugin object
+     * Create OnlyofficePlugin object.
      */
     public static function create(): OnlyofficePlugin
     {
@@ -94,5 +100,44 @@ class OnlyofficePlugin extends Plugin implements HookPluginInterface
 
         $viewObserver = OnlyofficeItemViewObserver::create();
         HookDocumentItemView::create()->detach($viewObserver);
+    }
+
+    /**
+     * Get link to plugin settings.
+     *
+     * @return string
+     */
+    public function getConfigLink()
+    {
+        return api_get_path(WEB_PATH).'main/admin/configure_plugin.php?name='.$this->pluginName;
+    }
+
+    /**
+     * Get plugin name.
+     *
+     * @return string
+     */
+    public function getPluginName()
+    {
+        return $this->pluginName;
+    }
+
+    public static function isExtensionAllowed(string $extension): bool
+    {
+        $officeExtensions = [
+            'ppt',
+            'pptx',
+            'odp',
+            'xls',
+            'xlsx',
+            'ods',
+            'csv',
+            'doc',
+            'docx',
+            'odt',
+            'pdf',
+        ];
+
+        return in_array($extension, $officeExtensions);
     }
 }

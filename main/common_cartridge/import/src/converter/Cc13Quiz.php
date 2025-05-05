@@ -3,6 +3,11 @@
 
 class Cc13Quiz extends Cc13Entities
 {
+    /**
+     * Get all data from the object instance (coming from the xml file) into a clean array.
+     *
+     * @return array
+     */
     public function generateData()
     {
         $data = [];
@@ -18,13 +23,24 @@ class Cc13Quiz extends Cc13Entities
         return $data;
     }
 
+    /**
+     * Create a quiz based on the information available in the assessment structure.
+     *
+     * @param $quiz
+     *
+     * @return void
+     */
     public function storeQuiz($quiz)
     {
+        $token = '/\$(?:IMS|1EdTech)[-_]CC[-_]FILEBASE\$\.\.\//';
         $courseInfo = api_get_course_info();
+        // Replace by the path in documents in which we place all relevant CC files
+        $replacementPath = '/courses/'.$courseInfo['directory'].'/document/commoncartridge/';
         $exercise = new Exercise($courseInfo['real_id']);
         $title = Exercise::format_title_variable($quiz['title']);
         $exercise->updateTitle($title);
-        $exercise->updateDescription('');
+        $description = preg_replace($token, $replacementPath, $quiz['description']);
+        $exercise->updateDescription($description);
         $exercise->updateAttempts($quiz['max_attempts']);
         $exercise->updateFeedbackType(0);
 
@@ -40,7 +56,12 @@ class Cc13Quiz extends Cc13Entities
             foreach ($quiz['questions'] as $question) {
                 $qtype = $question['type'];
 
-                $types = ['unique_answer' => 1, 'multiple_answer' => 2];
+                $types = [
+                    'unique_answer' => UNIQUE_ANSWER,
+                    'multiple_answer' => MULTIPLE_ANSWER,
+                    'fib' => FILL_IN_BLANKS,
+                    'essay' => FREE_ANSWER,
+                ];
                 $questionType = $types[$qtype];
 
                 $questionInstance = Question::getInstance($questionType);
@@ -48,17 +69,12 @@ class Cc13Quiz extends Cc13Entities
                     continue;
                 }
 
-                $questionInstance->updateTitle($question['title']);
-                $questionText = '';
-
-                // Replace the path from @@PLUGINFILE@@ to a correct chamilo path
-                $questionText = str_replace(
-                    '@@PLUGINFILE@@',
-                    '/courses/'.$courseInfo['path'].'/document/moodle',
-                    $questionText
-                );
-
+                $questionInstance->updateTitle(substr(Security::remove_XSS(strip_tags_blacklist($question['title'], ['br', 'p'])), 0, 20));
+                $questionText = Security::remove_XSS(strip_tags_blacklist($question['title'], ['br', 'p']));
+                // Replace the path from $1EdTech-CC-FILEBASE$ to a correct chamilo path
+                $questionText = preg_replace($token, $replacementPath, $questionText);
                 $questionInstance->updateDescription($questionText);
+
                 $questionInstance->updateLevel(1);
                 $questionInstance->updateCategory(0);
 
@@ -75,8 +91,8 @@ class Cc13Quiz extends Cc13Entities
                     $questionWeighting = 0;
                     foreach ($question['answers'] as $slot => $answerValues) {
                         $correct = $answerValues['score'] ? (int) $answerValues['score'] : 0;
-                        $answer = $answerValues['title'];
-                        $comment = $answerValues['feedback'];
+                        $answer = Security::remove_XSS(preg_replace($token, $replacementPath, $answerValues['title']));
+                        $comment = Security::remove_XSS(preg_replace($token, $replacementPath, $answerValues['feedback']));
                         $weighting = $answerValues['score'];
                         $weighting = abs($weighting);
                         if ($weighting > 0) {
@@ -95,7 +111,7 @@ class Cc13Quiz extends Cc13Entities
                             ''
                         );
                     }
-                    // saves the answers into the data base
+                    // saves the answers into the database
                     $objAnswer->save();
                     // sets the total weighting of the question
                     $questionInstance->updateWeighting($questionWeighting);
@@ -103,28 +119,32 @@ class Cc13Quiz extends Cc13Entities
                 } else {
                     $objAnswer = new Answer($questionInstance->iid);
                     $questionWeighting = 0;
-                    foreach ($question['answers'] as $slot => $answerValues) {
-                        $answer = $answerValues['title'];
-                        $comment = $answerValues['feedback'];
-                        $weighting = $answerValues['score'];
-                        if ($weighting > 0) {
-                            $questionWeighting += $weighting;
-                        }
-                        $goodAnswer = $weighting > 0;
+                    if (is_array($question['answers'])) {
+                        foreach ($question['answers'] as $slot => $answerValues) {
+                            $answer = Security::remove_XSS(preg_replace($token, $replacementPath, $answerValues['title']));
+                            $comment = Security::remove_XSS(preg_replace($token, $replacementPath, $answerValues['feedback']));
+                            $weighting = $answerValues['score'];
+                            if ($weighting > 0) {
+                                $questionWeighting += $weighting;
+                            }
+                            $goodAnswer = $weighting > 0;
 
-                        $objAnswer->createAnswer(
-                            $answer,
-                            $goodAnswer,
-                            $comment,
-                            $weighting,
-                            $slot + 1,
-                            null,
-                            null,
-                            ''
-                        );
+                            $objAnswer->createAnswer(
+                                $answer,
+                                $goodAnswer,
+                                $comment,
+                                $weighting,
+                                $slot + 1,
+                                null,
+                                null,
+                                ''
+                            );
+                        }
+                    } elseif ($qtype == 'essay') {
+                        $questionWeighting = $question['ponderation'];
                     }
 
-                    // saves the answers into the data base
+                    // saves the answers into the database
                     $objAnswer->save();
                     // sets the total weighting of the question
                     $questionInstance->updateWeighting($questionWeighting);
@@ -161,6 +181,7 @@ class Cc13Quiz extends Cc13Entities
             $values = [
                 'id' => $instance['id'],
                 'title' => $instance['title'],
+                'description' => $instance['description'],
                 'timelimit' => $instance['options']['timelimit'],
                 'max_attempts' => $instance['options']['max_attempts'],
                 'questions' => $questions,
@@ -189,7 +210,8 @@ class Cc13Quiz extends Cc13Entities
                         $is_question_bank = 1;
                     }
 
-                    $assessmentFile = $this->getExternalXml($instance['resource_indentifier']);
+                    // Get the path of the assessment.xml file
+                    $assessmentFile = $this->getExternalXml($instance['resource_identifier']);
 
                     if (!empty($assessmentFile)) {
                         $assessment = $this->loadXmlResource(Cc1p3Convert::$pathToManifestFolder.DIRECTORY_SEPARATOR.$assessmentFile);
@@ -203,12 +225,13 @@ class Cc13Quiz extends Cc13Entities
                             if (!empty($questionCount)) {
                                 $lastInstanceId++;
 
-                                $instances[$instance['resource_indentifier']]['questions'] = $questions;
-                                $instances[$instance['resource_indentifier']]['id'] = $lastInstanceId;
-                                $instances[$instance['resource_indentifier']]['title'] = $instance['title'];
-                                $instances[$instance['resource_indentifier']]['is_question_bank'] = $is_question_bank;
-                                $instances[$instance['resource_indentifier']]['options']['timelimit'] = $this->getGlobalConfig($assessment, 'qmd_timelimit', 0);
-                                $instances[$instance['resource_indentifier']]['options']['max_attempts'] = $this->getGlobalConfig($assessment, 'cc_maxattempts', 0, $replaceValues);
+                                $instances[$instance['resource_identifier']]['questions'] = $questions;
+                                $instances[$instance['resource_identifier']]['id'] = $lastInstanceId;
+                                $instances[$instance['resource_identifier']]['title'] = $instance['title'];
+                                $instances[$instance['resource_identifier']]['description'] = $this->getQuizDescription($assessment);
+                                $instances[$instance['resource_identifier']]['is_question_bank'] = $is_question_bank;
+                                $instances[$instance['resource_identifier']]['options']['timelimit'] = $this->getGlobalConfig($assessment, 'qmd_timelimit', 0);
+                                $instances[$instance['resource_identifier']]['options']['max_attempts'] = $this->getGlobalConfig($assessment, 'cc_maxattempts', 0, $replaceValues);
                             }
                         }
                     }
@@ -243,6 +266,15 @@ class Cc13Quiz extends Cc13Entities
         }
 
         $response = empty($response) ? $defaultValue : $response;
+
+        return $response;
+    }
+
+    private function getQuizDescription(DOMDocument $assessment): string
+    {
+        $xpath = Cc1p3Convert::newxPath($assessment, Cc1p3Convert::getquizns());
+        $fieldEntry = $xpath->query('/xmlns:questestinterop/xmlns:assessment/xmlns:rubric/xmlns:material/xmlns:mattext');
+        $response = !empty($fieldEntry->item(0)->nodeValue) ? $fieldEntry->item(0)->nodeValue : '';
 
         return $response;
     }
@@ -711,11 +743,19 @@ class Cc13Quiz extends Cc13Entities
         $returnType['qtype'] = '';
         $returnType['cc'] = $type;
 
-        if ($type == CC_QUIZ_MULTIPLE_CHOICE) {
-            $returnType['qtype'] = 'unique_answer';
-        }
-        if ($type == CC_QUIZ_MULTIPLE_RESPONSE) {
-            $returnType['qtype'] = 'multiple_answer';
+        switch ($type) {
+            case CC_QUIZ_MULTIPLE_CHOICE:
+                $returnType['qtype'] = 'unique_answer';
+                break;
+            case CC_QUIZ_MULTIPLE_RESPONSE:
+                $returnType['qtype'] = 'multiple_answer';
+                break;
+            case CC_QUIZ_FIB:
+                $returnType['qtype'] = 'fib';
+                break;
+            case CC_QUIZ_ESSAY:
+                $returnType['qtype'] = 'essay';
+                break;
         }
 
         return $returnType;

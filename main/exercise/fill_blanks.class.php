@@ -338,14 +338,16 @@ class FillBlanks extends Question
             null,
             get_lang('TypeTextBelow').', '.get_lang('And').' '.get_lang('UseTagForBlank')
         );
-        $form->addElement(
-            'html_editor',
+        $form->addHtmlEditor(
             'answer',
             Display::return_icon('fill_field.png'),
-            ['id' => 'answer'],
-            ['ToolbarSet' => 'TestQuestionDescription']
+            true,
+            false,
+            [
+                'id' => 'answer',
+                'ToolbarSet' => 'TestQuestionDescription',
+            ]
         );
-        $form->addRule('answer', get_lang('GiveText'), 'required');
 
         //added multiple answers
         $form->addElement('checkbox', 'multiple_answer', '', get_lang('FillInBlankSwitchable'));
@@ -1199,7 +1201,8 @@ class FillBlanks extends Question
         $answer,
         $feedbackType,
         $resultsDisabled = false,
-        $showTotalScoreAndUserChoices = false
+        $showTotalScoreAndUserChoices = false,
+        $exercise
     ) {
         $result = '';
         $listStudentAnswerInfo = self::getAnswerInfo($answer, true);
@@ -1213,7 +1216,8 @@ class FillBlanks extends Question
                     $listStudentAnswerInfo['words'][$i],
                     $feedbackType,
                     $resultsDisabled,
-                    $showTotalScoreAndUserChoices
+                    $showTotalScoreAndUserChoices,
+                    $exercise
                 );
             } else {
                 $listStudentAnswerInfo['student_answer'][$i] = self::getHtmlWrongAnswer(
@@ -1221,7 +1225,8 @@ class FillBlanks extends Question
                     $listStudentAnswerInfo['words'][$i],
                     $feedbackType,
                     $resultsDisabled,
-                    $showTotalScoreAndUserChoices
+                    $showTotalScoreAndUserChoices,
+                    $exercise
                 );
             }
         }
@@ -1262,10 +1267,14 @@ class FillBlanks extends Question
         $right,
         $feedbackType,
         $resultsDisabled = false,
-        $showTotalScoreAndUserChoices = false
+        $showTotalScoreAndUserChoices = false,
+        $exercise
     ) {
         $hideExpectedAnswer = false;
         $hideUserSelection = false;
+        if (!$exercise->showExpectedChoiceColumn()) {
+            $hideExpectedAnswer = true;
+        }
         switch ($resultsDisabled) {
             case RESULT_DISABLE_SHOW_SCORE_AND_EXPECTED_ANSWERS_AND_RANKING:
             case RESULT_DISABLE_SHOW_ONLY_IN_CORRECT_ANSWER:
@@ -1354,7 +1363,8 @@ class FillBlanks extends Question
         $correct,
         $feedbackType,
         $resultsDisabled = false,
-        $showTotalScoreAndUserChoices = false
+        $showTotalScoreAndUserChoices = false,
+        $exercise
     ) {
         return self::getHtmlAnswer(
             $answer,
@@ -1362,7 +1372,8 @@ class FillBlanks extends Question
             true,
             $feedbackType,
             $resultsDisabled,
-            $showTotalScoreAndUserChoices
+            $showTotalScoreAndUserChoices,
+            $exercise
         );
     }
 
@@ -1382,7 +1393,8 @@ class FillBlanks extends Question
         $correct,
         $feedbackType,
         $resultsDisabled = false,
-        $showTotalScoreAndUserChoices = false
+        $showTotalScoreAndUserChoices = false,
+        $exercise
     ) {
         return self::getHtmlAnswer(
             $answer,
@@ -1390,7 +1402,8 @@ class FillBlanks extends Question
             false,
             $feedbackType,
             $resultsDisabled,
-            $showTotalScoreAndUserChoices
+            $showTotalScoreAndUserChoices,
+            $exercise
         );
     }
 

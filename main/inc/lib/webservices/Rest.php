@@ -92,6 +92,7 @@ class Rest extends WebService
     public const DELETE_CAMPUS = 'delete_campus';
 
     public const GET_USERS = 'get_users';
+    public const GET_USER_INFO_FROM_USERNAME = 'get_user_info_from_username';
     public const USERNAME_EXIST = 'username_exist';
     public const SAVE_USER = 'save_user';
     public const SAVE_USER_GET_APIKEY = 'save_user_get_apikey';
@@ -103,14 +104,15 @@ class Rest extends WebService
     public const GET_USER_API_KEY = 'get_user_api_key';
     public const GET_USER_LAST_CONNEXION = 'get_user_last_connexion';
     public const GET_USER_TOTAL_CONNEXION_TIME = 'get_user_total_connexion_time';
+    public const GET_USER_PROGRESS_AND_TIME_IN_SESSION = 'get_user_progress_and_time_in_session';
     public const GET_USER_SUB_GROUP = 'get_user_sub_group';
 
     public const GET_COURSES = 'get_courses';
     public const GET_COURSES_FROM_EXTRA_FIELD = 'get_courses_from_extra_field';
     public const SAVE_COURSE = 'save_course';
     public const DELETE_COURSE = 'delete_course';
-
     public const GET_SESSION_FROM_EXTRA_FIELD = 'get_session_from_extra_field';
+    public const GET_SESSION_INFO_FROM_EXTRA_FIELD = 'get_session_info_from_extra_field';
     public const SAVE_SESSION = 'save_session';
     public const CREATE_SESSION_FROM_MODEL = 'create_session_from_model';
     public const UPDATE_SESSION = 'update_session';
@@ -1521,10 +1523,30 @@ class Rest extends WebService
      *
      * @return array
      */
-    public function saveUserMessage($subject, $text, array $receivers)
+    public function saveUserMessage($subject, $text, array $receivers, $only_local)
     {
         foreach ($receivers as $userId) {
-            MessageManager::send_message($userId, $subject, $text);
+            MessageManager::send_message(
+                $userId,
+                $subject,
+                $text,
+                [],
+                [],
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+                0,
+                [],
+                false,
+                false,
+                0,
+                [],
+                false,
+                null,
+                $only_local);
         }
 
         return [
@@ -1682,7 +1704,7 @@ class Rest extends WebService
      *
      * @throws Exception
      */
-    public function getSessionsCampus(int $campusId = 0): array
+    public function getSessionsCampus(int $campusId = 0, bool $getExtraFields = false): array
     {
         self::protectAdminEndpoint();
 
@@ -1695,12 +1717,18 @@ class Rest extends WebService
         );
         $shortList = [];
         foreach ($list as $session) {
-            $shortList[] = [
+            $bundle = [
                 'id' => $session['id'],
                 'name' => $session['name'],
                 'access_start_date' => $session['access_start_date'],
                 'access_end_date' => $session['access_end_date'],
             ];
+            if ($getExtraFields) {
+                $extraFieldValues = new ExtraFieldValue('session');
+                $extraFields = $extraFieldValues->getAllValuesByItem($session['id']);
+                $bundle['extra_fields'] = $extraFields;
+            }
+            $shortList[] = $bundle;
         }
 
         return $shortList;
@@ -1891,6 +1919,9 @@ class Rest extends WebService
         }
         if (isset($userParam['phone'])) {
             $phone = $userParam['phone'];
+        }
+        if (isset($userParam['official_code'])) {
+            $official_code = $userParam['official_code'];
         }
         if (isset($userParam['expiration_date'])) {
             $expiration_date = $userParam['expiration_date'];
@@ -2508,18 +2539,18 @@ class Rest extends WebService
     }
 
     /**
-     * finds the session which has a specific value in a specific extra field.
+     * Finds the session which has a specific value in a specific extra field and return its ID (only that)
      *
-     * @param $fieldName
-     * @param $fieldValue
+     * @param string $fieldName
+     * @param string $fieldValue
      *
+     * @return int The matching session id, or an array with details about the session
      * @throws Exception when no session matched or more than one session matched
      *
-     * @return int, the matching session id
      */
-    public function getSessionFromExtraField($fieldName, $fieldValue)
+    public function getSessionFromExtraField(string $fieldName, string $fieldValue)
     {
-        // find sessions that that have value in field
+        // find sessions that have that value in the given field
         $valueModel = new ExtraFieldValue('session');
         $sessionIdList = $valueModel->get_item_id_from_field_variable_and_field_value(
             $fieldName,
@@ -2541,6 +2572,58 @@ class Rest extends WebService
 
         // return sessionId
         return intval($sessionIdList[0]['item_id']);
+    }
+
+    /**
+     * Finds the session which has a specific value in a specific extra field and return its details
+     *
+     * @param string $fieldName
+     * @param string $fieldValue
+     *
+     * @return array The matching session id, or an array with details about the session
+     * @throws Exception when no session matched or more than one session matched
+     *
+     */
+    public function getSessionInfoFromExtraField(string $fieldName, string $fieldValue): array
+    {
+        $session = [];
+        // find sessions that have that value in the given field
+        $valueModel = new ExtraFieldValue('session');
+        $sessionIdList = $valueModel->get_item_id_from_field_variable_and_field_value(
+            $fieldName,
+            $fieldValue,
+            false,
+            false,
+            true
+        );
+
+        // throw if none found
+        if (empty($sessionIdList)) {
+            throw new Exception(get_lang('NoSessionMatched'));
+        }
+
+        // throw if more than one found
+        if (count($sessionIdList) > 1) {
+            throw new Exception(get_lang('MoreThanOneSessionMatched'));
+        }
+
+        $session = api_get_session_info($sessionIdList[0]['item_id']);
+        $bundle = [
+            'id' => $session['id'],
+            'name' => $session['name'],
+            'access_start_date' => $session['access_start_date'],
+            'access_end_date' => $session['access_end_date'],
+        ];
+        $extraFieldValues = new ExtraFieldValue('session');
+        $extraFields = $extraFieldValues->getAllValuesByItem($session['id']);
+        // Only return these properties for each extra_field (the rest is not relevant to a webservice)
+        $filter = ['variable', 'value', 'display_text'];
+        $bundle['extra_fields'] = array_map(function($item) use ($filter) {
+            return array_intersect_key($item, array_flip($filter));
+        }, $extraFields);
+
+        // return session details, including extra fields that have filter=1
+        return $bundle;
     }
 
     /**
@@ -2579,6 +2662,7 @@ class Rest extends WebService
      * Updates a user identified by its login name.
      *
      * @throws Exception on failure
+     *
      * @todo make a safe version for use by the final user on its account
      */
     public function updateUserFromUserName(array $parameters): bool
@@ -4236,26 +4320,8 @@ class Rest extends WebService
     }
 
     /**
-     * Encode the given parameters (structured array) in JSON format
-     * @param array $additionalParams Optional
-     *
-     * @return string
-     */
-    private function encodeParams(array $additionalParams = [])
-    {
-        $params = array_merge(
-            $additionalParams,
-            [
-                'api_key' => $this->apiKey,
-                'username' => $this->user->getUsername(),
-            ]
-        );
-
-        return json_encode($params);
-    }
-
-    /**
      * Get audit items from track_e_default.
+     *
      * @throws Exception
      */
     public function getAuditItems(
@@ -4283,7 +4349,7 @@ class Rest extends WebService
     }
 
     /**
-     * Generate an API key for webservices access for the given user ID
+     * Generate an API key for webservices access for the given user ID.
      */
     protected static function generateApiKeyForUser(int $userId): string
     {
@@ -4295,8 +4361,28 @@ class Rest extends WebService
     }
 
     /**
+     * Encode the given parameters (structured array) in JSON format.
+     *
+     * @param array $additionalParams Optional
+     *
+     * @return string
+     */
+    private function encodeParams(array $additionalParams = [])
+    {
+        $params = array_merge(
+            $additionalParams,
+            [
+                'api_key' => $this->apiKey,
+                'username' => $this->user->getUsername(),
+            ]
+        );
+
+        return json_encode($params);
+    }
+
+    /**
      * Helper generating a query URL (to the current script) from an array of parameters
-     * (course, session, api_key and username) commonly used in webservice calls
+     * (course, session, api_key and username) commonly used in webservice calls.
      */
     private function generateUrl(array $additionalParams = []): string
     {
@@ -4309,5 +4395,42 @@ class Rest extends WebService
 
         return api_get_self().'?'
             .http_build_query(array_merge($queryParams, $additionalParams));
+    }
+
+    /**
+     * Returns the progress and time spent by the user in the session
+     * @throws Exception
+     */
+    public function getUserProgressAndTimeInSession(int $userId, int $sessionId): array
+    {
+        $totalProgress = 0;
+        $totalTime = 0;
+        $nbCourses = 0;
+        $courses = SessionManager::getCoursesInSession($sessionId);
+        foreach ($courses as $courseId) {
+            $nbCourses++;
+            $totalTime += Tracking::get_time_spent_on_the_course(
+                $userId,
+                $courseId,
+                $sessionId
+            );
+            $courseInfo = api_get_course_info_by_id($courseId);
+            $totalProgress += Tracking::get_avg_student_progress(
+                $userId,
+                $courseInfo['code'],
+                [],
+                $sessionId
+            );
+        }
+        $userAverageCoursesTime = 0;
+        $userAverageProgress = 0;
+        if ($nbCourses != 0) {
+            $userAverageCoursesTime = $totalTime/$nbCourses;
+            $userAverageProgress = $totalProgress/$nbCourses;
+        }
+        return [
+            'userAverageCoursesTime' => $userAverageCoursesTime,
+            'userAverageProgress' => $userAverageProgress,
+        ];
     }
 }

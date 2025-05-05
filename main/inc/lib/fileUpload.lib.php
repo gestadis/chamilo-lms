@@ -343,7 +343,7 @@ function handle_uploaded_document(
             }
 
             // Full path to where we want to store the file with trailing slash
-            $whereToSave = $documentDir.$uploadPath;
+            $whereToSave = Security::cleanPath($documentDir.$uploadPath).'/';
 
             // At least if the directory doesn't exist, tell so
             if (!is_dir($whereToSave)) {
@@ -1694,13 +1694,13 @@ function search_img_from_html($html_file)
  * @param int    $session_id
  * @param int    $to_group_id             group.id
  * @param int    $to_user_id
- * @param string $base_work_dir           /var/www/chamilo/courses/ABC/document
+ * @param string $base_work_dir           /var/www/chamilo/app/courses/ABC/document or api_get_path(SYS_COURSE_PATH).$courseInfo['directory'].'/document'
  * @param string $desired_dir_name        complete path of the desired name
  *                                        Example: /folder1/folder2
  * @param string $title                   "folder2"
  * @param int    $visibility              (0 for invisible, 1 for visible, 2 for deleted)
  * @param bool   $generateNewNameIfExists
- * @param bool   $sendNotification        depends in conf setting "send_notification_when_document_added"
+ * @param bool   $sendNotification        depends on conf setting "send_notification_when_document_added"
  *
  * @return string actual directory name if it succeeds,
  *                boolean false otherwise
@@ -2254,4 +2254,21 @@ function getFileUploadSizeLimitForTeacher()
     }
 
     return $size;
+}
+
+function processChunkedFile(array $file): array
+{
+    if (isset($_REQUEST['chunkAction']) && 'done' === $_REQUEST['chunkAction']) {
+        // to rename and move the finished file
+        $tmpFile = disable_dangerous_file(
+            api_replace_dangerous_char($file['name'])
+        );
+
+        $chunkedFile = api_get_path(SYS_ARCHIVE_PATH).$tmpFile;
+        $file['tmp_name'] = $chunkedFile;
+        $file['size'] = filesize($chunkedFile);
+        $file['copy_file'] = true;
+    }
+
+    return $file;
 }

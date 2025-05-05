@@ -2394,7 +2394,7 @@ class Tracking
                     null,
                     null,
                     null,
-                    $getCount
+                    false
                 );
             } else {
                 $studentList = UserManager::getUsersFollowedByUser(
@@ -2402,7 +2402,7 @@ class Tracking
                     STUDENT,
                     false,
                     false,
-                    $getCount,
+                    false,
                     null,
                     null,
                     null,
@@ -2415,15 +2415,14 @@ class Tracking
                 );
             }
 
-            if ($getCount) {
-                $studentCount = (int) $studentList;
-            } else {
-                $students = [];
-                if (is_array($studentList)) {
-                    foreach ($studentList as $studentData) {
-                        $students[] = $studentData['user_id'];
-                    }
+            $students = [];
+            if (is_array($studentList)) {
+                foreach ($studentList as $studentData) {
+                    $students[] = $studentData['user_id'];
                 }
+            }
+            if ($getCount) {
+                $studentCount = count($students);
             }
 
             $studentBossesList = UserManager::getUsersFollowedByUser(
@@ -3762,6 +3761,9 @@ class Tracking
                     null,
                     false,
                     null,
+                    true,
+                    false,
+                    true,
                     true
                 );
                 $lpList = $lpList->get_flat_list();
@@ -4568,6 +4570,43 @@ class Tracking
                     $lastTime = Database::result($rs, 0, 0);
                 }
             }
+        }
+
+        return $lastTime;
+    }
+
+    /**
+     * Gets the last connection time in the last learning path for a student in a course session.
+     */
+    public static function getLastConnectionTimeInSessionCourseLp(
+        int $studentId,
+        string $courseCode,
+        int $sessionId = 0
+    ): int {
+        $course = api_get_course_info($courseCode);
+
+        if (empty($course)) {
+            return 0;
+        }
+
+        $courseId = $course['real_id'];
+        $lastTime = 0;
+
+        $tLpv = Database::get_course_table(TABLE_LP_VIEW);
+        $tLpiv = Database::get_course_table(TABLE_LP_ITEM_VIEW);
+
+        $sql = 'SELECT MAX(item_view.start_time) as last_time
+            FROM '.$tLpiv.' AS item_view
+            INNER JOIN '.$tLpv.' AS view
+            ON (item_view.lp_view_id = view.id)
+            WHERE
+                view.c_id = '.$courseId.' AND
+                view.user_id = '.$studentId.' AND
+                view.session_id = '.$sessionId;
+
+        $rs = Database::query($sql);
+        if ($rs && Database::num_rows($rs) > 0) {
+            $lastTime = (int) Database::result($rs, 0, 'last_time');
         }
 
         return $lastTime;
@@ -8419,24 +8458,29 @@ class Tracking
                 }
             }
         } else {
-            echo '<h4>'.get_lang('UserInformationOfThisCourse').'</h4>';
-            echo '<br />';
+            echo '<p class="lead">'.get_lang('UserInformationOfThisCourse').'</p>';
             echo '<table class="table" width="100%">';
             echo '<tr>';
-            echo '<td width="50%" valign="top">';
+            echo '<th width="50%" valign="top">';
             if ($origin_session_id == 0) {
-                echo '<h5>'.get_lang('OriginCourse').'</h5>';
+                echo '<p><strong>'.get_lang('OriginCourse').'</strong></p>';
             } else {
-                echo '<h5>'.get_lang('OriginSession').' #'.$origin_session_id.'</h5>';
+                echo '<p><strong>'.get_lang('OriginSession').' #'.$origin_session_id.'</strong></p>';
             }
+            echo '</th>';
+            echo '<th width="50%" valign="top">';
+            if ($new_session_id == 0) {
+                echo '<p><strong>'.get_lang('DestinyCourse').'</strong></p>';
+            } else {
+                echo '<p><strong>'.get_lang('DestinySession').' #'.$new_session_id.'</strong></p>';
+            }
+            echo '</th>';
+            echo '</tr>';
+            echo '<tr>';
+            echo '<td>';
             self::compareUserData($result_message);
             echo '</td>';
-            echo '<td width="50%" valign="top">';
-            if ($new_session_id == 0) {
-                echo '<h5>'.get_lang('DestinyCourse').'</h5>';
-            } else {
-                echo '<h5>'.get_lang('DestinySession').' #'.$new_session_id.'</h5>';
-            }
+            echo '<td>';
             self::compareUserData($result_message_compare);
             echo '</td>';
             echo '</tr>';
@@ -8455,20 +8499,22 @@ class Tracking
             } elseif ($table === 'LP_VIEW') {
                 $title = get_lang('LearningPaths');
             }
-            echo '<br / ><h3>'.get_lang($title).' </h3><hr />';
+            echo '<h3 class="page-header">'.get_lang($title).' </h3>';
 
             if (is_array($data)) {
+                echo '<ul>';
                 foreach ($data as $id => $item) {
+                    echo '<li>';
                     if ($table === 'TRACK_E_EXERCISES' || $table === 'TRACK_E_EXERCISES_IN_LP') {
-                        echo "<br /><h3>".get_lang('Attempt')." #$id</h3>";
-                        echo '<h3>';
+                        echo '<p class="lead">';
                         echo get_lang('Exercise').' #'.$item['exe_exo_id'];
-                        echo '</h3>';
                         if (!empty($item['orig_lp_id'])) {
-                            echo '<h3>';
+                            echo PHP_EOL.'<small>(';
                             echo get_lang('LearningPath').' #'.$item['orig_lp_id'];
-                            echo '</h3>';
+                            echo ')</small>';
                         }
+                        echo '</p>';
+                        echo "<p><strong>".get_lang('Attempt')." #$id</strong></p>";
                         // Process data.
                         $array = [
                             'exe_date' => get_lang('Date'),
@@ -8478,19 +8524,21 @@ class Tracking
                         foreach ($item as $key => $value) {
                             if (in_array($key, array_keys($array))) {
                                 $key = $array[$key];
-                                echo "$key =  $value <br />";
+                                echo "<p>$key =  $value </p>";
                             }
                         }
                     } else {
-                        echo "<br /><h3>".get_lang('Id')." #$id</h3>";
+                        echo '<p class="lead">'.get_lang('Id')." #$id</p>";
                         // process data
                         foreach ($item as $key => $value) {
-                            echo "$key =  $value <br />";
+                            echo "<p>$key = $value</p>";
                         }
                     }
+                    echo '</li>';
                 }
+                echo '</ul>';
             } else {
-                echo get_lang('NoResults');
+                echo '<p>'.get_lang('NoResults').'</p>';
             }
         }
     }
@@ -8576,6 +8624,116 @@ class Tracking
         }
 
         return $result;
+    }
+
+    /**
+     * Generates a report based on the specified type and selected users within a date range.
+     *
+     * @param string $reportType       The type of report to generate ('time_report' or 'billing_report').
+     * @param array  $selectedUserList An array of user IDs to include in the report.
+     * @param string $startDate        The start date for the report in 'Y-m-d H:i:s' format.
+     * @param string $endDate          The end date for the report in 'Y-m-d H:i:s' format.
+     *
+     * @throws Exception Throws an exception if an invalid report type is provided.
+     *
+     * @return array An array containing the report data. The first element is an array of headers,
+     *               followed by the rows of data.
+     */
+    public static function generateReport(string $reportType, array $selectedUserList, string $startDate, string $endDate): array
+    {
+        if (empty($selectedUserList)) {
+            return ['headers' => [], 'rows' => []];
+        }
+
+        $tblTrackCourseAccess = Database::get_main_table(TABLE_STATISTIC_TRACK_E_COURSE_ACCESS);
+        $tblLpView = Database::get_course_table(TABLE_LP_VIEW);
+        $tblLpItemView = Database::get_course_table(TABLE_LP_ITEM_VIEW);
+        $tblLpItem = Database::get_course_table(TABLE_LP_ITEM);
+        $tblLp = Database::get_course_table(TABLE_LP_MAIN);
+
+        switch ($reportType) {
+            case 'time_report':
+                $headers = [
+                    get_lang('LastName'),
+                    get_lang('FirstName'),
+                    get_lang('SessionName'),
+                    get_lang('CourseName'),
+                    get_lang('StartingAccessDate'),
+                    get_lang('EndingAccessDate'),
+                    get_lang('TimeSpent'),
+                ];
+                $sql = "SELECT user_id, session_id, c_id, login_course_date, logout_course_date, (UNIX_TIMESTAMP(logout_course_date) - UNIX_TIMESTAMP(login_course_date)) AS time
+                    FROM $tblTrackCourseAccess
+                    WHERE login_course_date >= '".api_get_utc_datetime($startDate.' 00:00:00')."'
+                      AND login_course_date <= '".api_get_utc_datetime($endDate.' 23:59:59')."'
+                      AND logout_course_date >= '".api_get_utc_datetime($startDate.' 00:00:00')."'
+                      AND logout_course_date <= '".api_get_utc_datetime($endDate.' 23:59:59')."'
+                      AND user_id IN (".implode(',', $selectedUserList).")
+                    ORDER BY user_id, login_course_date";
+                break;
+
+            case 'billing_report':
+                $extraFieldVariable = api_get_configuration_value('billing_report_lp_extra_field');
+                $extraField = (new ExtraField('lp'))->get_handler_field_info_by_field_variable($extraFieldVariable);
+                $headers = [
+                    get_lang('LastName'),
+                    get_lang('FirstName'),
+                    get_lang('SessionName'),
+                    get_lang('CourseName'),
+                    get_lang('LearningpathName'),
+                    get_lang('ValidationDate'),
+                    $extraField['display_text'],
+                ];
+                $sql = "SELECT lv.user_id, lv.session_id, lv.c_id, lv.lp_id, liv.start_time, l.name AS lp_name
+                    FROM $tblLpView lv
+                    INNER JOIN $tblLpItemView liv ON lv.iid = liv.lp_view_id
+                    INNER JOIN $tblLpItem li ON li.iid = liv.lp_item_id
+                    INNER JOIN $tblLp l ON l.id = li.lp_id
+                    WHERE lv.user_id IN (".implode(',', $selectedUserList).")
+                      AND liv.start_time >= UNIX_TIMESTAMP('".api_get_utc_datetime($startDate.' 00:00:00')."')
+                      AND liv.start_time <= UNIX_TIMESTAMP('".api_get_utc_datetime($endDate.' 23:59:59')."')
+                      AND lv.progress = 100
+                      AND li.item_type = '".TOOL_LP_FINAL_ITEM."'
+                    ORDER BY lv.user_id, liv.start_time";
+                break;
+
+            default:
+                throw new Exception('Invalid report type');
+        }
+
+        $result = Database::query($sql);
+        $rows = [];
+
+        while ($row = Database::fetch_array($result, 'ASSOC')) {
+            $user = api_get_user_info($row['user_id']);
+            $session = api_get_session_info($row['session_id']);
+            $course = api_get_course_info_by_id($row['c_id']);
+
+            if ($reportType == 'time_report') {
+                $rows[] = [
+                    $user['lastname'],
+                    $user['firstname'],
+                    $session['name'],
+                    $course['title'],
+                    api_get_local_time($row['login_course_date']),
+                    api_get_local_time($row['logout_course_date']),
+                    gmdate('H:i:s', $row['time']),
+                ];
+            } elseif ($reportType == 'billing_report') {
+                $extraFieldValue = (new ExtraFieldValue('lp'))->get_values_by_handler_and_field_variable($row['lp_id'], $extraFieldVariable);
+                $rows[] = [
+                    $user['lastname'],
+                    $user['firstname'],
+                    $session['name'],
+                    $course['title'],
+                    $row['lp_name'],
+                    api_get_local_time(date('Y-m-d H:i:s', $row['start_time'])),
+                    $extraFieldValue['value'] ?? '',
+                ];
+            }
+        }
+
+        return ['headers' => $headers, 'rows' => $rows];
     }
 
     private static function generateQuizzesTable(array $courseInfo, int $sessionId = 0): string
@@ -8826,7 +8984,7 @@ class Tracking
                 $user->getId(),
                 $courseInfo,
                 $sessionId,
-                'lp.publicatedOn ASC',
+                null,
                 true,
                 $category->getId(),
                 false,
