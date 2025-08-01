@@ -143,6 +143,8 @@ $accessStartDate = '';
 $accessEndDate = '';
 $overwriteColumnHeaderExport = [];
 
+$result = [];
+
 if (!empty($search)) {
     $search = 'true';
 }

@@ -655,6 +655,12 @@ while ($row = Database::fetch_array($rs)) {
 
 $sessionTable = Database::get_main_table(TABLE_MAIN_SESSION);
 
+$sessionPositionOrder = '';
+$allowOrder = api_get_configuration_value('session_list_order');
+if ($allowOrder) {
+    $sessionPositionOrder = 's.position ASC, ';
+}
+
 // Get the list of sessions where the user is subscribed as student
 $sql = 'SELECT DISTINCT sc.session_id, sc.c_id
         FROM '.Database::get_main_table(TABLE_MAIN_SESSION_COURSE).' sc
@@ -664,7 +670,7 @@ $sql = 'SELECT DISTINCT sc.session_id, sc.c_id
         ON (scu.session_id = sc.session_id)
         WHERE s.id = scu.session_id
         AND user_id = '.$student_id.'
-        ORDER BY display_end_date DESC, position ASC
+        ORDER BY '.$sessionPositionOrder.'display_end_date DESC, sc.position ASC
         ';
 $rs = Database::query($sql);
 $tmp_sessions = [];
@@ -1223,19 +1229,33 @@ echo '<div class="row"><div class="col-sm-5">';
 echo MyStudents::getBlockForClasses($student_id);
 echo '</div></div>';
 
+$theoreticalTimeEnabled = api_get_configuration_value('display_theoretical_time');
 $exportCourseList = [];
 $lpIdList = [];
 if (empty($details)) {
     $csv_content[] = [];
-    $csv_content[] = [
-        get_lang('Session'),
-        get_lang('Course'),
-        get_lang('Time'),
-        get_lang('Progress'),
-        get_lang('Score'),
-        get_lang('AttendancesFaults'),
-        get_lang('Evaluations'),
-    ];
+    if($theoreticalTimeEnabled) {
+        $csv_content[] = [
+            get_lang('Session'),
+            get_lang('Course'),
+            get_lang('Time'),
+            get_lang('Progress'),
+            get_lang('Score'),
+            get_lang('TheoreticalTime'),
+            get_lang('AttendancesFaults'),
+            get_lang('Evaluations'),
+        ];
+    } else {
+        $csv_content[] = [
+            get_lang('Session'),
+            get_lang('Course'),
+            get_lang('Time'),
+            get_lang('Progress'),
+            get_lang('Score'),
+            get_lang('AttendancesFaults'),
+            get_lang('Evaluations'),
+        ];
+    }
 
     $attendance = new Attendance();
     $extraFieldValueSession = new ExtraFieldValue('session');
@@ -1274,25 +1294,42 @@ if (empty($details)) {
         echo '<tr>
             <th>'.get_lang('Course').'</th>
             <th>'.get_lang('Time').'</th>
-            <th>'.get_lang('Progress'). ' '. Display::return_icon('info3.gif', get_lang('progressBasedOnVisiblesLPsInEachCourse'), [], ICON_SIZE_TINY).' </th>
-            <th>'.get_lang('Score').'</th>
-            <th>'.get_lang('AttendancesFaults').'</th>
+            <th>'.get_lang('Progress').' '.Display::return_icon('info3.gif', get_lang('progressBasedOnVisiblesLPsInEachCourse'), [], ICON_SIZE_TINY).' </th>
+            <th>'.get_lang('Score').'</th>';
+        if($theoreticalTimeEnabled) {
+            echo '<th>'.get_lang('TheoreticalTime').'</th>';
+        }
+        echo '<th>'.get_lang('AttendancesFaults').'</th>
             <th>'.get_lang('Evaluations').'</th>
             <th>'.get_lang('Details').'</th>
         </tr>';
         echo '</thead>';
         echo '<tbody>';
 
-        $csvRow = [
-            '',
-            get_lang('Course'),
-            get_lang('Time'),
-            get_lang('Progress'),
-            get_lang('Score'),
-            get_lang('AttendancesFaults'),
-            get_lang('Evaluations'),
-            get_lang('Details'),
-        ];
+        if($theoreticalTimeEnabled) {
+            $csvRow = [
+                '',
+                get_lang('Course'),
+                get_lang('Time'),
+                get_lang('Progress'),
+                get_lang('Score'),
+                get_lang('TheoreticalTime'),
+                get_lang('AttendancesFaults'),
+                get_lang('Evaluations'),
+                get_lang('Details'),
+            ];
+        } else {
+            $csvRow = [
+                '',
+                get_lang('Course'),
+                get_lang('Time'),
+                get_lang('Progress'),
+                get_lang('Score'),
+                get_lang('AttendancesFaults'),
+                get_lang('Evaluations'),
+                get_lang('Details'),
+            ];
+        }
 
         $exportCourseList[$sId][] = $csvRow;
 
@@ -1302,8 +1339,10 @@ if (empty($details)) {
             $totalScore = 0;
             $totalProgress = 0;
             $gradeBookTotal = [0, 0];
-            $totalCourses = count($courses);
+            $totalCourses = 0;
             $scoreDisplay = ScoreDisplay::instance();
+            $theoreticalTime = 0;
+            $totalTheoreticalTime = 0;
 
             foreach ($courses as $courseId) {
                 $courseInfoItem = api_get_course_info_by_id($courseId);
@@ -1325,6 +1364,7 @@ if (empty($details)) {
                 }
 
                 if ($isSubscribed) {
+                    $totalCourses++;
                     $timeInSeconds = Tracking::get_time_spent_on_the_course(
                         $student_id,
                         $courseId,
@@ -1410,18 +1450,43 @@ if (empty($details)) {
                         $totalScore += $score;
                     }
 
+                    if($theoreticalTimeEnabled) {
+                        $theoreticalTime = CourseManager::get_course_extra_field_value('theoretical_time', $courseCodeItem);
+                        if (is_numeric($theoreticalTime) && (float)$theoreticalTime != 0) {
+                            $totalTheoreticalTime += (float)$theoreticalTime;
+                            $hours = floor($theoreticalTime / 60);
+                            $minutes = $theoreticalTime % 60;
+                            $theoreticalTimeDisplay = sprintf('%02d:%02d', $hours, $minutes);
+                        } else {
+                            $theoreticalTimeDisplay = '00:00';
+                        }
+                    }
+
                     $progress = empty($progress) ? '0%' : $progress.'%';
                     $score = empty($score) ? '0%' : $score.'%';
 
-                    $csvRow = [
-                        $session_name,
-                        $courseInfoItem['title'],
-                        $time_spent_on_course,
-                        $progress,
-                        $score,
-                        $attendances_faults_avg,
-                        $scoretotal_display,
-                    ];
+                    if($theoreticalTimeEnabled) {
+                        $csvRow = [
+                            $session_name,
+                            $courseInfoItem['title'],
+                            $time_spent_on_course,
+                            $progress,
+                            $score,
+                            $theoreticalTimeDisplay,
+                            $attendances_faults_avg,
+                            $scoretotal_display,
+                        ];
+                    } else {
+                        $csvRow = [
+                            $session_name,
+                            $courseInfoItem['title'],
+                            $time_spent_on_course,
+                            $progress,
+                            $score,
+                            $attendances_faults_avg,
+                            $scoretotal_display,
+                        ];
+                    }
 
                     $csv_content[] = $csvRow;
                     $exportCourseList[$sId][] = $csvRow;
@@ -1434,8 +1499,11 @@ if (empty($details)) {
                     </td>
                     <td>'.$time_spent_on_course.'</td>
                     <td>'.$progress.'</td>
-                    <td>'.$score.'</td>
-                    <td>'.$attendances_faults_avg.'</td>
+                    <td>'.$score.'</td>';
+                    if($theoreticalTimeEnabled) {
+                        echo '<td>'.$theoreticalTimeDisplay.'</td>';
+                    }
+                    echo '<td>'.$attendances_faults_avg.'</td>
                     <td>'.$scoretotal_display.'</td>';
                     if (!empty($coachId)) {
                         echo '<td width="10"><a href="'.api_get_self().'?student='.$student_id
@@ -1464,22 +1532,42 @@ if (empty($details)) {
                 <th>'.get_lang('Total').'</th>
                 <th>'.$totalTimeFormatted.'</th>
                 <th>'.$totalProgressFormatted.'</th>
-                <th>'.$totalScoreFormatted.'</th>
-                <th>'.$totalAttendanceFormatted.'</th>
+                <th>'.$totalScoreFormatted.'</th>';
+                if($theoreticalTimeEnabled) {
+                    $totalHours = floor($totalTheoreticalTime / 60);
+                    $totalMinutes = $totalTheoreticalTime % 60;
+                    $totalTheoreticalTimeDisplay = sprintf('%02d:%02d', $totalHours, $totalMinutes);
+                    echo '<td>'.$totalTheoreticalTimeDisplay.'</td>';
+                }
+                echo '<th>'.$totalAttendanceFormatted.'</th>
                 <th>'.$totalEvaluations.'</th>
                 <th></th>
             </tr>';
 
-            $csvRow = [
-                get_lang('Total'),
-                '',
-                $totalTimeFormatted,
-                $totalProgressFormatted,
-                $totalScoreFormatted,
-                $totalAttendanceFormatted,
-                $totalEvaluations,
-                '',
-            ];
+            if($theoreticalTimeEnabled) {
+                $csvRow = [
+                    get_lang('Total'),
+                    '',
+                    $totalTimeFormatted,
+                    $totalProgressFormatted,
+                    $totalScoreFormatted,
+                    $totalTheoreticalTimeDisplay,
+                    $totalAttendanceFormatted,
+                    $totalEvaluations,
+                    '',
+                ];
+            } else {
+                $csvRow = [
+                    get_lang('Total'),
+                    '',
+                    $totalTimeFormatted,
+                    $totalProgressFormatted,
+                    $totalScoreFormatted,
+                    $totalAttendanceFormatted,
+                    $totalEvaluations,
+                    '',
+                ];
+            }
 
             $csv_content[] = $csvRow;
             $exportCourseList[$sId][] = $csvRow;

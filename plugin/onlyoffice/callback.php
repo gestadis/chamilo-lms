@@ -1,6 +1,6 @@
 <?php
 /**
- * (c) Copyright Ascensio System SIA 2024.
+ * (c) Copyright Ascensio System SIA 2025.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ use Onlyoffice\DocsIntegrationSdk\Models\CallbackDocStatus;
 $plugin = OnlyofficePlugin::create();
 
 if (isset($_GET['hash']) && !empty($_GET['hash'])) {
-
     @header('Content-Type: application/json; charset=utf-8');
     @header('X-Robots-Tag: noindex');
     @header('X-Content-Type-Options: nosniff');
@@ -32,7 +31,7 @@ if (isset($_GET['hash']) && !empty($_GET['hash'])) {
     $jwtManager = new OnlyofficeJwtManager($appSettings);
     list($hashData, $error) = $jwtManager->readHash($_GET['hash'], api_get_security_key());
     if (null === $hashData) {
-        error_log("ONLYOFFICE CALLBACK: ERROR - Hash inválido: ".$error);
+        error_log("ONLYOFFICE CALLBACK: ERROR - Invalid hash: ".$error);
         exit(json_encode(['status' => 'error', 'error' => $error]));
     }
 
@@ -43,6 +42,9 @@ if (isset($_GET['hash']) && !empty($_GET['hash'])) {
     $groupId = $hashData->groupId;
     $sessionId = $hashData->sessionId;
     $docPath = isset($_GET['docPath']) ? urldecode($_GET['docPath']) : ($hashData->docPath ?? null);
+    // Load courseCode for various uses from global scope in other functions
+    $courseInfo = api_get_course_info_by_id($courseId);
+    $courseCode = $courseInfo['code'];
 
     if (!empty($userId)) {
         $userInfo = api_get_user_info($userId);
@@ -149,7 +151,7 @@ function track(): array
                 return ['status' => 'error', 'error' => 'No file URL provided'];
             }
         }
-    } else if (!empty($docId)) {
+    } elseif (!empty($docId)) {
         $docInfo = DocumentManager::get_document_data_by_id($docId, $courseCode, false, $sessionId);
         if (!$docInfo || !file_exists($docInfo['absolute_path'])) {
             return ['status' => 'error', 'error' => 'File not found'];
@@ -197,7 +199,6 @@ function download()
     global $docId;
     global $groupId;
     global $docPath;
-    global $courseCode;
     global $sessionId;
     global $courseInfo;
     global $appSettings;
@@ -213,7 +214,7 @@ function download()
     }
 
     if (!empty($docPath)) {
-        $filePath = api_get_path(SYS_COURSE_PATH) . urldecode($docPath);
+        $filePath = api_get_path(SYS_COURSE_PATH).urldecode($docPath);
 
         if (!file_exists($filePath)) {
             return ['status' => 'error', 'error' => 'File not found'];
@@ -223,7 +224,7 @@ function download()
             'title' => basename($filePath),
             'absolute_path' => $filePath,
         ];
-    } else if (!empty($docId) && !empty($courseCode)) {
+    } elseif (!empty($docId) && !empty($courseCode)) {
         $docInfo = DocumentManager::get_document_data_by_id($docId, $courseCode, false, $sessionId);
         if (!$docInfo || !file_exists($docInfo['absolute_path'])) {
             return ['status' => 'error', 'error' => 'File not found'];

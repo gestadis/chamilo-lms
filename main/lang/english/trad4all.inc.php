@@ -9099,4 +9099,12 @@ $TeacherFeedback = "Teacher feedback";
 $Learners = "Learners";
 $BackToDateOrder = "Return to the chronological order";
 $SeeAlphabeticalOrder = "View in alphabetical order";
+$HideComment = "Hide comments";
+$AreYouSureYouWantToDeleteThisTicket = "Are you sure you want to delete this ticket ?";
+$TicketDeleted = "Ticket deleted";
+$SubmittedDocument = "Submitted document";
+$AnswerInOfficeDoc = "Answer as office document";
+$UploadOfficeDoc = "Upload office document";
+$AllowedFormats = "Supported formats";
+$TheoreticalTime = "Theoretical time";
 ?>

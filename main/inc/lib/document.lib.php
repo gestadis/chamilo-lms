@@ -360,7 +360,7 @@ class DocumentManager
         $fixLinksHttpToHttps = false,
         $extraHeaders = []
     ) {
-        session_write_close(); //we do not need write access to session anymore
+        session_write_close(); //we do not need to write access to session anymore
         if (!is_file($full_file_name)) {
             return false;
         }
@@ -383,7 +383,7 @@ class DocumentManager
             // Force the browser to save the file instead of opening it
             if (isset($sendFileHeaders) &&
                 !empty($sendFileHeaders)) {
-                header("X-Sendfile: $filename");
+                header("X-Sendfile: $full_file_name");
             }
 
             header('Content-type: application/octet-stream');
@@ -1826,6 +1826,17 @@ class DocumentManager
 
         // 4. Checking document visibility (i'm repeating the code in order to be more clear when reading ) - jm
         if ($user_in_course) {
+            if (true === api_get_configuration_value('document_enable_accessible_from_date')) {
+                $extraFieldValue = new ExtraFieldValue('document');
+                $extraValue = $extraFieldValue->get_values_by_handler_and_field_variable($doc_id, 'accessible_from');
+                if (!empty($extraValue) && isset($extraValue['value'])) {
+                    $now = new DateTime();
+                    $accessibleDate = new DateTime($extraValue['value']);
+                    if ($now < $accessibleDate) {
+                        return false;
+                    }
+                }
+            }
             // 4.1 Checking document visibility for a Course
             if ($session_id == 0) {
                 $item_info = api_get_item_property_info(
@@ -3293,16 +3304,27 @@ class DocumentManager
         }
 
         $sql = "SELECT SUM(size)
-                FROM $TABLE_ITEMPROPERTY AS props
-                INNER JOIN $TABLE_DOCUMENT AS docs
-                ON (docs.id = props.ref AND props.c_id = docs.c_id)
-                WHERE
-                    props.c_id = $course_id AND
-                    docs.c_id = $course_id AND
-                    props.tool = '".TOOL_DOCUMENT."' AND
-                    props.visibility <> 2
-                    $group_condition
-                    $session_condition
+                FROM (
+                    SELECT ref, size
+                    FROM $TABLE_ITEMPROPERTY AS props
+                    INNER JOIN $TABLE_DOCUMENT AS docs
+                    ON (docs.id = props.ref AND props.c_id = docs.c_id)
+                    WHERE
+                        props.c_id = $course_id AND
+                        docs.c_id = $course_id AND
+                        props.tool = '".TOOL_DOCUMENT."' AND
+                        props.ref not in (
+                            SELECT ref
+                            FROM $TABLE_ITEMPROPERTY as cip
+                            WHERE
+                                cip.c_id = $course_id AND
+                                cip.tool = '".TOOL_DOCUMENT."' AND
+                                cip.visibility = 2
+                        )
+                        $group_condition
+                        $session_condition
+                    GROUP BY props.ref
+                    ) AS table1
                 ";
         $result = Database::query($sql);
 
@@ -6635,7 +6657,15 @@ class DocumentManager
                     docs.path LIKE '$path/%' AND
                     props.c_id = $course_id AND
                     props.tool = '$tool_document' AND
-                    $visibility_rule
+                    $visibility_rule AND
+                    props.ref not in (
+                        SELECT ref
+                        FROM $table_itemproperty as cip
+                        WHERE
+                            cip.c_id = $course_id AND
+                            cip.tool = '$tool_document' AND
+                            cip.visibility = 2
+                    )
                     $session_condition
                 GROUP BY ref
             ) as table1";

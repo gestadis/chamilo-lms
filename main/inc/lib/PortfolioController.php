@@ -1087,6 +1087,7 @@ class PortfolioController
 
         $template = new Template(null, false, false, false, false, false, false);
         $template->assign('user', $this->owner);
+        $template->assign('listByUser', $listByUser);
         $template->assign('course', $this->course);
         $template->assign('session', $this->session);
         $template->assign('portfolio', $portfolio);
@@ -1133,7 +1134,7 @@ class PortfolioController
      * @throws \Doctrine\ORM\OptimisticLockException
      * @throws \Doctrine\ORM\TransactionRequiredException
      */
-    public function view(Portfolio $item)
+    public function view(Portfolio $item, $urlUser)
     {
         global $interbreadcrumb;
 
@@ -1415,10 +1416,15 @@ class PortfolioController
             $this->baseUrl.http_build_query(['action' => 'edit_item', 'id' => $item->getId()])
         );
 
+        $urlUserString = "";
+        if (isset($urlUser)) {
+            $urlUserString = "user=".$urlUser;
+        }
+
         $actions = [];
         $actions[] = Display::url(
             Display::return_icon('back.png', get_lang('Back'), [], ICON_SIZE_MEDIUM),
-            $this->baseUrl
+            $this->baseUrl.$urlUserString
         );
 
         if ($this->itemBelongToOwner($item)) {
@@ -3675,21 +3681,22 @@ class PortfolioController
         }
 
         $frmStudentList->addHtml("<p>$link</p>");
- 
-        if ($listAlphabeticalOrder) {
-            $link = Display::url(
-                get_lang('BackToDateOrder'),
-                $this->baseUrl
-            );
-        } else {
-            $link = Display::url(
-                get_lang('SeeAlphabeticalOrder'),
-                $this->baseUrl.http_build_query(['list_alphabetical' => true])
-            );
+
+        if (true !== api_get_configuration_value('portfolio_order_post_by_alphabetical_order')) {
+            if ($listAlphabeticalOrder) {
+                $link = Display::url(
+                    get_lang('BackToDateOrder'),
+                    $this->baseUrl
+                );
+            } else {
+                $link = Display::url(
+                    get_lang('SeeAlphabeticalOrder'),
+                    $this->baseUrl.http_build_query(['list_alphabetical' => true])
+                );
+            }
+
+            $frmStudentList->addHtml("<p>$link</p>");
         }
-
-        $frmStudentList->addHtml("<p>$link</p>");
-
 
         return $frmStudentList;
     }
@@ -3919,7 +3926,7 @@ class PortfolioController
             }
 
             $queryBuilder->setParameter('current_user', $currentUserId);
-            if ($alphabeticalOrder) {
+            if ($alphabeticalOrder || true === api_get_configuration_value('portfolio_order_post_by_alphabetical_order')) {
                 $queryBuilder->orderBy('pi.title', 'ASC');
             } else {
                 $queryBuilder->orderBy('pi.creationDate', 'DESC');

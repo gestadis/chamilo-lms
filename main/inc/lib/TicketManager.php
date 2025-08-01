@@ -774,6 +774,42 @@ class TicketManager
         }
     }
 
+    public static function deleteTicket($ticketId)
+    {
+        $ticketId = (int) $ticketId;
+        if ($ticketId <= 0) {
+            return false;
+        }
+        $table_support_tickets = Database::get_main_table(TABLE_TICKET_TICKET);
+        $table_ticket_message = Database::get_main_table('ticket_message');
+        $table_ticket_assigned_log = Database::get_main_table('ticket_assigned_log');
+        $table_ticket_message_attachments = Database::get_main_table('ticket_message_attachments');
+
+        $sql_get_message_ids = "SELECT id FROM $table_ticket_message WHERE ticket_id = $ticketId";
+        $sql_delete_attachments = "DELETE FROM $table_ticket_message_attachments WHERE message_id IN ($sql_get_message_ids)";
+        Database::query($sql_delete_attachments);
+        
+        $sql_assigned_log = "DELETE FROM $table_ticket_assigned_log WHERE ticket_id = $ticketId";
+        Database::query($sql_assigned_log);
+
+        $sql_messages = "DELETE FROM $table_ticket_message WHERE ticket_id = $ticketId";
+        Database::query($sql_messages);
+
+        $sql_get_category = "SELECT category_id FROM $table_support_tickets WHERE id = $ticketId";
+        $res = Database::query($sql_get_category);
+        if ($row = Database::fetch_array($res)) {
+            $category_id = (int)$row['category_id'];
+            $table_ticket_category = Database::get_main_table('ticket_category');
+            $sql_update_category = "UPDATE $table_ticket_category SET total_tickets = total_tickets - 1 WHERE id = $category_id AND total_tickets > 0";
+            Database::query($sql_update_category);
+        }
+
+        $sql_ticket = "DELETE FROM $table_support_tickets WHERE id = $ticketId";
+        Database::query($sql_ticket);
+
+        return true;
+    }
+
     /**
      * Get tickets by userId.
      *
@@ -801,7 +837,7 @@ class TicketManager
         if (empty($userInfo)) {
             return [];
         }
-        $isAdmin = UserManager::is_admin($userId);
+        $isAdmin = UserManager::is_admin($userId) || (api_get_configuration_value('allow_session_admin_manage_tickets_and_export_ticket_report') && api_is_session_admin($userId));
 
         if (!isset($_GET['project_id'])) {
             return [];
@@ -893,6 +929,7 @@ class TicketManager
             'keyword_source' => 'ticket.source ',
             'keyword_status' => 'ticket.status_id',
             'keyword_priority' => 'ticket.priority_id',
+            'keyword_created_by' => 'ticket.sys_insert_user_id',
         ];
 
         foreach ($keywords as $keyword => $label) {
@@ -911,11 +948,11 @@ class TicketManager
         $keyword_range = !empty($keyword_start_date_start) && !empty($keyword_start_date_end);
 
         if ($keyword_range == false && $keyword_start_date_start != '') {
-            $sql .= " AND DATE_FORMAT(ticket.start_date,'%d/%m/%Y') >= '$keyword_start_date_start' ";
+            $sql .= " AND ticket.start_date >= '$keyword_start_date_start' ";
         }
         if ($keyword_range && $keyword_start_date_start != '' && $keyword_start_date_end != '') {
-            $sql .= " AND DATE_FORMAT(ticket.start_date,'%d/%m/%Y') >= '$keyword_start_date_start'
-                      AND DATE_FORMAT(ticket.start_date,'%d/%m/%Y') <= '$keyword_start_date_end'";
+            $sql .= " AND ticket.start_date >= '$keyword_start_date_start'
+                      AND ticket.start_date <= '$keyword_start_date_end'";
         }
 
         if ($keyword_course != '') {
@@ -1007,6 +1044,14 @@ class TicketManager
 					<div class="blackboard_hide" id="div_'.$row['ticket_id'].'">&nbsp;&nbsp;</div>
 					</a>&nbsp;&nbsp;';
             }
+            if ($isAdmin) {
+                $project_id = isset($row['project_id']) ? $row['project_id'] : (isset($_GET['project_id']) ? $_GET['project_id'] : 0);
+                $delete_link = '<a href="tickets.php?action=delete&ticket_id='.$row['ticket_id'].'&project_id='.$project_id.'" onclick="return confirm(\''.htmlentities(get_lang('AreYouSureYouWantToDeleteThisTicket')).'\')">'
+                . Display::return_icon('delete.png', get_lang('Delete')) .
+                '</a>';
+                $ticket[] = $delete_link;
+            }
+
             $tickets[] = $ticket;
         }
 
@@ -1079,10 +1124,11 @@ class TicketManager
             'keyword_source' => 'ticket.source',
             'keyword_status' => 'ticket.status_id',
             'keyword_priority' => 'ticket.priority_id',
+            'keyword_created_by' => 'ticket.sys_insert_user_id',
         ];
 
         foreach ($keywords as $keyword => $sqlLabel) {
-            if (isset($_GET[$keyword])) {
+            if (!empty($_GET[$keyword])) {
                 $data = Database::escape_string(trim($_GET[$keyword]));
                 $sql .= " AND $sqlLabel = '$data' ";
             }
@@ -1095,11 +1141,11 @@ class TicketManager
         $keyword_course = isset($_GET['keyword_course']) ? Database::escape_string(trim($_GET['keyword_course'])) : '';
 
         if ($keyword_range == false && $keyword_start_date_start != '') {
-            $sql .= " AND DATE_FORMAT( ticket.start_date,'%d/%m/%Y') = '$keyword_start_date_start' ";
+            $sql .= " AND ticket.start_date >= '$keyword_start_date_start' ";
         }
         if ($keyword_range && $keyword_start_date_start != '' && $keyword_start_date_end != '') {
-            $sql .= " AND DATE_FORMAT( ticket.start_date,'%d/%m/%Y') >= '$keyword_start_date_start'
-                      AND DATE_FORMAT( ticket.start_date,'%d/%m/%Y') <= '$keyword_start_date_end'";
+            $sql .= " AND ticket.start_date >= '$keyword_start_date_start'
+                      AND ticket.start_date <= '$keyword_start_date_end'";
         }
         if ($keyword_course != '') {
             $course_table = Database::get_main_table(TABLE_MAIN_COURSE);
