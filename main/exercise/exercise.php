@@ -266,6 +266,22 @@ if (!empty($action) && $is_allowedToEdit) {
                         break;
                     }
 
+                    if (!empty($sessionId)) {
+                        $visibleOnBaseCourse = api_get_item_visibility(
+                            $courseInfo,
+                            TOOL_QUIZ,
+                            $objExerciseTmp->iid,
+                            0
+                        );
+                        if (!$visibleOnBaseCourse) {
+                            Display::addFlash(Display::return_message(
+                                sprintf(get_lang('CannotChangeVisibilityOfBaseCourseResourceX'), $objExerciseTmp->name),
+                                'error'
+                            ));
+                            break;
+                        }
+                    }
+
                     // enables an exercise
                     if (empty($sessionId)) {
                         $objExerciseTmp->enable();
@@ -366,6 +382,22 @@ if ($is_allowedToEdit) {
                         if ($limitTeacherAccess && !api_is_platform_admin()) {
                             // Teacher change exercise
                             break;
+                        }
+
+                        if (!empty($sessionId)) {
+                            $visibleOnBaseCourse = api_get_item_visibility(
+                                $courseInfo,
+                                TOOL_QUIZ,
+                                $objExerciseTmp->iid,
+                                0
+                            );
+                            if (!$visibleOnBaseCourse) {
+                                Display::addFlash(Display::return_message(
+                                    sprintf(get_lang('CannotChangeVisibilityOfBaseCourseResourceX'), $objExerciseTmp->name),
+                                    'error'
+                                ));
+                                break;
+                            }
                         }
 
                         // Enables an exercise
@@ -520,6 +552,12 @@ if ($is_allowedToEdit) {
                     // Teacher change exercise
                     break;
                 }
+
+                // Security: reject path traversal attempts (CWE-22)
+                if (!Security::check_abs_path($documentPath.$file, $documentPath.'/')) {
+                    api_not_allowed(true);
+                }
+
                 // deletes an exercise
                 $imgparams = [];
                 $imgcount = 0;

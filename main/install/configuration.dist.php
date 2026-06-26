@@ -533,6 +533,7 @@ ALTER TABLE c_lp_item CHANGE title title LONGTEXT NOT NULL;
 // Session admin access to all course content
 //$_configuration['session_admins_access_all_content'] = false;
 // Session admin allowed to edit all courses content
+// including all exercises attemps results edition, calculation and deletion
 //$_configuration['session_admins_edit_courses_content'] = false;
 // Adds roles to the system announcements (requires DB change BT#12476)
 /*
@@ -776,6 +777,8 @@ $_configuration['send_all_emails_to'] = [
 //$_configuration['quiz_question_edit_open_advanced_params_by_default'] = false;
 // Define how many seconds an AJAX request should be started to avoid loss of connection.
 //$_configuration['quiz_keep_alive_ping_interval'] = 0;
+// Add the official code of the user in the pdf export of the results.
+//$_configuration['quiz_result_pdf_export_include_official_code_in_file_name'] = false;
 // Hide search form in session list
 //$_configuration['hide_search_form_in_session_list'] = false;
 // Allow exchange of messages from teachers/bosses about a user.
@@ -1441,6 +1444,15 @@ $_configuration['profile_fields_visibility'] = [
 // Allow to session admins login as teachers
 //$_configuration['allow_session_admin_login_as_teacher'] = false;
 
+// Disallow the login-as feature to HRM users
+//$_configuration['disallow_hrm_login_as'] = false;
+
+// Disallow the login-as feature to session admin users
+//$_configuration['disallow_session_admin_login_as'] = false;
+
+// Disallow user edition to session admin users
+//$_configuration['disallow_session_admin_edit_users'] = false;
+
 // Allow gradebook stats
 // Requires to edit the GradebookLink.php And GradebookEvaluation.php files adding the "@" in the ORM phpdoc block
 /* ALTER TABLE gradebook_link ADD score_weight DOUBLE PRECISION DEFAULT NULL, ADD average_score DOUBLE PRECISION DEFAULT NULL, ADD best_score DOUBLE PRECISION DEFAULT NULL, ADD user_score_list LONGTEXT DEFAULT NULL COMMENT '(DC2Type:array)' ;
@@ -1781,6 +1793,10 @@ ALTER TABLE notification_event_rel_user ADD CONSTRAINT FK_USER FOREIGN KEY (user
 //$_configuration['quiz_prevent_backwards_move'] = false;
 
 // Allow third party plugins to be uploaded through a form in the plugins section
+// This option has high inherent risks, by allowing a "simple" administrator role
+// to upload executable PHP code to the server. If needed, we recommend to use
+// this option temporarily to allow the upload to happen, and then reverting to
+// the default 'false' value for increased safety.
 //$_configuration['plugin_upload_enable'] = false;
 
 // ALTER TABLE session ADD COLUMN status INT DEFAULT 0;
@@ -1953,6 +1969,17 @@ $_configuration['auth_password_links'] = [
 //Create an extra field for courses with identifier "theoretical_time"
 //$_configuration['display_theoretical_time'] = false;
 
+// Show subscription column in session course list on main/mySpace/myStudents.php
+//$_configuration['display_session_subscription_column'] = false;
+
+// Enable improved tracking section in main/mySpace/myStudents.php
+//$_configuration['improve_tracking_in_mystudent_php'] = false;
+
+// Allow teachers to access all course/session tracking in main/mySpace/myStudents.php
+// When enabled, teachers can view tracking for all courses and sessions
+// of a student even if they are not the course admin or session coach
+//$_configuration['teacher_access_all_tracking'] = false;
+
 // Add teachers column in course list.
 // $_configuration['add_teachers_in_course_list'] = false;
 
@@ -2069,9 +2096,6 @@ $_configuration['auth_password_links'] = [
     'hide_score_weight' => true,
     'hide_feedback_textarea' => true,
 ];*/
-
-// Use exercise score in platform settings in gradebook total rows/columns.
-//$_configuration['gradebook_use_exercise_score_settings_in_total'] = false;
 
 // Use exercise score in platform settings in gradebook total rows/columns.
 //$_configuration['gradebook_use_exercise_score_settings_in_total'] = false;
@@ -2293,6 +2317,13 @@ VALUES (21, 13, 'send_notification_at_a_specific_date', 'Send notification at a 
 // Enable image upload as file when doing a copy in the content or a drag and drop.
 //$_configuration['enable_uploadimage_editor'] = false;
 
+// Automatic image resize before upload image with CKEditor
+/*$_configuration['wysiwyg_image_auto_resize_max'] = [
+    'w'=> 800, //max width
+    'h' => 600, //max height
+    'mb' => 2 //max size (in MB)
+];*/
+
 // Ckeditor settings.
 //$_configuration['editor_settings'] = ['config' => ['youtube_responsive' => true, 'image_responsive' => true]];
 
@@ -2316,8 +2347,11 @@ VALUES (21, 13, 'send_notification_at_a_specific_date', 'Send notification at a 
 // Option to hide the teachers info on courses about info page.
 //$_configuration['course_about_teacher_name_hide'] = false;
 
-// Hides the option "Never expire" for expiration date in add/edit user page
+// Hides the option "Never expire" for expiration date in add/edit user page for none admin users
 //$_configuration['user_hide_never_expire_option'] = false;
+
+// Hides parameter expiration date in add/edit user page for none admin users
+//$_configuration['user_hide_expiration_date_for_session_admin'] = false;
 
 // Allow multiple languages to a course
 // as a selection bar for languages used in the course.
@@ -2486,6 +2520,9 @@ INSERT INTO `extra_field` (`extra_field_type`, `field_type`, `variable`, `displa
 // Then add the "@" symbol to CAttendanceResultComment class in the ORM\Entity() line.
 //$_configuration['attendance_allow_comments'] = false;
 
+// Add the official code of students in the attendance table, pdf and xls export
+//$_configuration['attendance_add_official_code'] = false;
+
 // Enable categories in Wiki tool.
 // 1. Run the following DB changes:
 /*
@@ -2570,6 +2607,9 @@ INSERT INTO extra_field_options (field_id, option_value, display_text, priority,
 
 // Display the Portal News link in the admin page to session admin users
 //$_configuration['session_admin_access_system_announcement'] = false;
+
+// Display Statistics link in the admin page to session admin users
+//$_configuration['session_admin_access_global_statistics'] = false;
 
 // File upload size limit in MB for teachers (set to 1024 for 1GB, 5120 for 5GB, etc).
 //$_configuration['file_upload_size_limit_for_teacher'] = 0;

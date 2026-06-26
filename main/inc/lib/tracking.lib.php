@@ -5071,7 +5071,8 @@ class Tracking
                 FROM $tbl_session_course sc
                 INNER JOIN $courseTable c
                 ON sc.c_id = c.id
-                WHERE session_id= $session_id";
+                WHERE session_id= $session_id
+                ORDER BY position ASC";
 
         $result = Database::query($sql);
 
@@ -6535,10 +6536,7 @@ class Tracking
                         $user_id,
                         $course_code,
                         [],
-                        $session_id_from_get,
-                        false,
-                        false,
-                        $lpShowMaxProgress
+                        $session_id_from_get
                     );
 
                     $total_time_login = self::get_time_spent_on_the_course(
@@ -7889,6 +7887,11 @@ class Tracking
         $debug = false
     ) {
         // Begin with the import process
+        if (empty($course_info)) {
+            echo Display::return_message(get_lang('CourseNotFound'), 'error');
+
+            return;
+        }
         $origin_course_code = $course_info['code'];
         $course_id = $course_info['real_id'];
         $user_id = (int) $user_id;
@@ -7902,6 +7905,9 @@ class Tracking
         $attemptRecording = Database::get_main_table(TABLE_STATISTIC_TRACK_E_ATTEMPT_RECORDING);
         $TBL_TRACK_E_COURSE_ACCESS = Database::get_main_table(TABLE_STATISTIC_TRACK_E_COURSE_ACCESS);
         $TBL_TRACK_E_LAST_ACCESS = Database::get_main_table(TABLE_STATISTIC_TRACK_E_LASTACCESS);
+        $TBL_TRACK_E_ACCESS = Database::get_main_table(TABLE_STATISTIC_TRACK_E_ACCESS);
+        $TBL_TRACK_E_ACCESS_COMPLETE = 'track_e_access_complete';
+        $TBL_TRACK_E_DOWNLOADS = Database::get_main_table(TABLE_STATISTIC_TRACK_E_DOWNLOADS);
         $TBL_LP_VIEW = Database::get_course_table(TABLE_LP_VIEW);
         $TBL_NOTEBOOK = Database::get_course_table(TABLE_NOTEBOOK);
         $TBL_STUDENT_PUBLICATION = Database::get_course_table(TABLE_STUDENT_PUBLICATION);
@@ -8041,6 +8047,101 @@ class Tracking
             }
         }
 
+        // 4b. track_e_access
+        $sql = "SELECT access_id FROM $TBL_TRACK_E_ACCESS
+                WHERE
+                    c_id = $course_id AND
+                    access_session_id = $origin_session_id AND
+                    access_user_id = $user_id ";
+        $res = Database::query($sql);
+        $list = [];
+        while ($row = Database::fetch_array($res, 'ASSOC')) {
+            $list[] = $row['access_id'];
+        }
+
+        if (!empty($list)) {
+            foreach ($list as $id) {
+                if ($update_database) {
+                    $sql = "UPDATE $TBL_TRACK_E_ACCESS
+                            SET access_session_id = $new_session_id
+                            WHERE access_id = $id";
+                    if ($debug) {
+                        echo $sql;
+                    }
+                    Database::query($sql);
+                    if (!isset($result_message[$TBL_TRACK_E_ACCESS])) {
+                        $result_message[$TBL_TRACK_E_ACCESS] = 0;
+                    }
+                    $result_message[$TBL_TRACK_E_ACCESS]++;
+                }
+            }
+        }
+
+        // 4c. track_e_access_complete
+        $sql = "SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'track_e_access_complete'";
+        $res = Database::query($sql);
+        $row = Database::fetch_row($res);
+        if ($row[0] > 0) {
+            $sql = "SELECT id FROM $TBL_TRACK_E_ACCESS_COMPLETE
+                    WHERE
+                    c_id = $course_id AND
+                    session_id = $origin_session_id AND
+                    user_id = $user_id ";
+            $res = Database::query($sql);
+            $list = [];
+            while ($row = Database::fetch_array($res, 'ASSOC')) {
+                $list[] = $row['id'];
+            }
+    
+            if (!empty($list)) {
+                foreach ($list as $id) {
+                    if ($update_database) {
+                        $sql = "UPDATE $TBL_TRACK_E_ACCESS_COMPLETE
+                                SET session_id = $new_session_id
+                                WHERE id = $id";
+                        if ($debug) {
+                            echo $sql;
+                        }
+                        Database::query($sql);
+                        if (!isset($result_message[$TBL_TRACK_E_ACCESS_COMPLETE])) {
+                            $result_message[$TBL_TRACK_E_ACCESS_COMPLETE] = 0;
+                        }
+                        $result_message[$TBL_TRACK_E_ACCESS_COMPLETE]++;
+                    }
+                }
+            }
+        }
+
+        // 4d. track_e_downloads
+        $sql = "SELECT down_id FROM $TBL_TRACK_E_DOWNLOADS
+                WHERE
+                    c_id = $course_id AND
+                    down_session_id = $origin_session_id AND
+                    down_user_id = $user_id ";
+        $res = Database::query($sql);
+        $list = [];
+        while ($row = Database::fetch_array($res, 'ASSOC')) {
+            $list[] = $row['down_id'];
+        }
+
+        if (!empty($list)) {
+            foreach ($list as $id) {
+                if ($update_database) {
+                    $sql = "UPDATE $TBL_TRACK_E_DOWNLOADS
+                            SET down_session_id = $new_session_id
+                            WHERE down_id = $id";
+                    if ($debug) {
+                        echo $sql;
+                    }
+                    Database::query($sql);
+                    if (!isset($result_message[$TBL_TRACK_E_DOWNLOADS])) {
+                        $result_message[$TBL_TRACK_E_DOWNLOADS] = 0;
+                    }
+                    $result_message[$TBL_TRACK_E_DOWNLOADS]++;
+                }
+            }
+        }
+
         // 5. lp_item_view
         // CHECK ORIGIN
         $sql = "SELECT * FROM $TBL_LP_VIEW
@@ -8090,8 +8191,8 @@ class Tracking
                         $origin_session_id
                     );
                     $result_message['LP_VIEW'][$data['lp_id']] = [
-                        'score' => $score,
-                        'progress' => $progress,
+                        'score' => is_null($score) ? 0 : $score,
+                        'progress' => ($progress === false || is_null($progress)) ? 0 : $progress,
                     ];
                 }
             }
@@ -8131,8 +8232,8 @@ class Tracking
                         $new_session_id
                     );
                     $result_message_compare['LP_VIEW'][$data['lp_id']] = [
-                        'score' => $score,
-                        'progress' => $progress,
+                        'score' => is_null($score) ? 0 : $score,
+                        'progress' => ($progress === false || is_null($progress)) ? 0 : $progress,
                     ];
                 }
             }
@@ -8563,7 +8664,7 @@ class Tracking
                 WHERE login_id = $iIdLastConnection";
             $qLogoutDate = Database::query($sql);
             $resLogoutDate = convert_sql_date(Database::result($qLogoutDate, 0, 'logout_date'));
-            $lifeTime = api_get_configuration_value('session_lifetime');
+            $lifeTime = (int) api_get_configuration_value('session_lifetime');
 
             if ($resLogoutDate < time() - $lifeTime) {
                 // it isn't, we should create a fresh entry
@@ -8709,12 +8810,15 @@ class Tracking
             $session = api_get_session_info($row['session_id']);
             $course = api_get_course_info_by_id($row['c_id']);
 
+            $sessionName = $session['name'] ?? '';
+            $courseTitle = $course['title'] ?? '';
+
             if ($reportType == 'time_report') {
                 $rows[] = [
                     $user['lastname'],
                     $user['firstname'],
-                    $session['name'],
-                    $course['title'],
+                    $sessionName,
+                    $courseTitle,
                     api_get_local_time($row['login_course_date']),
                     api_get_local_time($row['logout_course_date']),
                     gmdate('H:i:s', $row['time']),
@@ -8724,8 +8828,8 @@ class Tracking
                 $rows[] = [
                     $user['lastname'],
                     $user['firstname'],
-                    $session['name'],
-                    $course['title'],
+                    $sessionName,
+                    $courseTitle,
                     $row['lp_name'],
                     api_get_local_time(date('Y-m-d H:i:s', $row['start_time'])),
                     $extraFieldValue['value'] ?? '',

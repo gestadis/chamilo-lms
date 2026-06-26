@@ -3,7 +3,6 @@
 /* For licensing terms, see /license.txt */
 
 use Chamilo\CoreBundle\Component\Utils\ChamiloApi;
-use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * @copyright (c) 2001-2006 Universite catholique de Louvain (UCL)
@@ -350,7 +349,7 @@ function parseQti2($xmlData)
     global $questionTempDir;
     global $resourcesLinks;
 
-    $crawler = new Crawler($xmlData);
+    $crawler = Import::xmlFromString($xmlData);
     $nodes = $crawler->filter('*');
 
     $currentQuestionIdent = '';
@@ -688,7 +687,8 @@ function isQtiManifest($filePath)
  */
 function qtiProcessManifest($filePath)
 {
-    $xml = simplexml_load_file($filePath);
+    libxml_use_internal_errors(true);
+    $xml = simplexml_load_file($filePath, SimpleXMLElement::class, LIBXML_NONET);
     $course = api_get_course_info();
     $sessionId = api_get_session_id();
     $courseDir = $course['path'];

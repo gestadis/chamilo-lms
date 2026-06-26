@@ -3,6 +3,7 @@
 /* For licensing terms, see /license.txt */
 
 use ChamiloSession as Session;
+use enshrined\svgSanitize\Sanitizer;
 
 /**
  *  Class DocumentManager
@@ -486,6 +487,14 @@ class DocumentManager
                 }
                 echo $content;
             } else {
+                if ('image/svg+xml' === $contentType) {
+                    $svgContent = file_get_contents($full_file_name);
+
+                    echo (new Sanitizer())->sanitize($svgContent);
+
+                    return true;
+                }
+
                 if (isset($enableMathJaxScript) && $enableMathJaxScript === true) {
                     $content = file_get_contents($full_file_name);
                     $content = self::includeMathJaxScript($content);
@@ -3207,27 +3216,27 @@ class DocumentManager
                 fclose($handle);
                 break;
             case 'application/pdf':
-                exec("pdftotext $doc_path -", $output, $ret_val);
+                exec("pdftotext ".escapeshellarg($doc_path)." -", $output, $ret_val);
                 break;
             case 'application/postscript':
                 $temp_file = tempnam(sys_get_temp_dir(), 'chamilo');
-                exec("ps2pdf $doc_path $temp_file", $output, $ret_val);
+                exec("ps2pdf ".escapeshellarg($doc_path)." ".escapeshellarg($temp_file), $output, $ret_val);
                 if ($ret_val !== 0) { // shell fail, probably 127 (command not found)
                     return false;
                 }
-                exec("pdftotext $temp_file -", $output, $ret_val);
+                exec("pdftotext ".escapeshellarg($temp_file)." -", $output, $ret_val);
                 unlink($temp_file);
                 break;
             case 'application/msword':
-                exec("catdoc $doc_path", $output, $ret_val);
+                exec("catdoc ".escapeshellarg($doc_path), $output, $ret_val);
                 break;
             case 'text/html':
-                exec("html2text $doc_path", $output, $ret_val);
+                exec("html2text ".escapeshellarg($doc_path), $output, $ret_val);
                 break;
             case 'text/rtf':
                 // Note: correct handling of code pages in unrtf
                 // on debian lenny unrtf v0.19.2 can not, but unrtf v0.20.5 can
-                exec("unrtf --text $doc_path", $output, $ret_val);
+                exec("unrtf --text ".escapeshellarg($doc_path), $output, $ret_val);
                 if ($ret_val == 127) { // command not found
                     return false;
                 }
@@ -3245,10 +3254,10 @@ class DocumentManager
                 }
                 break;
             case 'application/vnd.ms-powerpoint':
-                exec("catppt $doc_path", $output, $ret_val);
+                exec("catppt ".escapeshellarg($doc_path), $output, $ret_val);
                 break;
             case 'application/vnd.ms-excel':
-                exec("xls2csv -c\" \" $doc_path", $output, $ret_val);
+                exec("xls2csv -c\" \" ".escapeshellarg($doc_path), $output, $ret_val);
                 break;
         }
 
@@ -7166,6 +7175,41 @@ class DocumentManager
             $search,
             $sessionId
         );
+    }
+
+    public static function autoResizeImageIfNeeded(int $size, string $tmpName): int
+    {
+        $resizeMax = api_get_configuration_value('wysiwyg_image_auto_resize_max');
+
+        if (is_array($resizeMax)) {
+            if ($size > ($resizeMax['mb'] * 1024 * 1024)) {
+                throw new Exception(get_lang('UplFileTooBig'));
+            }
+
+            $temp = new Image($tmpName);
+            $pictureInfo = $temp->get_image_info();
+
+            $thumbSize = 0;
+
+            if ($pictureInfo['width'] > $pictureInfo['height']) {
+                if ($pictureInfo['width'] > $resizeMax['w']) {
+                    $thumbSize = $resizeMax['w'];
+                }
+            } else {
+                if ($pictureInfo['height'] > $resizeMax['h']) {
+                    $thumbSize = $resizeMax['h'];
+                }
+            }
+
+            if ($thumbSize) {
+                $temp->resize($thumbSize);
+                $temp->send_image($tmpName);
+
+                return filesize($tmpName);
+            }
+        }
+
+        return $size;
     }
 
     /**

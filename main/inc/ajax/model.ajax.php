@@ -166,6 +166,11 @@ if (($search || $forceSearch) && ($search !== 'false')) {
         $filters = json_decode($_REQUEST['filters2']);
     }
 
+    if (!empty($filters) && isset($filters->groupOp)) {
+        $op = strtoupper((string) $filters->groupOp);
+        $filters->groupOp = in_array($op, ['AND', 'OR'], true) ? $op : 'AND';
+    }
+
     if (!empty($filters)) {
         if (in_array($action,
             [
@@ -251,10 +256,6 @@ if (($search || $forceSearch) && ($search !== 'false')) {
                 }
 
                 $whereCondition .= $extraQuestionCondition;
-
-                if (isset($filters->custom_dates)) {
-                    $whereCondition .= $filters->custom_dates;
-                }
             }
         } elseif (!empty($filters->rules)) {
             $whereCondition .= ' AND ( ';
@@ -569,10 +570,15 @@ switch ($action) {
         break;
     case 'get_work_pending_list':
         require_once api_get_path(SYS_CODE_PATH).'work/work.lib.php';
-        $courseId = $_REQUEST['course'] ?? 0;
+        $courseId = (int) ($_REQUEST['course'] ?? 0);
         $status = $_REQUEST['status'] ?? 0;
         if (isset($_REQUEST['work_parent_ids'])) {
-            $whereCondition = ' parent_id IN('.Security::remove_XSS($_REQUEST['work_parent_ids']).')';
+            $workParentIds = array_filter(
+                array_map('intval', explode(',', (string) $_REQUEST['work_parent_ids']))
+            );
+            if (!empty($workParentIds)) {
+                $whereCondition = ' parent_id IN('.implode(',', $workParentIds).')';
+            }
         }
         $count = getAllWork(
             null,
@@ -643,17 +649,19 @@ switch ($action) {
             true
         );
         break;
+
     case 'get_exercise_pending_results':
         if ((false === api_is_teacher()) && (false === api_is_session_admin())) {
             exit;
         }
-
-        $courseId = $_REQUEST['course_id'] ?? 0;
+        $search_start_date = isset($_REQUEST['start_date']) && !empty($_REQUEST['start_date']) ? $_REQUEST['start_date'] : null;
+        $search_end_date = isset($_REQUEST['end_date']) && !empty($_REQUEST['end_date']) ? $_REQUEST['end_date'] : null;
+        $courseId = (int) ($_REQUEST['course_id'] ?? 0);
         $exerciseId = $_REQUEST['exercise_id'] ?? 0;
         $status = $_REQUEST['status'] ?? 0;
         $questionType = $_REQUEST['questionType'] ?? 0;
-        $showAttemptsInSessions = (bool) $_REQUEST['showAttemptsInSessions'];
-        if (!empty($_GET['filter_by_user'])) {
+        $showAttemptsInSessions = $_REQUEST['showAttemptsInSessions'] ? true : false;
+        if (isset($_GET['filter_by_user']) && !empty($_GET['filter_by_user'])) {
             $filter_user = (int) $_GET['filter_by_user'];
             if (empty($whereCondition)) {
                 $whereCondition .= " te.exe_user_id  = '$filter_user'";
@@ -662,7 +670,7 @@ switch ($action) {
             }
         }
 
-        if (!empty($_GET['group_id_in_toolbar'])) {
+        if (isset($_GET['group_id_in_toolbar']) && !empty($_GET['group_id_in_toolbar'])) {
             $groupIdFromToolbar = (int) $_GET['group_id_in_toolbar'];
             if (!empty($groupIdFromToolbar)) {
                 if (empty($whereCondition)) {
@@ -679,6 +687,14 @@ switch ($action) {
 
         if (!empty($courseId)) {
             $whereCondition .= " AND te.c_id = $courseId";
+        }
+
+        // Filtrage sur la date de fin d'exercice (exe_date)
+        if (!empty($search_start_date)) {
+            $whereCondition .= " AND te.exe_date >= '".Database::escape_string($search_start_date)." 00:00:00'";
+        }
+        if (!empty($search_end_date)) {
+            $whereCondition .= " AND te.exe_date <= '".Database::escape_string($search_end_date)." 23:59:59'";
         }
 
         $count = ExerciseLib::get_count_exam_results(

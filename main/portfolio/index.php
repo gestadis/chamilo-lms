@@ -28,7 +28,7 @@ $httpRequest = HttpRequest::createFromGlobals();
 $action = $httpRequest->query->get('action', 'list');
 
 // It validates the management of categories will be only for admins
-if (in_array($action, ['list_categories', 'add_category', 'edit_category']) && !api_is_platform_admin()) {
+if (in_array($action, ['list_categories', 'add_category', 'edit_category', 'translate_category']) && !api_is_platform_admin()) {
     api_not_allowed(true);
 }
 
@@ -190,9 +190,8 @@ switch ($action) {
             break;
         }
 
-        if ($httpRequest->query->has('user')) {
-            $urlUser = $httpRequest->query->getInt('user');
-        }
+        $urlUser = $httpRequest->query->getInt('user');
+
         $controller->view($item, $urlUser);
 
         return;

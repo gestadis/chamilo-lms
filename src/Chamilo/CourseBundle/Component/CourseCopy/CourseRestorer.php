@@ -289,6 +289,36 @@ class CourseRestorer
     }
 
     /**
+     * Validates a relative path coming from an (untrusted) course backup
+     * archive before it is used in file operations.
+     *
+     * Rejects non-strings, path traversal (`..`) and null bytes, and optionally
+     * enforces that the path stays within an expected sub-directory. This
+     * prevents a tampered backup from escaping the course directory and writing
+     * an arbitrary file (ZIP-slip -> arbitrary file write -> RCE).
+     *
+     * @param mixed  $path
+     * @param string $requiredPrefix Sub-tree the path must start with (optional)
+     *
+     * @return bool True when the path is safe to use
+     */
+    private function isSafeBackupPath($path, $requiredPrefix = '')
+    {
+        if (!is_string($path)
+            || false !== strpos($path, '..')
+            || false !== strpos($path, "\0")
+        ) {
+            return false;
+        }
+
+        if ('' !== $requiredPrefix && 0 !== strpos($path, $requiredPrefix)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Restore documents.
      *
      * @param int    $session_id
@@ -312,6 +342,14 @@ class CourseRestorer
         $path = api_get_path(SYS_COURSE_PATH).$this->course->destination_path.'/';
         $originalFolderNameList = [];
         foreach ($resources[RESOURCE_DOCUMENT] as $id => $document) {
+            // Security: $document->path comes from the (possibly tampered)
+            // backup archive. Confine it to the "document" sub-tree and
+            // neutralize executable filenames to prevent arbitrary file write.
+            if (!$this->isSafeBackupPath($document->path, 'document')) {
+                continue;
+            }
+            $document->path = disable_dangerous_file($document->path);
+
             $my_session_id = empty($document->item_properties[0]['session_id']) ? 0 : $session_id;
 
             if (false === $respect_base_content && $session_id) {
@@ -1053,6 +1091,12 @@ class CourseRestorer
         if ($this->course->has_resources(RESOURCE_SCORM)) {
             $resources = $this->course->resources;
             foreach ($resources[RESOURCE_SCORM] as $document) {
+                // Security: confine the backup-supplied SCORM path to prevent a
+                // tampered backup from escaping the course directory (-> RCE).
+                if (!$this->isSafeBackupPath($document->path)) {
+                    continue;
+                }
+
                 $path = api_get_path(SYS_COURSE_PATH).$this->course->destination_path.'/';
                 @mkdir(dirname($path.$document->path), $perm, true);
                 if (file_exists($path.$document->path)) {
@@ -3680,6 +3724,7 @@ class CourseRestorer
                 unset($obj->params['id']);
                 unset($obj->params['iid']);
                 $obj->params['c_id'] = $this->destination_course_id;
+                $obj->params['session_id'] = $sessionId;
                 $last_id = Database::insert($table_attendance, $obj->params);
 
                 if (is_numeric($last_id)) {

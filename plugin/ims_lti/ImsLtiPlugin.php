@@ -2,6 +2,7 @@
 
 /* For license terms, see /license.txt */
 
+use Chamilo\CoreBundle\Component\Http\SafeHttp;
 use Chamilo\CoreBundle\Entity\Course;
 use Chamilo\CoreBundle\Entity\Session;
 use Chamilo\CourseBundle\Entity\CTool;
@@ -466,15 +467,25 @@ class ImsLtiPlugin extends Plugin
      */
     public function getLaunchUrlFromCartridge($configUrl)
     {
+        // SSRF guard (CWE-918): only fetch public http(s) targets. Reject
+        // loopback/private/reserved/link-local hosts and the cloud metadata
+        // endpoint before issuing any request.
+        $safeIp = SafeHttp::resolveSafeIp($configUrl);
+
+        if (null === $safeIp) {
+            throw new Exception($this->get_lang('NoAccessToUrl'));
+        }
+
         $options = [
             CURLOPT_CUSTOMREQUEST => 'GET',
             CURLOPT_POST => false,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER => false,
-            CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_ENCODING => '',
-            CURLOPT_SSL_VERIFYPEER => false,
         ];
+        // Forbid redirects/non-HTTP schemes and pin the validated IP to defeat
+        // DNS rebinding; restore TLS verification.
+        $options += SafeHttp::secureCurlOptions($configUrl, $safeIp);
 
         $ch = curl_init($configUrl);
         curl_setopt_array($ch, $options);
@@ -486,7 +497,13 @@ class ImsLtiPlugin extends Plugin
             throw new Exception($this->get_lang('NoAccessToUrl'));
         }
 
-        $xml = new SimpleXMLElement($content);
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($content, SimpleXMLElement::class, LIBXML_NONET);
+
+        if ($xml === false) {
+            throw new Exception($this->get_lang('LaunchUrlNotFound'));
+        }
+
         $result = $xml->xpath('blti:launch_url');
 
         if (empty($result)) {
@@ -718,7 +735,10 @@ class ImsLtiPlugin extends Plugin
             return null;
         }
 
-        return new SimpleXMLElement($request);
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($request, SimpleXMLElement::class, LIBXML_NONET);
+
+        return $xml !== false ? $xml : null;
     }
 
     /**

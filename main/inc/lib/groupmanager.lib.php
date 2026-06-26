@@ -1427,9 +1427,16 @@ class GroupManager
             return false;
         }
         $session_id = api_get_session_id();
+        $studentStatus = 5;
+        if (isset($session_id) && $session_id != 0) {
+            $studentStatus = 0;
+        }
         $complete_user_list = CourseManager::get_user_list_from_course_code(
             $_course['code'],
-            $session_id
+            $session_id,
+            null,
+            null,
+            $studentStatus
         );
         $groupIid = $groupInfo['iid'];
         $category = self::get_category_from_group($groupIid);
@@ -1448,6 +1455,7 @@ class GroupManager
         }
 
         $usersToAdd = [];
+        shuffle($complete_user_list);
         foreach ($complete_user_list as $userInfo) {
             $isSubscribed = self::is_subscribed($userInfo['user_id'], $groupInfo);
             if ($isSubscribed) {
@@ -2481,15 +2489,17 @@ class GroupManager
             }
         }
 
+        $hasCheckbox = api_is_allowed_to_edit(false, true) && count($group_list) > 1;
+        $defaultSortColumn = $hasCheckbox ? 1 : 0;
         $table = new SortableTableFromArrayConfig(
             $group_data,
-            1,
+            $defaultSortColumn,
             20,
             'group_category_'.$category_id
         );
         $table->set_additional_parameters(['category' => $category_id]);
         $column = 0;
-        if (api_is_allowed_to_edit(false, true) && count($group_list) > 1) {
+        if ($hasCheckbox) {
             $table->set_header($column++, '', false);
         }
         $table->set_header($column++, get_lang('Groups'));

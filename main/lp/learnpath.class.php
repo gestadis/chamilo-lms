@@ -2,6 +2,7 @@
 
 /* For licensing terms, see /license.txt */
 
+use Chamilo\CoreBundle\Component\Http\SafeHttp;
 use Chamilo\CoreBundle\Entity\Repository\CourseRepository;
 use Chamilo\CoreBundle\Entity\Repository\ItemPropertyRepository;
 use Chamilo\CourseBundle\Component\CourseCopy\CourseArchiver;
@@ -266,6 +267,8 @@ class learnpath
                     $lp_item_id_list[] = $row['iid'];
                     switch ($this->type) {
                         case 3: //aicc
+                            // @deprecated AICC support (lp_type=3) is deprecated and no longer executed.
+                            /*
                             $oItem = new aiccItem('db', $row['iid'], $course_id);
                             if (is_object($oItem)) {
                                 $my_item_id = $oItem->get_id();
@@ -283,6 +286,7 @@ class learnpath
                                     );
                                 }
                             }
+                            */
                             break;
                         case 2:
                             $oItem = new scormItem('db', $row['iid'], $course_id);
@@ -807,6 +811,7 @@ class learnpath
                 $type = 1;
                 break;
             case 'aicc':
+                // @deprecated AICC support (lp_type=3) is deprecated and no longer executed.
                 break;
         }
 
@@ -1077,7 +1082,8 @@ class learnpath
 
         self::toggle_publish($this->lp_id, 'i');
 
-        if ($this->type == 2 || $this->type == 3) {
+        // @deprecated AICC support (lp_type=3) is deprecated, only SCORM (type=2) deletes files.
+        if ($this->type == 2 /* || $this->type == 3*/) {
             // This is a scorm learning path, delete the files as well.
             $sql = "SELECT path FROM $lp
                     WHERE iid = ".$this->lp_id;
@@ -3928,6 +3934,8 @@ class learnpath
                     }
                     break;
                 case 3:
+                    // @deprecated AICC support (lp_type=3) is deprecated and no longer executed.
+                    /*
                     if ($this->debug > 2) {
                         error_log('In learnpath::get_link() '.__LINE__.' - Item type: '.$lp_item_type, 0);
                     }
@@ -3950,11 +3958,9 @@ class learnpath
                             // Distant url, return as is.
                             $file = $lp_item_path;
                             // Enabled and modified by Ivan Tcholakov, 16-OCT-2008.
-                            /*
-                            if (stristr($file,'<servername>') !== false) {
-                                $file = str_replace('<servername>', $course_path.'/scorm/'.$lp_path.'/', $lp_item_path);
-                            }
-                            */
+                            //if (stristr($file,'<servername>') !== false) {
+                            //    $file = str_replace('<servername>', $course_path.'/scorm/'.$lp_path.'/', $lp_item_path);
+                            //}
                             if (stripos($file, '<servername>') !== false) {
                                 //$file = str_replace('<servername>',$course_path.'/scorm/'.$lp_path.'/',$lp_item_path);
                                 $web_course_path = str_replace('https://', '', str_replace('http://', '', $course_path));
@@ -3979,6 +3985,7 @@ class learnpath
                     } else {
                         $file = 'lp_content.php?type=dir&'.api_get_cidreq();
                     }
+                    */
                     break;
                 case 4:
                     break;
@@ -5806,8 +5813,9 @@ class learnpath
         if ($this->current != 0 && isset($this->items[$this->current]) && is_object($this->items[$this->current])) {
             $type = $this->get_type();
             $item_type = $this->items[$this->current]->get_type();
+            // @deprecated AICC support (lp_type=3) is deprecated, condition removed.
             if (($type == 2 && $item_type != 'sco') ||
-                ($type == 3 && $item_type != 'au') ||
+                // ($type == 3 && $item_type != 'au') ||
                 (
                     $type == 1 && $item_type != TOOL_QUIZ && $item_type != TOOL_HOTPOTATOES &&
                     WhispeakAuthPlugin::isAllowedToSaveLpItem($this->current)
@@ -5863,6 +5871,8 @@ class learnpath
             }
             switch ($this->get_type()) {
                 case '3':
+                    // @deprecated AICC support (lp_type=3) is deprecated and no longer executed.
+                    /*
                     if ($this->items[$this->last]->get_type() != 'au') {
                         if ($debug) {
                             error_log('In learnpath::stop_previous_item() - '.$this->last.' in lp_type 3 is <> au');
@@ -5873,6 +5883,7 @@ class learnpath
                             error_log('In learnpath::stop_previous_item() - Item is an AU, saving is managed by AICC signals');
                         }
                     }
+                    */
                     break;
                 case '2':
                     if ($this->items[$this->last]->get_type() != 'sco') {
@@ -6940,7 +6951,8 @@ class learnpath
         $isConfigPage = false,
         $allowExpand = true,
         $action = '',
-        $extraField = []
+        $extraField = [],
+        $noEdition = false
     ) {
         $actionsRight = '';
         $lpId = $this->lp_id;
@@ -6981,23 +6993,25 @@ class learnpath
             ])
         );
 
-        $actionsLeft .= Display::url(
-            Display::return_icon(
-                'upload_audio.png',
-                get_lang('UpdateAllAudioFragments'),
-                '',
-                ICON_SIZE_MEDIUM
-            ),
-            'lp_controller.php?'.api_get_cidreq().'&'.http_build_query([
-                'action' => 'admin_view',
-                'lp_id' => $lpId,
-                'updateaudio' => 'true',
-            ])
-        );
+        if (!$noEdition) {
+            $actionsLeft .= Display::url(
+                Display::return_icon(
+                    'upload_audio.png',
+                    get_lang('UpdateAllAudioFragments'),
+                    '',
+                    ICON_SIZE_MEDIUM
+                ),
+                'lp_controller.php?'.api_get_cidreq().'&'.http_build_query([
+                    'action' => 'admin_view',
+                    'lp_id' => $lpId,
+                    'updateaudio' => 'true',
+                ])
+            );
+        }
 
         $subscriptionSettings = self::getSubscriptionSettings();
         $request = api_request_uri();
-        if (strpos($request, 'edit') === false) {
+        if ((strpos($request, 'edit') === false) && !$noEdition) {
             $actionsLeft .= Display::url(
                 Display::return_icon(
                     'settings.png',
@@ -7012,7 +7026,7 @@ class learnpath
             );
         }
 
-        if ((strpos($request, 'build') === false &&
+        if ((strpos($request, 'build') === false && !$noEdition &&
             strpos($request, 'add_item') === false) ||
             in_array($action, ['add_audio'])
         ) {
@@ -13329,7 +13343,7 @@ EOD;
     /**
      * Get the item of exercise type (evaluation type).
      *
-     * @return array The final evaluation. Otherwise return false
+     * @return learnpathItem The final evaluation. Otherwise return false
      */
     public function getFinalEvaluationItem()
     {
@@ -13342,7 +13356,7 @@ EOD;
             $exercises[] = $item;
         }
 
-        return array_pop($exercises);
+        return end($exercises);
     }
 
     /**
@@ -13430,43 +13444,51 @@ EOD;
 
         if ($protocolFixApplied == false) {
             if (strpos(api_get_path(WEB_PATH), $host) === false) {
-                // Check X-Frame-Options
-                $ch = curl_init();
-                $options = [
-                    CURLOPT_URL => $src,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HEADER => true,
-                    CURLOPT_FOLLOWLOCATION => true,
-                    CURLOPT_ENCODING => "",
-                    CURLOPT_AUTOREFERER => true,
-                    CURLOPT_CONNECTTIMEOUT => 120,
-                    CURLOPT_TIMEOUT => 120,
-                    CURLOPT_MAXREDIRS => 10,
-                ];
+                // Check X-Frame-Options through an SSRF guard (CWE-918): only
+                // probe public http(s) hosts. A target resolving to a
+                // loopback/private/reserved/link-local address (incl. the cloud
+                // metadata endpoint) is left untouched, exactly as the legacy
+                // path behaved when the request failed.
+                $safeIp = SafeHttp::resolveSafeIp($src);
 
-                $proxySettings = api_get_configuration_value('proxy_settings');
-                if (!empty($proxySettings) &&
-                    isset($proxySettings['curl_setopt_array'])
-                ) {
-                    $options[CURLOPT_PROXY] = $proxySettings['curl_setopt_array']['CURLOPT_PROXY'];
-                    $options[CURLOPT_PROXYPORT] = $proxySettings['curl_setopt_array']['CURLOPT_PROXYPORT'];
-                }
+                if (null !== $safeIp) {
+                    $ch = curl_init();
+                    $options = [
+                        CURLOPT_URL => $src,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_HEADER => true,
+                        CURLOPT_ENCODING => "",
+                        CURLOPT_CONNECTTIMEOUT => 120,
+                        CURLOPT_TIMEOUT => 120,
+                    ];
+                    // Forbid redirects/non-HTTP schemes and pin the validated IP
+                    // to defeat DNS rebinding; restore TLS verification.
+                    $options += SafeHttp::secureCurlOptions($src, $safeIp);
 
-                curl_setopt_array($ch, $options);
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch);
-                $headers = substr($response, 0, $httpCode['header_size']);
+                    $proxySettings = api_get_configuration_value('proxy_settings');
+                    if (!empty($proxySettings) &&
+                        isset($proxySettings['curl_setopt_array'])
+                    ) {
+                        $options[CURLOPT_PROXY] = $proxySettings['curl_setopt_array']['CURLOPT_PROXY'];
+                        $options[CURLOPT_PROXYPORT] = $proxySettings['curl_setopt_array']['CURLOPT_PROXYPORT'];
+                    }
 
-                $error = false;
-                if (stripos($headers, 'X-Frame-Options: DENY') > -1
-                    //|| stripos($headers, 'X-Frame-Options: SAMEORIGIN') > -1
-                ) {
-                    $error = true;
-                }
+                    curl_setopt_array($ch, $options);
+                    $response = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch);
+                    $headers = substr($response, 0, $httpCode['header_size']);
 
-                if ($error) {
-                    Session::write('x_frame_source', $src);
-                    $src = 'blank.php?error=x_frames_options';
+                    $error = false;
+                    if (stripos($headers, 'X-Frame-Options: DENY') > -1
+                        //|| stripos($headers, 'X-Frame-Options: SAMEORIGIN') > -1
+                    ) {
+                        $error = true;
+                    }
+
+                    if ($error) {
+                        Session::write('x_frame_source', $src);
+                        $src = 'blank.php?error=x_frames_options';
+                    }
                 }
             }
         }

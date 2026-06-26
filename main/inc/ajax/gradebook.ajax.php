@@ -56,6 +56,10 @@ switch ($action) {
         }
         break;*/
     case 'export_all_certificates':
+        if (!api_is_allowed_to_edit() && !api_is_student_boss()) {
+            exit;
+        }
+
         $categoryId = (int) $_GET['cat_id'];
         $filterOfficialCodeGet = isset($_GET['filter']) ? Security::remove_XSS($_GET['filter']) : null;
 
@@ -76,7 +80,19 @@ switch ($action) {
 
         $userList = implode(',', $userList);
 
-        shell_exec("php $commandScript $courseCode $sessionId $categoryId $userList > /dev/null &");
+        $command = sprintf(
+            "php %s %s %s %s",
+            escapeshellarg($commandScript),
+            escapeshellarg($courseCode),
+            escapeshellarg((string) $sessionId),
+            escapeshellarg((string) $categoryId)
+        );
+
+        if ('' !== $userList) {
+            $command .= ' '.escapeshellarg($userList);
+        }
+
+        shell_exec($command.' > /dev/null &');
         break;
     case 'verify_export_all_certificates':
         $categoryId = (int) $_GET['cat_id'];
